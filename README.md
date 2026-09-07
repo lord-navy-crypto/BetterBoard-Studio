@@ -52,6 +52,32 @@ physical input
 
 The canonical recipe id remains `analog_a0`, so it automatically uses the existing recipe/preflight/compile/upload/capture infrastructure. See [`docs/BENCH_01_ANALOG_CONTROL.md`](docs/BENCH_01_ANALOG_CONTROL.md).
 
+### Bench 02 — Sampling & Numerical Error
+
+Bench 02 deliberately reuses the real measurement package produced by Bench 01 instead of duplicating firmware. It turns an actual acquired ADC time series into a numerical-analysis experiment:
+
+```text
+real potentiometer motion
+→ UNO ADC samples
+→ BetterBoard measurement package
+→ sampling / timing / quantization analysis
+→ downsampling convergence
+→ finite-difference sensitivity
+→ trapezoidal-integration sensitivity
+→ float32-vs-float64 accumulation comparison
+```
+
+Run it on a BetterBoard measurement folder:
+
+```bash
+python3 scripts/bench02_numerical_error.py \
+  ~/Documents/BetterBoard/measurements/<measurement-folder>
+```
+
+It writes `bench02_summary.json`, `bench02_convergence.csv`, and `bench02_report.md` under the measurement folder. The finest available measured series is used only as an **empirical numerical baseline**, not exact physical truth. Bench 02 therefore complements, rather than replaces, Physical Lab's existing Taylor-series / floating-point / cancellation Numerical Error Analysis module.
+
+See [`docs/BENCH_02_NUMERICAL_ERROR.md`](docs/BENCH_02_NUMERICAL_ERROR.md).
+
 ### Circuit Lab — Phase A/B
 
 Circuit Lab is the first design-before-build interface in BetterBoard. It intentionally starts **without electrical simulation** so the product can establish a clean circuit graph and deterministic validation layer first.
@@ -78,6 +104,7 @@ See [`docs/CIRCUIT_LAB.md`](docs/CIRCUIT_LAB.md).
 - `recipe_preflight`: reports board core and missing libraries without automatically reinstalling existing packages
 - Numeric and diagnostic-text serial capture
 - Data Studio with multichannel snapshot and primary-observable plot
+- Bench 02 measured-series numerical-error analyzer
 - Task Center for preflight/prepare/compile/upload/capture/export operations
 - Developer view with the exact canonical `.ino` source
 - Physical Lab Measurement Bridge 0.2
@@ -127,13 +154,14 @@ Use the already-known working UNO-compatible board:
 6. **Bench 01** → connect the identified potentiometer safely to A0 → Compile & Upload → Capture.
 7. Turn the potentiometer and verify `raw_adc`, `normalized`, `nominal_voltage_v`, `pwm_command`, and `filtered_voltage_v` change coherently.
 8. Record a measurement package and inspect the full multichannel CSV plus Physical Lab compatibility export.
-9. MLX90393 comes later when a quantitative magnetic sensor is available.
-10. ADXL345 comes only after the exact photographed XYZ sensor module is identified or replaced with a confirmed module.
+9. **Bench 02** → run `python3 scripts/bench02_numerical_error.py <measurement-folder>` and inspect timing, quantization structure, downsampling convergence, derivative sensitivity, integration sensitivity, and float32/float64 accumulation differences.
+10. MLX90393 comes later when a quantitative magnetic sensor is available.
+11. ADXL345 comes only after the exact photographed XYZ sensor module is identified or replaced with a confirmed module.
 
 ## Project boundary
 
-- **BetterBoard:** visual circuit design, bounded rule checking, boards, devices, firmware, upload, serial, diagnostics, measurement packaging, experiment recipes.
-- **Physical Lab:** scientific models, calibration evidence, model/measurement comparison, Digital Twin, V&V.
+- **BetterBoard:** visual circuit design, bounded rule checking, boards, devices, firmware, upload, serial, diagnostics, measurement packaging, experiment recipes, and measured-series pre-analysis.
+- **Physical Lab:** scientific models, high-level numerical analysis, calibration evidence, model/measurement comparison, Digital Twin, V&V.
 - **OpenPenguin:** optional shared local-AI provider in future; not a hard dependency.
 
 ## License
