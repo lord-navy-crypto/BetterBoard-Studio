@@ -16,7 +16,7 @@ The previous Physical Lab Arduino/hardware work is now merged into BetterBoard a
 
 1. Blink LED
 2. Synthetic Signal
-3. Analog A0 / potentiometer
+3. **Bench 01 — Analog Control & Instrumentation**
 4. MLX90393 3-axis magnetic field
 5. ADXL345 3-axis acceleration template
 6. Photogate Timer
@@ -25,9 +25,28 @@ The previous Physical Lab Arduino/hardware work is now merged into BetterBoard a
 9. Random Walk Robot
 10. I2C Scanner
 
-The canonical measurement/control sources come from the latest earlier Physical Lab Hardware Pack v0.4 plus the standalone Blink test. Earlier v0.1–v0.3 generated packs are preserved under `archive/physical-lab-hardware-packs/` rather than silently discarded.
+The original measurement/control sources came from the earlier Physical Lab Hardware Pack v0.4 plus the standalone Blink test. Earlier v0.1–v0.4 generated packs remain preserved under `archive/physical-lab-hardware-packs/` for provenance. The former `analog_a0` / `AnalogDAQ` recipe is now the first BetterBoard-native evolution of that hardware layer: Bench 01.
 
-### New product layers
+### Bench 01
+
+Bench 01 turns a potentiometer or another already-identified, known-safe low-voltage analog source into a complete reference path:
+
+```text
+physical input
+→ A0 / ADC
+→ normalization
+→ nominal voltage conversion
+→ filtering
+→ PWM command
+→ serial measurement
+→ BetterBoard Data Studio
+→ measurement package
+→ optional Physical Lab bridge
+```
+
+The canonical recipe id remains `analog_a0`, so it automatically uses the existing recipe/preflight/compile/upload/capture infrastructure. See [`docs/BENCH_01_ANALOG_CONTROL.md`](docs/BENCH_01_ANALOG_CONTROL.md).
+
+### Product layers
 
 - Recipe Library with hardware, schema, library requirements and Physical Lab target mapping
 - `recipe_preflight`: reports board core and missing libraries without automatically reinstalling existing packages
@@ -36,7 +55,7 @@ The canonical measurement/control sources come from the latest earlier Physical 
 - Task Center for preflight/prepare/compile/upload/capture/export operations
 - Developer view with the exact canonical `.ino` source
 - Physical Lab Measurement Bridge 0.2
-- Embedded device/board/unit registries for the next Hardware Knowledge Layer
+- Embedded device/board/unit registries for the Hardware Knowledge Layer
 
 ## Physical Lab bridge
 
@@ -63,7 +82,7 @@ Prerequisites already expected on the development Mac:
 - `arduino-cli`
 
 ```bash
-cd BetterBoard-Studio-v0.2a
+cd BetterBoard-Studio-upload
 npm install
 npm run desktop:dev
 ```
@@ -74,17 +93,18 @@ BetterBoard does not automatically reinstall Arduino CLI or libraries that are a
 
 Use the already-known working UNO-compatible board:
 
-1. Refresh → confirm `/dev/cu.usbserial-10` if it remains the active port.
+1. Refresh → select the active USB serial device and explicit UNO profile.
 2. Blink → Preflight → Compile & Upload → verify the onboard `L` LED.
-3. Synthetic Signal → Compile & Upload → Capture → verify the graph.
-4. Synthetic Signal → Record 5 s package → verify all four bridge files.
-5. Analog A0 only after the potentiometer module's exact S/V/G pinout and safe voltage are confirmed.
-6. MLX90393 after the quantitative magnetic sensor is available.
-7. ADXL345 only after the exact acceleration sensor module is confirmed (or the recipe is adapted to the actual XYZ module).
+3. Synthetic Signal → Compile & Upload → Capture → verify the software data path.
+4. **Bench 01** → connect the identified potentiometer safely to A0 → Compile & Upload → Capture.
+5. Turn the potentiometer and verify `raw_adc`, `normalized`, `nominal_voltage_v`, `pwm_command`, and `filtered_voltage_v` change coherently.
+6. Record a measurement package and inspect the full multichannel CSV plus Physical Lab compatibility export.
+7. MLX90393 comes later when a quantitative magnetic sensor is available.
+8. ADXL345 comes only after the exact photographed XYZ sensor module is identified or replaced with a confirmed module.
 
 ## Project boundary
 
-- **BetterBoard:** boards, devices, firmware, upload, serial, diagnostics, measurement packaging.
+- **BetterBoard:** boards, devices, firmware, upload, serial, diagnostics, measurement packaging, experiment recipes.
 - **Physical Lab:** scientific models, calibration evidence, model/measurement comparison, Digital Twin, V&V.
 - **OpenPenguin:** optional shared local-AI provider in future; not a hard dependency.
 
