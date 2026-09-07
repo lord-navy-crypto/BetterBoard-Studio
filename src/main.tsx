@@ -1,10 +1,46 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import NumericalBenchSuite from './NumericalBenchSuite';
 import './styles.css';
+
+function Root() {
+  const [workspace, setWorkspace] = useState<'studio' | 'numerical'>('studio');
+
+  return <div style={{ minHeight: '100vh', background: '#0b0f13' }}>
+    <div style={{
+      height: 44,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      background: '#0d1217',
+      borderBottom: '1px solid #242a31',
+      position: 'sticky',
+      top: 0,
+      zIndex: 100,
+    }}>
+      <button
+        className={workspace === 'studio' ? 'primary' : 'ghost'}
+        style={{ padding: '7px 12px' }}
+        onClick={() => setWorkspace('studio')}
+      >
+        BetterBoard Studio
+      </button>
+      <button
+        className={workspace === 'numerical' ? 'primary' : 'ghost'}
+        style={{ padding: '7px 12px' }}
+        onClick={() => setWorkspace('numerical')}
+      >
+        Numerical Bench 01–03
+      </button>
+    </div>
+    {workspace === 'studio' ? <App /> : <NumericalBenchSuite />}
+  </div>;
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <Root />
   </React.StrictMode>,
 );
