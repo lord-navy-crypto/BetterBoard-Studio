@@ -23,6 +23,20 @@ EXPECTED = {
     'i2c_scanner': ('I2CScanner', 'I2CScanner.ino'),
 }
 
+# These recipes remain byte-for-byte inherited from the archived Physical Lab v0.4 pack.
+# analog_a0 intentionally evolved into BetterBoard Bench 01, while its v0.4 source remains
+# preserved inside the archived pack for provenance.
+V04_BYTE_IDENTICAL = {
+    'synthetic',
+    'magnetic_mlx90393',
+    'acceleration_adxl345',
+    'photogate',
+    'quadrature_encoder',
+    'pulse_rpm',
+    'random_walk_robot',
+    'i2c_scanner',
+}
+
 
 def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -38,10 +52,21 @@ def main() -> int:
     assert set(EXPECTED) == {r['id'] for r in catalog}
     assert any(b['fqbn'] == 'arduino:avr:uno' for b in boards)
     assert any(d['id'] == 'mlx90393' for d in devices)
-    assert 'uT' in units and 'm/s^2' in units
+    assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
     rust = LIB.read_text()
     frontend = APP.read_text()
+    by_id = {r['id']: r for r in catalog}
+    bench = by_id['analog_a0']
+    assert bench['title'].startswith('Bench 01')
+    assert bench['category'] == 'Bench'
+    assert bench['columns'] == [
+        'time_us', 'raw_adc', 'normalized', 'nominal_voltage_v',
+        'pwm_command', 'filtered_voltage_v'
+    ]
+    assert bench['primary_column'] == 'filtered_voltage_v'
+    assert bench['sample_rate_hz'] == 50.0
+
     for recipe in catalog:
         rid = recipe['id']
         folder, filename = EXPECTED[rid]
@@ -53,11 +78,10 @@ def main() -> int:
             assert len(recipe['columns']) == len(recipe['units']) > 0
             assert recipe['primary_column'] == recipe['columns'][-1]
         if rid != 'i2c_scanner' and recipe['capture_mode'] == 'numeric':
-            # Canonical acquisition firmware must end each record with numeric println output.
             text = source.read_text()
             assert 'Serial.println' in text, source
 
-    # The latest Physical Lab v0.4 firmware is canonical in BetterBoard.
+    # The earlier Physical Lab hardware packs remain archived intact.
     old = ROOT / 'archive' / 'physical-lab-hardware-packs'
     for name in [
         'PhysicalLab-Arduino-Measurement-Pack-v0.1.zip',
@@ -68,15 +92,20 @@ def main() -> int:
     ]:
         assert (old / name).is_file(), name
 
-    # Check exact canonical v0.4 sources against the archived v0.4 ZIP by extracting hashes in-memory.
+    # Verify byte-identical inherited v0.4 sources. Bench 01 is intentionally excluded
+    # because it is the first BetterBoard-native evolution of the older AnalogDAQ recipe.
     import zipfile
     with zipfile.ZipFile(old / 'PhysicalLab-Hardware-Pack-v0.4.zip') as zf:
-        for rid, (folder, filename) in EXPECTED.items():
-            if rid == 'blink':
-                continue
+        for rid in sorted(V04_BYTE_IDENTICAL):
+            folder, filename = EXPECTED[rid]
             archived_name = f'PhysicalLab-Hardware-Pack-v0.4/firmware/{folder}/{filename}'
             archived = zf.read(archived_name)
             assert hashlib.sha256(archived).hexdigest() == sha(RES / 'firmware' / folder / filename), archived_name
+
+        old_analog = zf.read('PhysicalLab-Hardware-Pack-v0.4/firmware/AnalogDAQ/AnalogDAQ.ino')
+        current_analog = (RES / 'firmware' / 'AnalogDAQ' / 'AnalogDAQ.ino').read_bytes()
+        assert hashlib.sha256(old_analog).hexdigest() != hashlib.sha256(current_analog).hexdigest()
+        assert b'BetterBoard Bench 01' in current_analog
 
     # Current bridge contract must be explicit.
     for token in ['physical_lab_v1.csv', 'timestamp,value', 'betterboard.measurement/0.2', 'source_type']:
@@ -100,8 +129,9 @@ def main() -> int:
 
     print('BetterBoard Studio v0.2 self-check: PASS')
     print('- 10 canonical recipes registered')
-    print('- Physical Lab v0.4 firmware hashes preserved exactly')
-    print('- v0.1-v0.4 prior packs archived for provenance')
+    print('- Bench 01 analog control/instrumentation recipe registered')
+    print('- inherited Physical Lab v0.4 firmware hashes preserved where intended')
+    print('- archived v0.4 AnalogDAQ retained while current analog_a0 evolved into Bench 01')
     print('- full multichannel + Physical Lab v1 compatibility bridge present')
     print('- frontend invoke / Rust handler contract consistent')
     return 0
