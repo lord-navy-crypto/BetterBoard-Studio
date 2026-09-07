@@ -8,11 +8,15 @@ edition = "2021"
 name = "betterboard_studio_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# Tauri 2.11.x currently resolves to tao 0.35.x, which has a known
+# applicationDidFinishLaunching abort on macOS 26.5.x / Apple Silicon.
+# Keep the desktop runtime on the stable 2.10 line until the upstream
+# macOS 26 lifecycle issue is fixed in a released Tauri runtime.
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "=2.5.6", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "=2.10.3", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serialport = "4.6"
