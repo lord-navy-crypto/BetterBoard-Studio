@@ -54,6 +54,24 @@
     "boundary": "Use only inputs within the board's supported analog range. Nominal voltage, filtering, and endpoint scaling do not by themselves establish calibration accuracy or traceability."
   },
   {
+    "id": "numerical_embedded",
+    "title": "Bench 03 — Embedded Numerical Reliability",
+    "category": "Numerical Bench",
+    "description": "Run the Numerical Error Analysis Taylor recurrence on the real MCU and capture parameter-scan, convergence, cancellation, stopping-rule, timing, and floating-point-environment evidence.",
+    "sketch_name": "EmbeddedNumericalReliability",
+    "capture_mode": "numeric",
+    "baud": 115200,
+    "columns": ["study_code", "method_code", "x_bits", "x", "term_limit", "reduced_x", "approximation", "terms_used", "last_term", "cancellation_ratio", "stop_rule", "finite", "elapsed_us", "float_bytes", "double_bytes", "float_epsilon"],
+    "units": ["code", "code", "bits", "rad", "count", "rad", "1", "count", "1", "1", "bool", "bool", "us", "byte", "byte", "1"],
+    "primary_column": "float_epsilon",
+    "sample_rate_hz": null,
+    "required_libraries": [],
+    "hardware": ["UNO-compatible board", "USB data cable"],
+    "physical_lab_targets": ["Numerical Error Analysis", "Embedded numerical reliability evidence"],
+    "notes": ["No external sensor is required.", "study_code 1 is the x-parameter scan; study_code 2 is fixed-term convergence at x=80.", "method_code 0 is raw Taylor; method_code 1 is range-reduced Taylor.", "Use scripts/bench03_embedded_numerical.py for reference-based accuracy, ULP, false-convergence, and reliability decisions."],
+    "boundary": "The MCU can establish its arithmetic result, stopping behavior, cancellation indicator, timing, and reported floating-point environment, but it cannot establish reference accuracy by itself. Host-oracle analysis remains a separate evidence step."
+  },
+  {
     "id": "magnetic_mlx90393",
     "title": "3-axis Magnetic Field",
     "category": "Measure",
