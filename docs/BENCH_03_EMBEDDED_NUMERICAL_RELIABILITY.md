@@ -74,7 +74,6 @@ x_bits,
 x,
 term_limit,
 reduced_x,
-approximation,
 terms_used,
 last_term,
 cancellation_ratio,
@@ -83,12 +82,17 @@ finite,
 elapsed_us,
 float_bytes,
 double_bytes,
-float_epsilon
+float_epsilon,
+approximation
 ```
+
+`approximation` is intentionally the final field so BetterBoard's current Physical Lab v1 compatibility exporter carries the embedded numerical result as its primary observable.
 
 `x_bits` preserves the binary32 bit pattern of the actual MCU input, allowing the host oracle to evaluate the same represented input rather than a rounded display string.
 
 The firmware also reports `sizeof(float)`, `sizeof(double)`, and `FLT_EPSILON`; BetterBoard therefore records the arithmetic environment actually produced by the toolchain instead of silently assuming it.
+
+The canonical v0.2 serial pipeline requires numeric fields. If the recurrence becomes non-finite, `finite = 0` records that fact and the affected numeric payload field is emitted as a numeric placeholder instead of textual `NaN`/`Inf`, so the row is not silently discarded by the numeric parser.
 
 ## Responsibility split
 
