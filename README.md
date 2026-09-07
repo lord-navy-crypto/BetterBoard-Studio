@@ -8,6 +8,12 @@ BetterBoard does not try to be another Arduino IDE skin. It turns the setup chai
 Goal → Board → Recipe → Preflight → Compile → Upload → Capture → Measurement
 ```
 
+A new Circuit Lab layer now adds a design-before-build path:
+
+```text
+Visual design → Rule Checker → real-hardware handoff
+```
+
 ## What changed in v0.2
 
 The previous Physical Lab Arduino/hardware work is now merged into BetterBoard as a real firmware and measurement layer.
@@ -46,8 +52,28 @@ physical input
 
 The canonical recipe id remains `analog_a0`, so it automatically uses the existing recipe/preflight/compile/upload/capture infrastructure. See [`docs/BENCH_01_ANALOG_CONTROL.md`](docs/BENCH_01_ANALOG_CONTROL.md).
 
+### Circuit Lab — Phase A/B
+
+Circuit Lab is the first design-before-build interface in BetterBoard. It intentionally starts **without electrical simulation** so the product can establish a clean circuit graph and deterministic validation layer first.
+
+Current capabilities:
+
+- visual Arduino component blocks with named pins
+- drag-to-layout editor
+- click-pin → click-pin wiring
+- live wiring list and component inspector
+- local save/load and circuit JSON copy
+- Bench 01 reference layout
+- bounded low-voltage Rule Checker
+- one-click handoff from the Bench 01 design to the existing `analog_a0` firmware workflow
+
+The current Rule Checker catches selected known mistakes such as direct power-to-ground wiring, power rail to I/O connections, incorrect potentiometer signal routing, missing expected ground/power connections, and LED output paths without a series resistor. A pass is **not** a SPICE result, safety certification, current/thermal calculation, or proof that an unknown module is safe at a chosen voltage.
+
+See [`docs/CIRCUIT_LAB.md`](docs/CIRCUIT_LAB.md).
+
 ### Product layers
 
+- Circuit Lab: Visual Wiring Editor + Rule Checker
 - Recipe Library with hardware, schema, library requirements and Physical Lab target mapping
 - `recipe_preflight`: reports board core and missing libraries without automatically reinstalling existing packages
 - Numeric and diagnostic-text serial capture
@@ -93,18 +119,20 @@ BetterBoard does not automatically reinstall Arduino CLI or libraries that are a
 
 Use the already-known working UNO-compatible board:
 
-1. Refresh → select the active USB serial device and explicit UNO profile.
-2. Blink → Preflight → Compile & Upload → verify the onboard `L` LED.
-3. Synthetic Signal → Compile & Upload → Capture → verify the software data path.
-4. **Bench 01** → connect the identified potentiometer safely to A0 → Compile & Upload → Capture.
-5. Turn the potentiometer and verify `raw_adc`, `normalized`, `nominal_voltage_v`, `pwm_command`, and `filtered_voltage_v` change coherently.
-6. Record a measurement package and inspect the full multichannel CSV plus Physical Lab compatibility export.
-7. MLX90393 comes later when a quantitative magnetic sensor is available.
-8. ADXL345 comes only after the exact photographed XYZ sensor module is identified or replaced with a confirmed module.
+1. Open **Circuit Lab** → load `Bench 01 template` → verify the Rule Checker reports no known rule violation.
+2. Click `Use Bench 01 firmware` to move into the real hardware workflow.
+3. Refresh → select the active USB serial device and explicit UNO profile.
+4. Blink → Preflight → Compile & Upload → verify the onboard `L` LED.
+5. Synthetic Signal → Compile & Upload → Capture → verify the software data path.
+6. **Bench 01** → connect the identified potentiometer safely to A0 → Compile & Upload → Capture.
+7. Turn the potentiometer and verify `raw_adc`, `normalized`, `nominal_voltage_v`, `pwm_command`, and `filtered_voltage_v` change coherently.
+8. Record a measurement package and inspect the full multichannel CSV plus Physical Lab compatibility export.
+9. MLX90393 comes later when a quantitative magnetic sensor is available.
+10. ADXL345 comes only after the exact photographed XYZ sensor module is identified or replaced with a confirmed module.
 
 ## Project boundary
 
-- **BetterBoard:** boards, devices, firmware, upload, serial, diagnostics, measurement packaging, experiment recipes.
+- **BetterBoard:** visual circuit design, bounded rule checking, boards, devices, firmware, upload, serial, diagnostics, measurement packaging, experiment recipes.
 - **Physical Lab:** scientific models, calibration evidence, model/measurement comparison, Digital Twin, V&V.
 - **OpenPenguin:** optional shared local-AI provider in future; not a hard dependency.
 
