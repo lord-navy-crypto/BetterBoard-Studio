@@ -76,7 +76,8 @@ export default function App() {
 
   function addTask(title: string, detail = 'Starting…') {
     const id = Date.now() + Math.floor(Math.random() * 1000);
-    setTasks(current => [{ id, title, state: 'running', detail }, ...current].slice(0, 8));
+    const task: Task = { id, title, state: 'running', detail };
+    setTasks(current => [task, ...current].slice(0, 8));
     return id;
   }
   function finishTask(id: number, state: 'done' | 'failed', detail: string) {
