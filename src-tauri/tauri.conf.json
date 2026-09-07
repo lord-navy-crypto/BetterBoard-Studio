@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BetterBoard Studio",
+  "version": "0.2.0-alpha.1",
+  "identifier": "com.betterboard.studio",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "BetterBoard Studio",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 980,
+        "minHeight": 680
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "Easier physical computing workflows",
+    "longDescription": "Goal-first board and sensor workflows with a Physical Lab measurement bridge."
+  }
+}

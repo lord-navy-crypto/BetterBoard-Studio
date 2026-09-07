@@ -1,0 +1,15 @@
+{
+  "1": {"dimension":"dimensionless","canonical":"1","factor":1.0},
+  "count": {"dimension":"count","canonical":"count","factor":1.0},
+  "us": {"dimension":"time","canonical":"s","factor":0.000001},
+  "ms": {"dimension":"time","canonical":"s","factor":0.001},
+  "Hz": {"dimension":"frequency","canonical":"Hz","factor":1.0},
+  "uT": {"dimension":"magnetic-field","canonical":"T","factor":0.000001},
+  "mT": {"dimension":"magnetic-field","canonical":"T","factor":0.001},
+  "T": {"dimension":"magnetic-field","canonical":"T","factor":1.0},
+  "m/s^2": {"dimension":"acceleration","canonical":"m/s^2","factor":1.0},
+  "deg": {"dimension":"angle","canonical":"rad","factor":0.017453292519943295},
+  "rpm": {"dimension":"angular-speed","canonical":"rad/s","factor":0.10471975511965977},
+  "quarter_turn": {"dimension":"angle","canonical":"rad","factor":1.5707963267948966},
+  "PWM": {"dimension":"command","canonical":"PWM","factor":1.0}
+}

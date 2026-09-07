@@ -1,0 +1,241 @@
+{
+  "product": "BetterBoard Studio",
+  "version": "0.2.0-alpha.1",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "97831ebab41252c503809d7d002bd5c184e3628cb5d45765f58050bb18e72be1",
+      "bytes": 916
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "04d986e18b13238d0de3b055588a377b448170c1040b2660edf2701670f81c32",
+      "bytes": 1088
+    },
+    {
+      "path": "README.md",
+      "sha256": "3d3ca7ec1b913b12635800e969bb9a2c721135f20b28ad6cd98b7aa8898d1bf4",
+      "bytes": 3925
+    },
+    {
+      "path": "archive/physical-lab-hardware-packs/PhysicalLab-Arduino-Measurement-Pack-v0.1.zip",
+      "sha256": "e66fc123193961705876d9505228fe67eb76f19a9acd7d0e418e201d074b6531",
+      "bytes": 8218
+    },
+    {
+      "path": "archive/physical-lab-hardware-packs/PhysicalLab-Arduino-Measurement-Pack-v0.2.zip",
+      "sha256": "1a1e1b5718d720e8016ae130e1ff543e2d75d04257520eb768f11c3fac12c6c3",
+      "bytes": 10367
+    },
+    {
+      "path": "archive/physical-lab-hardware-packs/PhysicalLab-Arduino-Measurement-Pack-v0.3.zip",
+      "sha256": "57b961a25cc05bb0a97c0765f3a623d1381c44e7e092ca07810857a3ec6f78de",
+      "bytes": 11786
+    },
+    {
+      "path": "archive/physical-lab-hardware-packs/PhysicalLab-Hardware-Pack-v0.4.zip",
+      "sha256": "609b670a5529121817d53f7fa2319cc179ae46190fc906a8a13d0f722f0db76f",
+      "bytes": 10691
+    },
+    {
+      "path": "archive/physical-lab-hardware-packs/PhysicalLab_UNO_Blink_Test.ino",
+      "sha256": "a8558ef703ad269ed25a25ec1e4af4a28638569fe32903a9698ad7637d486854",
+      "bytes": 382
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "sha256": "eecf918d13e64775df7e31b57d7c4db76c8a22d71edef39a99016105c7910272",
+      "bytes": 3590
+    },
+    {
+      "path": "docs/INTEGRATION_LEDGER.md",
+      "sha256": "85243f7815f406d4b5afc702002ed2aac3c8aaac4d9760ff885b5b462e3b5a05",
+      "bytes": 1106
+    },
+    {
+      "path": "docs/PHYSICAL_LAB_BRIDGE.md",
+      "sha256": "0b6330d8631738b4e995c56ab416d3a1860237ce019ea372d6aef3d5705bcb1e",
+      "bytes": 2330
+    },
+    {
+      "path": "fixtures/synthetic-bridge/data.csv",
+      "sha256": "4abb0e3f14288125a848c37a71bd6e97361e62f46623ce5f403e0a3e56f45b39",
+      "bytes": 82
+    },
+    {
+      "path": "fixtures/synthetic-bridge/metadata.json",
+      "sha256": "50deb889f344caa9e76976e041a707c44bf8876b7f0702e93287e7112b7168b0",
+      "bytes": 348
+    },
+    {
+      "path": "fixtures/synthetic-bridge/physical_lab_bridge.json",
+      "sha256": "ccfdacb8444af38a5d1c674da330e7fd6aeb5c9770f77d4e9454aa90fdf5dd08",
+      "bytes": 233
+    },
+    {
+      "path": "fixtures/synthetic-bridge/physical_lab_v1.csv",
+      "sha256": "17d200abd43b6c76ec975df043806b3f6fcfe2f7a7a91475ca21abb499e73794",
+      "bytes": 108
+    },
+    {
+      "path": "index.html",
+      "sha256": "8c833144325aa59af772cfcd77c15e7f7cccee361714a7c501024dcdf6ec0771",
+      "bytes": 355
+    },
+    {
+      "path": "package.json",
+      "sha256": "6fe1b1391119bfbb27bac4cee48810f7dcebd2b640f07a367736dd24f91cfb5c",
+      "bytes": 602
+    },
+    {
+      "path": "scripts/compile_all.py",
+      "sha256": "ccc39105fa05c81f184e11a4f84afc81746f23387ddd5dcca9372362ca223a9d",
+      "bytes": 1284
+    },
+    {
+      "path": "scripts/self_check.py",
+      "sha256": "c294a80d3a1be0d5450fa856c16b4cb1399f25345b62502cd18754ef29d5ae63",
+      "bytes": 5024
+    },
+    {
+      "path": "src/App.tsx",
+      "sha256": "fe29020a0575d6518e397b61d7bad6a583aff4e691b421541152e72a61429cfe",
+      "bytes": 22197
+    },
+    {
+      "path": "src/main.tsx",
+      "sha256": "240903a71d5933c9b6910e054295ec4551c18803cd024ad6ef6d52134d96202a",
+      "bytes": 238
+    },
+    {
+      "path": "src/styles.css",
+      "sha256": "8ef004fe784ca70d6127e6a2ffc3bb13ca564cb5858682bf425abcfce418ab66",
+      "bytes": 7558
+    },
+    {
+      "path": "src-tauri/Cargo.toml",
+      "sha256": "869f3f280fad711989067b52dd011a2cb109f0eeb0beea65c2342b8e99f72f2b",
+      "bytes": 529
+    },
+    {
+      "path": "src-tauri/build.rs",
+      "sha256": "487059eaf8a947b80f20a9aacac038a5047b2ad69d2401b827376c67d6fe847f",
+      "bytes": 39
+    },
+    {
+      "path": "src-tauri/resources/boards/boards.json",
+      "sha256": "393986aa925811257a0686a4b5be4017c3616add4599f89ae4b2e72f1b2dcbd7",
+      "bytes": 905
+    },
+    {
+      "path": "src-tauri/resources/devices/devices.json",
+      "sha256": "702e726842756fca0a10ac4d6405b9e46821a36d7cc8ba4d0e02246f5575e9d4",
+      "bytes": 1435
+    },
+    {
+      "path": "src-tauri/resources/devices/units.json",
+      "sha256": "d557ddbe2fcfba30cb65e06e76c62a3ea5784b18b64d6aececf458c75964d940",
+      "bytes": 935
+    },
+    {
+      "path": "src-tauri/resources/firmware/Accelerometer_ADXL345/Accelerometer_ADXL345.ino",
+      "sha256": "b6e907b4f61beca1d9056c139ff2c4ae6175c9f7ebd9143d9c2a81a058b0a34e",
+      "bytes": 1443
+    },
+    {
+      "path": "src-tauri/resources/firmware/AnalogDAQ/AnalogDAQ.ino",
+      "sha256": "04c66ce1359304460eb63301d4637ebfa3b443e5e6b994b72f7e193a5ffe1714",
+      "bytes": 454
+    },
+    {
+      "path": "src-tauri/resources/firmware/Blink_LED/Blink_LED.ino",
+      "sha256": "a8558ef703ad269ed25a25ec1e4af4a28638569fe32903a9698ad7637d486854",
+      "bytes": 382
+    },
+    {
+      "path": "src-tauri/resources/firmware/I2CScanner/I2CScanner.ino",
+      "sha256": "511cdefdeb8cc32832c4f1d5b82f6981e52962b1b8d5d5a06c81e9b67b775f2f",
+      "bytes": 606
+    },
+    {
+      "path": "src-tauri/resources/firmware/MagneticField_MLX90393/MagneticField_MLX90393.ino",
+      "sha256": "85e8e51627f86b89bf1ca601d3f98734ed95d04b9e678ea787664d882d374396",
+      "bytes": 1153
+    },
+    {
+      "path": "src-tauri/resources/firmware/PhotogateTimer/PhotogateTimer.ino",
+      "sha256": "b26686fe4e0fca3e6bb661308795c79294e2881890bb822fa92a9977abf3ae4a",
+      "bytes": 1243
+    },
+    {
+      "path": "src-tauri/resources/firmware/PulseRPM/PulseRPM.ino",
+      "sha256": "a20d1dfeb9efacaa195c168d7f0a53a00bfaf6a9b694aef5e4d3a6b97b576ef0",
+      "bytes": 1175
+    },
+    {
+      "path": "src-tauri/resources/firmware/QuadratureEncoder/QuadratureEncoder.ino",
+      "sha256": "0c371e99f6b3958428c034264610a2ebb436d93957d9db6206dd8e196123e184",
+      "bytes": 1261
+    },
+    {
+      "path": "src-tauri/resources/firmware/RandomWalkRobot/RandomWalkRobot.ino",
+      "sha256": "66cbe3fae59fea191440ba55e2c76526d34761e9c5bfa2b8a9afd7201a82de41",
+      "bytes": 2568
+    },
+    {
+      "path": "src-tauri/resources/firmware/SyntheticSignal/SyntheticSignal.ino",
+      "sha256": "f8823c950ce9f30822505159e609bd4641bf010df0a09d5ab5531fd8427577b0",
+      "bytes": 535
+    },
+    {
+      "path": "src-tauri/resources/physical-lab/HONEYCOMB_MECHANICAL_ANALOGUE.md",
+      "sha256": "7f8abc4bd25976540f71549af3704647d0187e9560a02cf05e783a4b33523b4a",
+      "bytes": 812
+    },
+    {
+      "path": "src-tauri/resources/physical-lab/PHYSERIAL_V0_2.md",
+      "sha256": "9e1880a7d7f13dd17f40cbae2f5113a012120581d70ed060379fbe1bee32a376",
+      "bytes": 717
+    },
+    {
+      "path": "src-tauri/resources/physical-lab/PHYSICAL_LAB_HARDWARE_MAP.md",
+      "sha256": "f6963b6aa8205a3c20df6523e5650b21910d0a79306c4290b9d113097815b35f",
+      "bytes": 1682
+    },
+    {
+      "path": "src-tauri/resources/physical-lab/USB_CONNECTION_NOTES.md",
+      "sha256": "bd9be44671c1726803c27a1a280843c5fb667139fa0bef017ead296d22fd38c3",
+      "bytes": 879
+    },
+    {
+      "path": "src-tauri/resources/recipes/catalog.json",
+      "sha256": "70058043d99fe3d1d2b1d1359318cbb1924cc1c3be222d8768f07faafd1e6c86",
+      "bytes": 8670
+    },
+    {
+      "path": "src-tauri/src/lib.rs",
+      "sha256": "69bf2f9975c7d94ffb032b2f97c6adb88272e2bcbf5a3b0edd3c5fd661531645",
+      "bytes": 21934
+    },
+    {
+      "path": "src-tauri/src/main.rs",
+      "sha256": "2f0a68663063d3990ea5d38075dda44082c29c76fbfcccd063b172f43a19cc72",
+      "bytes": 49
+    },
+    {
+      "path": "src-tauri/tauri.conf.json",
+      "sha256": "e752459914aa73f1d3ffe721bf632ecfb1815a9b3a36c70fefb652b37ef27e05",
+      "bytes": 816
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "83efc1798334967d5a907f26b8cba31fa213f16b5ac0ed5c02fd38e7cf0ceb66",
+      "bytes": 527
+    },
+    {
+      "path": "vite.config.ts",
+      "sha256": "16268ec996c38822752b5c067087de748bb62b599fbe3dc47450f44a577583ed",
+      "bytes": 213
+    }
+  ]
+}

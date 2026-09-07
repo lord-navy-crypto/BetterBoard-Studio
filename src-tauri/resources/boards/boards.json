@@ -1,0 +1,26 @@
+[
+  {
+    "id": "uno",
+    "label": "Arduino UNO / compatible (ATmega328P)",
+    "fqbn": "arduino:avr:uno",
+    "core": "arduino:avr",
+    "default_baud": 115200,
+    "notes": ["Compatible USB-serial boards may appear with Board Name Unknown.", "Profile selection remains explicit rather than guessing from a serial chip."]
+  },
+  {
+    "id": "nano",
+    "label": "Arduino Nano / compatible",
+    "fqbn": "arduino:avr:nano",
+    "core": "arduino:avr",
+    "default_baud": 115200,
+    "notes": ["Some classic Nano clones may require processor-specific upload options; BetterBoard does not guess those yet."]
+  },
+  {
+    "id": "mega",
+    "label": "Arduino Mega 2560 / compatible",
+    "fqbn": "arduino:avr:mega",
+    "core": "arduino:avr",
+    "default_baud": 115200,
+    "notes": ["Initial recipes are authored against the UNO pin conventions; review pin assignments before using non-UNO boards."]
+  }
+]
