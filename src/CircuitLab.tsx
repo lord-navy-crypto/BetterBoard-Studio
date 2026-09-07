@@ -99,7 +99,7 @@ const SPECS: Record<ComponentKind, ComponentSpec> = {
 const blankDesign = (): CircuitDesign => ({
   schema: 'betterboard.circuit-design/0.1',
   name: 'Untitled circuit',
-  components: [{ id: 'uno-1', kind: 'uno', x: 380, y: 230 }],
+  components: [{ id: 'uno-1', kind: 'uno', x: 360, y: 230 }],
   wires: [],
 });
 
@@ -107,10 +107,10 @@ const bench01Design = (): CircuitDesign => ({
   schema: 'betterboard.circuit-design/0.1',
   name: 'Bench 01 — Analog Control & Instrumentation',
   components: [
-    { id: 'pot-1', kind: 'potentiometer', x: 80, y: 220 },
-    { id: 'uno-1', kind: 'uno', x: 390, y: 190 },
-    { id: 'res-1', kind: 'resistor', x: 720, y: 188 },
-    { id: 'led-1', kind: 'led', x: 930, y: 178 },
+    { id: 'pot-1', kind: 'potentiometer', x: 48, y: 230 },
+    { id: 'uno-1', kind: 'uno', x: 330, y: 195 },
+    { id: 'res-1', kind: 'resistor', x: 640, y: 195 },
+    { id: 'led-1', kind: 'led', x: 850, y: 185 },
   ],
   wires: [
     { id: 'w1', from: { componentId: 'uno-1', pinId: '5v' }, to: { componentId: 'pot-1', pinId: 'vcc' } },
@@ -256,7 +256,7 @@ function runRuleChecker(components: PlacedComponent[], wires: Wire[]): Issue[] {
 function defaultDropPosition(index: number) {
   const column = index % 4;
   const row = Math.floor(index / 4);
-  return { x: 60 + column * 230, y: 80 + row * 180 };
+  return { x: 45 + column * 205, y: 70 + row * 165 };
 }
 
 export default function CircuitLab({ onUseRecipe }: Props) {
@@ -375,11 +375,17 @@ export default function CircuitLab({ onUseRecipe }: Props) {
     const rect = canvas.getBoundingClientRect();
     setDesign(current => ({
       ...current,
-      components: current.components.map(component => component.id === drag.id ? {
-        ...component,
-        x: Math.max(4, Math.min(1100, event.clientX - rect.left - drag.dx)),
-        y: Math.max(4, Math.min(650, event.clientY - rect.top - drag.dy)),
-      } : component),
+      components: current.components.map(component => {
+        if (component.id !== drag.id) return component;
+        const spec = SPECS[component.kind];
+        const maxX = Math.max(4, rect.width - spec.width - 4);
+        const maxY = Math.max(4, rect.height - spec.height - 4);
+        return {
+          ...component,
+          x: Math.max(4, Math.min(maxX, event.clientX - rect.left - drag.dx)),
+          y: Math.max(4, Math.min(maxY, event.clientY - rect.top - drag.dy)),
+        };
+      }),
     }));
   }
 
@@ -421,7 +427,7 @@ export default function CircuitLab({ onUseRecipe }: Props) {
       <div className="panel circuit-canvas-panel">
         <div className="canvas-header"><div><b>{design.name}</b><span>{design.components.length} components · {design.wires.length} wires</span></div><small>Click one pin, then another. Drag blocks to move them.</small></div>
         <div className="circuit-canvas" onPointerMove={moveDrag} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>
-          <svg className="wire-layer" viewBox="0 0 1200 720" preserveAspectRatio="none">
+          <svg className="wire-layer" aria-hidden="true">
             {design.wires.map(wire => {
               const fromFound = findPin(design.components, wire.from);
               const toFound = findPin(design.components, wire.to);
