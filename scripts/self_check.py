@@ -9,11 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / 'src-tauri' / 'resources'
 LIB = ROOT / 'src-tauri' / 'src' / 'lib.rs'
 APP = ROOT / 'src' / 'App.tsx'
+NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuite.tsx'
 
 EXPECTED = {
     'blink': ('Blink_LED', 'Blink_LED.ino'),
     'synthetic': ('SyntheticSignal', 'SyntheticSignal.ino'),
     'analog_a0': ('AnalogDAQ', 'AnalogDAQ.ino'),
+    'numerical_embedded': ('EmbeddedNumericalReliability', 'EmbeddedNumericalReliability.ino'),
     'magnetic_mlx90393': ('MagneticField_MLX90393', 'MagneticField_MLX90393.ino'),
     'acceleration_adxl345': ('Accelerometer_ADXL345', 'Accelerometer_ADXL345.ino'),
     'photogate': ('PhotogateTimer', 'PhotogateTimer.ino'),
@@ -24,8 +26,8 @@ EXPECTED = {
 }
 
 # These recipes remain byte-for-byte inherited from the archived Physical Lab v0.4 pack.
-# analog_a0 intentionally evolved into BetterBoard Bench 01, while its v0.4 source remains
-# preserved inside the archived pack for provenance.
+# analog_a0 intentionally evolved into BetterBoard Bench 01. numerical_embedded is new
+# BetterBoard-native firmware. Both are excluded from the inherited-source hash contract.
 V04_BYTE_IDENTICAL = {
     'synthetic',
     'magnetic_mlx90393',
@@ -47,25 +49,39 @@ def main() -> int:
     boards = json.loads((RES / 'boards' / 'boards.json').read_text())
     devices = json.loads((RES / 'devices' / 'devices.json').read_text())
     units = json.loads((RES / 'devices' / 'units.json').read_text())
-    assert len(catalog) == 10, len(catalog)
-    assert len({r['id'] for r in catalog}) == 10
+    assert len(catalog) == 11, len(catalog)
+    assert len({r['id'] for r in catalog}) == 11
     assert set(EXPECTED) == {r['id'] for r in catalog}
     assert any(b['fqbn'] == 'arduino:avr:uno' for b in boards)
     assert any(d['id'] == 'mlx90393' for d in devices)
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
     rust = LIB.read_text()
-    frontend = APP.read_text()
+    frontend = APP.read_text() + '\n' + NUMERICAL_SUITE.read_text()
     by_id = {r['id']: r for r in catalog}
-    bench = by_id['analog_a0']
-    assert bench['title'].startswith('Bench 01')
-    assert bench['category'] == 'Bench'
-    assert bench['columns'] == [
+
+    bench1 = by_id['analog_a0']
+    assert bench1['title'].startswith('Bench 01')
+    assert bench1['category'] == 'Bench'
+    assert bench1['columns'] == [
         'time_us', 'raw_adc', 'normalized', 'nominal_voltage_v',
         'pwm_command', 'filtered_voltage_v'
     ]
-    assert bench['primary_column'] == 'filtered_voltage_v'
-    assert bench['sample_rate_hz'] == 50.0
+    assert bench1['primary_column'] == 'filtered_voltage_v'
+    assert bench1['sample_rate_hz'] == 50.0
+
+    bench3 = by_id['numerical_embedded']
+    assert bench3['title'].startswith('Bench 03')
+    assert bench3['sketch_name'] == 'EmbeddedNumericalReliability'
+    assert 'x_bits' in bench3['columns']
+    assert 'cancellation_ratio' in bench3['columns']
+    assert 'elapsed_us' in bench3['columns']
+    assert bench3['primary_column'] == bench3['columns'][-1]
+    assert (ROOT / 'scripts' / 'bench02_numerical_error.py').is_file()
+    assert (ROOT / 'scripts' / 'bench03_embedded_numerical.py').is_file()
+    assert (ROOT / 'scripts' / 'bench03_self_check.py').is_file()
+    assert (ROOT / 'docs' / 'BENCH_02_NUMERICAL_ERROR.md').is_file()
+    assert (ROOT / 'docs' / 'BENCH_03_EMBEDDED_NUMERICAL_RELIABILITY.md').is_file()
 
     for recipe in catalog:
         rid = recipe['id']
@@ -92,8 +108,8 @@ def main() -> int:
     ]:
         assert (old / name).is_file(), name
 
-    # Verify byte-identical inherited v0.4 sources. Bench 01 is intentionally excluded
-    # because it is the first BetterBoard-native evolution of the older AnalogDAQ recipe.
+    # Verify byte-identical inherited v0.4 sources. Bench 01 and Bench 03 are
+    # BetterBoard-native evolutions and are intentionally outside this contract.
     import zipfile
     with zipfile.ZipFile(old / 'PhysicalLab-Hardware-Pack-v0.4.zip') as zf:
         for rid in sorted(V04_BYTE_IDENTICAL):
@@ -107,12 +123,16 @@ def main() -> int:
         assert hashlib.sha256(old_analog).hexdigest() != hashlib.sha256(current_analog).hexdigest()
         assert b'BetterBoard Bench 01' in current_analog
 
+    bench3_source = (RES / 'firmware' / 'EmbeddedNumericalReliability' / 'EmbeddedNumericalReliability.ino').read_text()
+    for token in ['a * (a + 1.0f)', 'cancellation_ratio', 'FLT_EPSILON', 'elapsed_us', 'runParameterScan', 'runConvergenceStudy']:
+        assert token in bench3_source, token
+
     # Current bridge contract must be explicit.
     for token in ['physical_lab_v1.csv', 'timestamp,value', 'betterboard.measurement/0.2', 'source_type']:
         assert token in rust, token
     assert 'physical-lab-measurement-v1' in (ROOT / 'docs' / 'PHYSICAL_LAB_BRIDGE.md').read_text()
 
-    # Every frontend invoke must have a Rust command registered or be a known command function.
+    # Every frontend invoke, including the Numerical Bench Suite, must have a Rust handler.
     invoked = set(re.findall(r"invoke<[^>]+>\('([^']+)'|invoke\('([^']+)'", frontend))
     invoke_names = {a or b for a, b in invoked}
     handler_match = re.search(r'tauri::generate_handler!\[(.*?)\]\)', rust, re.S)
@@ -128,10 +148,12 @@ def main() -> int:
     assert '0.2.0-alpha.1' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
 
     print('BetterBoard Studio v0.2 self-check: PASS')
-    print('- 10 canonical recipes registered')
+    print('- 11 canonical recipes registered')
     print('- Bench 01 analog control/instrumentation recipe registered')
+    print('- Bench 02 measured-data numerical analyzer present')
+    print('- Bench 03 embedded numerical reliability recipe + analyzer registered')
+    print('- Numerical Bench Suite exposes switchable Bench 01 / 02 / 03 modes')
     print('- inherited Physical Lab v0.4 firmware hashes preserved where intended')
-    print('- archived v0.4 AnalogDAQ retained while current analog_a0 evolved into Bench 01')
     print('- full multichannel + Physical Lab v1 compatibility bridge present')
     print('- frontend invoke / Rust handler contract consistent')
     return 0
