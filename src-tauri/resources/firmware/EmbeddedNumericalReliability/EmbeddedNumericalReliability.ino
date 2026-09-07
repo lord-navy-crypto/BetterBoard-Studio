@@ -126,14 +126,39 @@ NumericalResult evaluateTaylor(float x, bool range_reduced, uint16_t max_terms, 
 }
 
 void printFloat(float value) {
-  // The BetterBoard v0.2 numeric parser expects every field to parse as a
-  // number. Non-finite arithmetic is represented by finite=0, while the
-  // affected value field is emitted as 0 rather than a textual NaN/Inf token.
+  // Arduino AVR's default printFloat can emit textual "ovf" for large finite
+  // values. Bench 03 deliberately creates very large intermediate/final raw
+  // Taylor values, so emit our own scientific notation and keep every field
+  // parseable by BetterBoard's numeric-only serial pipeline.
   if (!isfinite(value)) {
-    Serial.print("0.000000000");
-  } else {
-    Serial.print(value, 9);
+    Serial.print("0.00000000e+00");
+    return;
   }
+  if (value == 0.0f) {
+    Serial.print("0.00000000e+00");
+    return;
+  }
+
+  const bool negative = value < 0.0f;
+  float magnitude = negative ? -value : value;
+  int exponent = static_cast<int>(floorf(log10f(magnitude)));
+  float scale = powf(10.0f, static_cast<float>(exponent));
+  float mantissa = magnitude / scale;
+
+  // Protect against rounding or libm edge cases around exact powers of ten.
+  if (mantissa >= 10.0f) {
+    mantissa /= 10.0f;
+    ++exponent;
+  } else if (mantissa < 1.0f) {
+    mantissa *= 10.0f;
+    --exponent;
+  }
+
+  if (negative) Serial.print('-');
+  Serial.print(mantissa, 8);
+  Serial.print('e');
+  if (exponent >= 0) Serial.print('+');
+  Serial.print(exponent);
 }
 
 void emitResult(uint8_t study_code, uint8_t method_code, uint16_t term_limit,
@@ -166,7 +191,7 @@ void emitResult(uint8_t study_code, uint8_t method_code, uint16_t term_limit,
   Serial.print(',');
   Serial.print(sizeof(double));
   Serial.print(',');
-  Serial.print(FLT_EPSILON, 12);
+  printFloat(FLT_EPSILON);
   Serial.print(',');
   printFloat(result.value);
   Serial.println();
