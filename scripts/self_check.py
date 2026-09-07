@@ -10,6 +10,7 @@ RES = ROOT / 'src-tauri' / 'resources'
 LIB = ROOT / 'src-tauri' / 'src' / 'lib.rs'
 APP = ROOT / 'src' / 'App.tsx'
 NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuite.tsx'
+MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuite.tsx'
 
 EXPECTED = {
     'blink': ('Blink_LED', 'Blink_LED.ino'),
@@ -26,11 +27,10 @@ EXPECTED = {
 }
 
 # These recipes remain byte-for-byte inherited from the archived Physical Lab v0.4 pack.
-# analog_a0 intentionally evolved into BetterBoard Bench 01. numerical_embedded is new
-# BetterBoard-native firmware. Both are excluded from the inherited-source hash contract.
+# analog_a0 evolved into BetterBoard Bench 01; numerical_embedded is new; and
+# magnetic_mlx90393 evolved into Magnet Bench 01. Those are intentionally excluded.
 V04_BYTE_IDENTICAL = {
     'synthetic',
-    'magnetic_mlx90393',
     'acceleration_adxl345',
     'photogate',
     'quadrature_encoder',
@@ -57,7 +57,7 @@ def main() -> int:
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
     rust = LIB.read_text()
-    frontend = APP.read_text() + '\n' + NUMERICAL_SUITE.read_text()
+    frontend = APP.read_text() + '\n' + NUMERICAL_SUITE.read_text() + '\n' + MAGNET_SUITE.read_text()
     by_id = {r['id']: r for r in catalog}
 
     bench1 = by_id['analog_a0']
@@ -83,6 +83,17 @@ def main() -> int:
     assert (ROOT / 'docs' / 'BENCH_02_NUMERICAL_ERROR.md').is_file()
     assert (ROOT / 'docs' / 'BENCH_03_EMBEDDED_NUMERICAL_RELIABILITY.md').is_file()
 
+    magnet = by_id['magnetic_mlx90393']
+    assert magnet['title'].startswith('Magnet Bench 01')
+    assert magnet['category'] == 'Magnet Bench'
+    assert magnet['columns'] == ['time_us', 'Bx_uT', 'By_uT', 'Bz_uT', 'Bmag_uT', 'primary_uT']
+    assert magnet['primary_column'] == 'primary_uT'
+    assert magnet['sample_rate_hz'] == 20.0
+    assert (ROOT / 'scripts' / 'magnet02_characterization.py').is_file()
+    assert (ROOT / 'scripts' / 'magnet03_model_validation.py').is_file()
+    assert (ROOT / 'scripts' / 'magnet_bench_self_check.py').is_file()
+    assert (ROOT / 'docs' / 'MAGNET_BENCH_01_03.md').is_file()
+
     for recipe in catalog:
         rid = recipe['id']
         folder, filename = EXPECTED[rid]
@@ -97,7 +108,6 @@ def main() -> int:
             text = source.read_text()
             assert 'Serial.println' in text, source
 
-    # The earlier Physical Lab hardware packs remain archived intact.
     old = ROOT / 'archive' / 'physical-lab-hardware-packs'
     for name in [
         'PhysicalLab-Arduino-Measurement-Pack-v0.1.zip',
@@ -108,8 +118,6 @@ def main() -> int:
     ]:
         assert (old / name).is_file(), name
 
-    # Verify byte-identical inherited v0.4 sources. Bench 01 and Bench 03 are
-    # BetterBoard-native evolutions and are intentionally outside this contract.
     import zipfile
     with zipfile.ZipFile(old / 'PhysicalLab-Hardware-Pack-v0.4.zip') as zf:
         for rid in sorted(V04_BYTE_IDENTICAL):
@@ -123,16 +131,20 @@ def main() -> int:
         assert hashlib.sha256(old_analog).hexdigest() != hashlib.sha256(current_analog).hexdigest()
         assert b'BetterBoard Bench 01' in current_analog
 
+        old_magnetic = zf.read('PhysicalLab-Hardware-Pack-v0.4/firmware/MagneticField_MLX90393/MagneticField_MLX90393.ino')
+        current_magnetic = (RES / 'firmware' / 'MagneticField_MLX90393' / 'MagneticField_MLX90393.ino').read_bytes()
+        assert hashlib.sha256(old_magnetic).hexdigest() != hashlib.sha256(current_magnetic).hexdigest()
+        assert b'Magnet Bench 01' in current_magnetic
+        assert b'Bmag_uT' in current_magnetic
+
     bench3_source = (RES / 'firmware' / 'EmbeddedNumericalReliability' / 'EmbeddedNumericalReliability.ino').read_text()
     for token in ['a * (a + 1.0f)', 'cancellation_ratio', 'FLT_EPSILON', 'elapsed_us', 'runParameterScan', 'runConvergenceStudy']:
         assert token in bench3_source, token
 
-    # Current bridge contract must be explicit.
     for token in ['physical_lab_v1.csv', 'timestamp,value', 'betterboard.measurement/0.2', 'source_type']:
         assert token in rust, token
     assert 'physical-lab-measurement-v1' in (ROOT / 'docs' / 'PHYSICAL_LAB_BRIDGE.md').read_text()
 
-    # Every frontend invoke, including the Numerical Bench Suite, must have a Rust handler.
     invoked = set(re.findall(r"invoke<[^>]+>\('([^']+)'|invoke\('([^']+)'", frontend))
     invoke_names = {a or b for a, b in invoked}
     handler_match = re.search(r'tauri::generate_handler!\[(.*?)\]\)', rust, re.S)
@@ -140,6 +152,10 @@ def main() -> int:
     handlers = {x.strip() for x in handler_match.group(1).split(',') if x.strip()}
     missing = invoke_names - handlers
     assert not missing, f'frontend invokes missing Rust handlers: {sorted(missing)}'
+
+    main = (ROOT / 'src' / 'main.tsx').read_text()
+    assert 'Numerical Bench 01–03' in main
+    assert 'Magnet Bench 01–03' in main
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
@@ -149,10 +165,10 @@ def main() -> int:
 
     print('BetterBoard Studio v0.2 self-check: PASS')
     print('- 11 canonical recipes registered')
-    print('- Bench 01 analog control/instrumentation recipe registered')
-    print('- Bench 02 measured-data numerical analyzer present')
-    print('- Bench 03 embedded numerical reliability recipe + analyzer registered')
-    print('- Numerical Bench Suite exposes switchable Bench 01 / 02 / 03 modes')
+    print('- Numerical Bench 01 / 02 / 03 workflow registered')
+    print('- Magnet Bench 01 vector acquisition registered')
+    print('- Magnet Bench 02 characterization/spatial analyzer registered')
+    print('- Magnet Bench 03 RADIA/model validation analyzer registered')
     print('- inherited Physical Lab v0.4 firmware hashes preserved where intended')
     print('- full multichannel + Physical Lab v1 compatibility bridge present')
     print('- frontend invoke / Rust handler contract consistent')
