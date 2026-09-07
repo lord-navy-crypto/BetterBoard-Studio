@@ -18,7 +18,7 @@ import json
 import math
 import statistics
 import struct
-from decimal import Decimal, localcontext
+from decimal import Decimal, ROUND_FLOOR, localcontext
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +33,6 @@ COLUMNS = [
     "x",
     "term_limit",
     "reduced_x",
-    "approximation",
     "terms_used",
     "last_term",
     "cancellation_ratio",
@@ -43,6 +42,7 @@ COLUMNS = [
     "float_bytes",
     "double_bytes",
     "float_epsilon",
+    "approximation",
 ]
 
 
@@ -79,7 +79,10 @@ def decimal_sin_exact_binary32(value: float, precision: int = 90) -> Decimal:
     with localcontext() as ctx:
         ctx.prec = precision + 15
         two_pi = PI_DECIMAL * 2
-        y = (exact + PI_DECIMAL) % two_pi - PI_DECIMAL
+        # Decimal's % follows remainder semantics for negative values, so use
+        # an explicit floor quotient to obtain a true modulo-style reduction.
+        turns = ((exact + PI_DECIMAL) / two_pi).to_integral_value(rounding=ROUND_FLOOR)
+        y = exact - turns * two_pi
         half_pi = PI_DECIMAL / 2
         if y > half_pi:
             y = PI_DECIMAL - y
@@ -157,7 +160,7 @@ def analyze_row(row: dict[str, str], precision_digits: int) -> dict[str, Any]:
     allowed_error = 8.0 * epsilon * max(1.0, abs(x_from_bits), abs(reference))
     accuracy_passed = finite and absolute_error <= allowed_error
     cancellation_limit = 1.0 / math.sqrt(epsilon)
-    cancellation_ok = math.isfinite(cancellation) and cancellation <= cancellation_limit
+    cancellation_ok = finite and math.isfinite(cancellation) and cancellation <= cancellation_limit
     reliable = finite and stop_rule and accuracy_passed and cancellation_ok
     status = status_for(
         finite=finite,
