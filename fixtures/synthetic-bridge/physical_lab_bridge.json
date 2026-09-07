@@ -1,0 +1,8 @@
+{
+  "schema": "betterboard.physical-lab-bridge/0.2",
+  "source_type": "desktop-data-bridge",
+  "full_dataset": "data.csv",
+  "physical_lab_v1_dataset": "physical_lab_v1.csv",
+  "recipe_id": "synthetic",
+  "primary_column": "value"
+}

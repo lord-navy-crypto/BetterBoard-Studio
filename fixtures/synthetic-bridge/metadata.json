@@ -1,0 +1,11 @@
+{
+  "schema": "betterboard.measurement/0.2",
+  "producer": "BetterBoard Studio 0.2.0-alpha.1 fixture",
+  "recipe_id": "synthetic",
+  "columns": ["time_us", "value"],
+  "units": ["us", "1"],
+  "primary_column": "value",
+  "sample_rate_hz": 50.0,
+  "sample_count": 4,
+  "scientific_boundary": "Synthetic fixture for software-path validation only."
+}
