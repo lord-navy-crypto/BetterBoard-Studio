@@ -136,7 +136,27 @@ Bench 03 reports the same family of field-comparison evidence already used by En
 - affine discrepancy fit `measured ≈ scale × model + offset`
 - residual-guided suggestions for follow-up measurement positions
 
-Engineering Lab already implements the corresponding scientific definitions in `physical_lab_digital_twin.py` through `compare_field_series`, `fit_model_affine`, and `suggest_residual_measurement_points`. BetterBoard's Bench 03 output is therefore designed as compatible evidence semantics, while direct automatic import remains a separate integration step.
+Engineering Lab already implements the corresponding scientific definitions in `physical_lab_digital_twin.py` through `compare_field_series`, `fit_model_affine`, and `suggest_residual_measurement_points`.
+
+### Independent Engineering Lab V&V
+
+Engineering Lab now also contains:
+
+```text
+scripts/betterboard_magnet_bridge_validation.py
+```
+
+This script reads BetterBoard's `magnet03_residuals.csv`, independently recomputes the field comparison with Engineering Lab's canonical digital-twin core, and optionally checks the numbers in `physical_lab_field_bridge.json`.
+
+Example from the Engineering Lab repository:
+
+```bash
+python3 scripts/betterboard_magnet_bridge_validation.py \
+  /path/to/magnet03-model-validation/magnet03_residuals.csv \
+  --bridge /path/to/magnet03-model-validation/physical_lab_field_bridge.json
+```
+
+A PASS means the two applications independently reproduced the same numerical field-comparison metrics. It does **not** prove that the sensor calibration, coordinate registration, magnet geometry, material model, or RADIA assumptions are physically correct.
 
 ## Relationship to RADIA and Radiation Platform
 
@@ -157,7 +177,9 @@ RADIA model comparison
         ↓
 Magnet Bench 03
         ↓
-Engineering Lab field residual / Digital Twin
+Engineering Lab independent field-comparison V&V
+        ↓
+Digital Twin / residual-guided follow-up
         ↓
 optional model-side radiation propagation
 ```
