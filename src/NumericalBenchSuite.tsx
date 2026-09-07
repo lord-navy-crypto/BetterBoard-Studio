@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 type BoardPort = { port: string; protocol: string; board_name?: string; fqbn?: string };
@@ -32,14 +32,14 @@ const MODES: Array<{ id: Mode; title: string; subtitle: string }> = [
   },
 ];
 
-const panel: React.CSSProperties = {
+const panel: CSSProperties = {
   background: 'rgba(20,25,31,.96)',
   border: '1px solid #29313a',
   borderRadius: 16,
   padding: 18,
 };
 
-const muted: React.CSSProperties = { color: '#8e99a7', lineHeight: 1.55 };
+const muted: CSSProperties = { color: '#8e99a7', lineHeight: 1.55 };
 
 export default function NumericalBenchSuite() {
   const [mode, setMode] = useState<Mode>('bench01');
@@ -49,10 +49,12 @@ export default function NumericalBenchSuite() {
   const [fqbn, setFqbn] = useState('arduino:avr:uno');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('Ready');
-  const [measurement, setMeasurement] = useState<MeasurementResult | null>(null);
+  const [bench1Measurement, setBench1Measurement] = useState<MeasurementResult | null>(null);
+  const [bench3Measurement, setBench3Measurement] = useState<MeasurementResult | null>(null);
   const [preview, setPreview] = useState<string[]>([]);
 
   const activeMode = useMemo(() => MODES.find(item => item.id === mode)!, [mode]);
+  const activeMeasurement = mode === 'bench03' ? bench3Measurement : bench1Measurement;
 
   async function refresh() {
     setStatus('Detecting boards…');
@@ -73,7 +75,6 @@ export default function NumericalBenchSuite() {
   }
 
   useEffect(() => { refresh(); }, []);
-  useEffect(() => { setMeasurement(null); setPreview([]); }, [mode]);
 
   async function uploadRecipe(recipeId: string) {
     if (!selectedPort) {
@@ -96,7 +97,7 @@ export default function NumericalBenchSuite() {
     }
   }
 
-  async function recordRecipe(recipeId: string, durationMs: number) {
+  async function recordRecipe(recipeId: 'analog_a0' | 'numerical_embedded', durationMs: number) {
     if (!selectedPort) {
       setStatus('Select a serial device first.');
       return;
@@ -111,7 +112,8 @@ export default function NumericalBenchSuite() {
         boardProfile: fqbn,
         recipeId,
       });
-      setMeasurement(result);
+      if (recipeId === 'analog_a0') setBench1Measurement(result);
+      if (recipeId === 'numerical_embedded') setBench3Measurement(result);
       setStatus(`${result.samples} samples saved`);
     } catch (error) {
       setStatus(`Measurement failed: ${error}`);
@@ -196,9 +198,9 @@ export default function NumericalBenchSuite() {
             <div style={{ fontSize: 11, color: '#7f8d9b' }}>CURRENT MODE</div>
             <h2 style={{ fontSize: 18 }}>{activeMode.title}</h2>
             <p style={{ ...muted, fontSize: 12 }}>{activeMode.subtitle}</p>
-            {measurement && <div className="measurement big" style={{ marginTop: 12 }}>
-              <b>{measurement.samples} samples</b>
-              <span>{measurement.directory}</span>
+            {activeMeasurement && <div className="measurement big" style={{ marginTop: 12 }}>
+              <b>{activeMeasurement.samples} samples</b>
+              <span>{activeMeasurement.directory}</span>
             </div>}
           </div>
         </div>
@@ -227,11 +229,11 @@ export default function NumericalBenchSuite() {
             </div>
             <div className="action-row">
               <button className="primary" disabled={busy || !selectedPort} onClick={() => uploadRecipe('analog_a0')}>Prepare Bench 01 acquisition</button>
-              <button className="ghost" disabled={busy || !selectedPort} onClick={() => recordRecipe('analog_a0', 7000)}>Record source dataset</button>
+              <button className="ghost" disabled={busy || !selectedPort} onClick={() => recordRecipe('analog_a0', 7000)}>Record / replace source dataset</button>
             </div>
-            <pre className="docs-preview" style={{ marginTop: 18, maxHeight: 170 }}>{measurement
-              ? `python3 scripts/bench02_numerical_error.py \\\n  "${measurement.directory}"`
-              : 'After recording a dataset, the exact Bench 02 analysis command will appear here.'}</pre>
+            <pre className="docs-preview" style={{ marginTop: 18, maxHeight: 170 }}>{bench1Measurement
+              ? `python3 scripts/bench02_numerical_error.py \\\n  "${bench1Measurement.directory}"`
+              : 'Record in Bench 01 or Bench 02, then the exact analysis command will appear here.'}</pre>
             <div className="boundary">The finest measured series is an empirical numerical baseline, not exact physical truth.</div>
           </section>}
 
@@ -253,8 +255,8 @@ export default function NumericalBenchSuite() {
               <pre className="terminal" style={{ height: 220 }}>{preview.join('\n')}</pre>
             </>}
 
-            <pre className="docs-preview" style={{ marginTop: 18, maxHeight: 170 }}>{measurement
-              ? `python3 scripts/bench03_embedded_numerical.py \\\n  "${measurement.directory}"`
+            <pre className="docs-preview" style={{ marginTop: 18, maxHeight: 170 }}>{bench3Measurement
+              ? `python3 scripts/bench03_embedded_numerical.py \\\n  "${bench3Measurement.directory}"`
               : 'Record Bench 03 evidence, then the host-oracle analysis command will appear here.'}</pre>
             <div className="boundary">The MCU reports what it can know locally: approximation, term behavior, cancellation, stop state, finite arithmetic, timing, and floating-point environment. Accuracy and false-convergence decisions are made against the independent host reference.</div>
           </section>}
