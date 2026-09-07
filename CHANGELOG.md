@@ -11,7 +11,11 @@
 - Added `scripts/bench03_embedded_numerical.py` with an mpmath-preferred host oracle, a clearly labeled Decimal fallback, absolute/relative/ULP error, scale-aware accuracy bounds, false-convergence classification, and numerical-reliability summaries.
 - Added `scripts/bench03_self_check.py`.
 - Added the **Numerical Bench 01–03** switchable workspace so acquisition, measured-data numerics, and embedded numerical reliability live in one desktop flow.
-- Added top-level workspace switching between **BetterBoard Studio** and **Numerical Bench 01–03**.
+- Upgraded `magnetic_mlx90393` into **Magnet Bench 01 — Vector Field Acquisition**, preserving Bx/By/Bz plus derived |B| and a primary axis without silently subtracting ambient field.
+- Added **Magnet Bench 02 — Characterization & Spatial Mapping** with explicit ambient-vector subtraction, fixed-position scan aggregation, timing/stability metrics, field gradient, field integral and repeatability evidence.
+- Added **Magnet Bench 03 — RADIA Model ↔ Measurement Validation** with interpolation onto measured positions, MAE/RMSE/bias/max residual, relative RMSE, R², field-integral comparison, affine discrepancy fit and residual-guided follow-up measurement suggestions.
+- Added the **Magnet Bench 01–03** desktop workspace and top-level switch beside BetterBoard Studio and Numerical Bench 01–03.
+- Added `scripts/magnet02_characterization.py`, `scripts/magnet03_model_validation.py`, `scripts/magnet_bench_self_check.py`, and `docs/MAGNET_BENCH_01_03.md`.
 - Added **Circuit Lab Phase A/B**: a Visual Wiring Editor + live deterministic Rule Checker with no electrical simulation claim.
 - Added draggable UNO/potentiometer/LED/resistor/button blocks, named pins, click-to-wire graph editing, wiring list, component inspector, local save/load and circuit JSON copy.
 - Added the Bench 01 reference circuit and one-click handoff from the visual design to the real `analog_a0` firmware workflow.
