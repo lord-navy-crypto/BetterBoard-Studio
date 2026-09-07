@@ -11,9 +11,9 @@
 // can preserve the complete campaign without a special serial parser.
 //
 // Schema:
-// study_code,method_code,x_bits,x,term_limit,reduced_x,approximation,
-// terms_used,last_term,cancellation_ratio,stop_rule,finite,elapsed_us,
-// float_bytes,double_bytes,float_epsilon
+// study_code,method_code,x_bits,x,term_limit,reduced_x,terms_used,last_term,
+// cancellation_ratio,stop_rule,finite,elapsed_us,float_bytes,double_bytes,
+// float_epsilon,approximation
 //
 // study_code: 1 = parameter scan, 2 = fixed-term convergence
 // method_code: 0 = raw Taylor, 1 = range-reduced Taylor
@@ -105,17 +105,18 @@ NumericalResult evaluateTaylor(float x, bool range_reduced, uint16_t max_terms, 
     stopped = fabsf(term) <= threshold;
   }
 
-  float cancellation = INFINITY;
+  float cancellation = 0.0f;
   if (finite) {
     const float denominator = fmaxf(fabsf(total), FLT_MIN);
     cancellation = sum_abs_terms / denominator;
+    if (!isfinite(cancellation)) cancellation = FLT_MAX;
   }
 
   NumericalResult result;
   result.original_x = x;
   result.reduced_x = reduced;
-  result.value = finite ? total : NAN;
-  result.last_term = term;
+  result.value = finite ? total : 0.0f;
+  result.last_term = isfinite(term) ? term : 0.0f;
   result.cancellation_ratio = cancellation;
   result.terms_used = terms_used;
   result.stopping_criterion_met = stopped;
@@ -125,10 +126,11 @@ NumericalResult evaluateTaylor(float x, bool range_reduced, uint16_t max_terms, 
 }
 
 void printFloat(float value) {
-  if (isnan(value)) {
-    Serial.print("nan");
-  } else if (isinf(value)) {
-    Serial.print(value > 0 ? "inf" : "-inf");
+  // The BetterBoard v0.2 numeric parser expects every field to parse as a
+  // number. Non-finite arithmetic is represented by finite=0, while the
+  // affected value field is emitted as 0 rather than a textual NaN/Inf token.
+  if (!isfinite(value)) {
+    Serial.print("0.000000000");
   } else {
     Serial.print(value, 9);
   }
@@ -148,8 +150,6 @@ void emitResult(uint8_t study_code, uint8_t method_code, uint16_t term_limit,
   Serial.print(',');
   printFloat(result.reduced_x);
   Serial.print(',');
-  printFloat(result.value);
-  Serial.print(',');
   Serial.print(result.terms_used);
   Serial.print(',');
   printFloat(result.last_term);
@@ -166,7 +166,10 @@ void emitResult(uint8_t study_code, uint8_t method_code, uint16_t term_limit,
   Serial.print(',');
   Serial.print(sizeof(double));
   Serial.print(',');
-  Serial.println(FLT_EPSILON, 12);
+  Serial.print(FLT_EPSILON, 12);
+  Serial.print(',');
+  printFloat(result.value);
+  Serial.println();
 }
 
 void runParameterScan() {
