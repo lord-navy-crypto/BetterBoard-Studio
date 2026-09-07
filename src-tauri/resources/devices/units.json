@@ -4,6 +4,8 @@
   "us": {"dimension":"time","canonical":"s","factor":0.000001},
   "ms": {"dimension":"time","canonical":"s","factor":0.001},
   "Hz": {"dimension":"frequency","canonical":"Hz","factor":1.0},
+  "V": {"dimension":"voltage","canonical":"V","factor":1.0},
+  "mV": {"dimension":"voltage","canonical":"V","factor":0.001},
   "uT": {"dimension":"magnetic-field","canonical":"T","factor":0.000001},
   "mT": {"dimension":"magnetic-field","canonical":"T","factor":0.001},
   "T": {"dimension":"magnetic-field","canonical":"T","factor":1.0},
