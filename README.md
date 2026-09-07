@@ -8,10 +8,23 @@ BetterBoard does not try to be another Arduino IDE skin. It turns the setup chai
 Goal → Board → Recipe → Preflight → Compile → Upload → Capture → Measurement
 ```
 
-A new Circuit Lab layer now adds a design-before-build path:
+A Circuit Lab layer adds a design-before-build path:
 
 ```text
 Visual design → Rule Checker → real-hardware handoff
+```
+
+A unified Numerical Bench workspace now adds a second reference path:
+
+```text
+Bench 01 → Bench 02 → Bench 03
+real acquisition → measured-data numerics → embedded numerical reliability
+```
+
+The application entry bar switches between:
+
+```text
+BetterBoard Studio | Numerical Bench 01–03
 ```
 
 ## What changed in v0.2
@@ -23,17 +36,20 @@ The previous Physical Lab Arduino/hardware work is now merged into BetterBoard a
 1. Blink LED
 2. Synthetic Signal
 3. **Bench 01 — Analog Control & Instrumentation**
-4. MLX90393 3-axis magnetic field
-5. ADXL345 3-axis acceleration template
-6. Photogate Timer
-7. Quadrature Encoder
-8. Pulse / RPM
-9. Random Walk Robot
-10. I2C Scanner
+4. **Bench 03 — Embedded Numerical Reliability**
+5. MLX90393 3-axis magnetic field
+6. ADXL345 3-axis acceleration template
+7. Photogate Timer
+8. Quadrature Encoder
+9. Pulse / RPM
+10. Random Walk Robot
+11. I2C Scanner
+
+Bench 02 intentionally reuses the Bench 01 acquisition firmware, so it is an analysis mode rather than a duplicate firmware recipe.
 
 The original measurement/control sources came from the earlier Physical Lab Hardware Pack v0.4 plus the standalone Blink test. Earlier v0.1–v0.4 generated packs remain preserved under `archive/physical-lab-hardware-packs/` for provenance. The former `analog_a0` / `AnalogDAQ` recipe is now the first BetterBoard-native evolution of that hardware layer: Bench 01.
 
-### Bench 01
+### Bench 01 — Analog Control & Instrumentation
 
 Bench 01 turns a potentiometer or another already-identified, known-safe low-voltage analog source into a complete reference path:
 
@@ -78,6 +94,61 @@ It writes `bench02_summary.json`, `bench02_convergence.csv`, and `bench02_report
 
 See [`docs/BENCH_02_NUMERICAL_ERROR.md`](docs/BENCH_02_NUMERICAL_ERROR.md).
 
+### Bench 03 — Embedded Numerical Reliability
+
+Bench 03 moves the core Numerical Error Analysis recurrence onto the real MCU. No sensor is required.
+
+The embedded C++ firmware runs:
+
+- raw Taylor evaluation
+- range-reduced Taylor evaluation
+- a bounded `x` parameter scan over `−80 … 80`
+- fixed-term convergence at `x = 80`
+- stopping-rule reporting
+- cancellation-ratio reporting
+- finite/non-finite arithmetic reporting
+- `sizeof(float)`, `sizeof(double)`, and `FLT_EPSILON`
+- per-evaluation execution time
+
+The MCU deliberately does **not** decide whether its own answer is accurate. BetterBoard records the embedded evidence, then the host analyzer supplies the independent reference side:
+
+```bash
+python3 scripts/bench03_embedded_numerical.py \
+  ~/Documents/BetterBoard/measurements/<measurement-folder>
+```
+
+The preferred oracle is `mpmath` when already available. BetterBoard does not reinstall it. When unavailable, the analyzer uses a clearly labeled standard-library Decimal high-precision fallback.
+
+The final classification mirrors the Numerical Error Analysis Studio distinction between:
+
+```text
+stopping criterion
+accuracy
+numerical reliability
+false convergence
+```
+
+See [`docs/BENCH_03_EMBEDDED_NUMERICAL_RELIABILITY.md`](docs/BENCH_03_EMBEDDED_NUMERICAL_RELIABILITY.md).
+
+### Unified Numerical Bench 01–03
+
+The dedicated Numerical Bench workspace combines the three levels as switchable modes:
+
+```text
+Mode 1 — Bench 01
+physical input → measurement
+
+Mode 2 — Bench 02
+measurement → sampling / discretization analysis
+
+Mode 3 — Bench 03
+numerical problem → MCU arithmetic → host oracle / reliability
+```
+
+Bench 01 and Bench 03 can compile/upload and record packages directly from that workspace. Bench 02 and Bench 03 currently run their deterministic reference-analysis scripts after capture; the workspace prints the exact command using the latest measurement folder.
+
+See [`docs/NUMERICAL_BENCH_SUITE.md`](docs/NUMERICAL_BENCH_SUITE.md).
+
 ### Circuit Lab — Phase A/B
 
 Circuit Lab is the first design-before-build interface in BetterBoard. It intentionally starts **without electrical simulation** so the product can establish a clean circuit graph and deterministic validation layer first.
@@ -99,12 +170,14 @@ See [`docs/CIRCUIT_LAB.md`](docs/CIRCUIT_LAB.md).
 
 ### Product layers
 
+- Numerical Bench Suite: switchable Bench 01 / Bench 02 / Bench 03 workflows
 - Circuit Lab: Visual Wiring Editor + Rule Checker
 - Recipe Library with hardware, schema, library requirements and Physical Lab target mapping
 - `recipe_preflight`: reports board core and missing libraries without automatically reinstalling existing packages
 - Numeric and diagnostic-text serial capture
 - Data Studio with multichannel snapshot and primary-observable plot
 - Bench 02 measured-series numerical-error analyzer
+- Bench 03 embedded numerical-reliability firmware + host analyzer
 - Task Center for preflight/prepare/compile/upload/capture/export operations
 - Developer view with the exact canonical `.ino` source
 - Physical Lab Measurement Bridge 0.2
@@ -122,7 +195,7 @@ Numeric recipes export:
 └── physical_lab_bridge.json  # bridge descriptor
 ```
 
-The full CSV keeps every channel. The compatibility CSV mirrors Physical Lab's current serial-capture assumption that the final numeric field is the primary observable.
+The full CSV keeps every channel. The compatibility CSV mirrors Physical Lab's current serial-capture assumption that the final numeric field is the primary observable. Bench 03 therefore places `approximation` last in its firmware schema.
 
 BetterBoard does **not** claim that capture establishes calibration, uncertainty, traceability, sensor accuracy or experimental validation. Physical Lab keeps those scientific responsibilities.
 
@@ -155,13 +228,15 @@ Use the already-known working UNO-compatible board:
 7. Turn the potentiometer and verify `raw_adc`, `normalized`, `nominal_voltage_v`, `pwm_command`, and `filtered_voltage_v` change coherently.
 8. Record a measurement package and inspect the full multichannel CSV plus Physical Lab compatibility export.
 9. **Bench 02** → run `python3 scripts/bench02_numerical_error.py <measurement-folder>` and inspect timing, quantization structure, downsampling convergence, derivative sensitivity, integration sensitivity, and float32/float64 accumulation differences.
-10. MLX90393 comes later when a quantitative magnetic sensor is available.
-11. ADXL345 comes only after the exact photographed XYZ sensor module is identified or replaced with a confirmed module.
+10. Switch to **Numerical Bench 01–03 → Bench 03** → Compile & Upload → Preview campaign → Record evidence package.
+11. Run `python3 scripts/bench03_embedded_numerical.py <measurement-folder>` and inspect raw-versus-reduced accuracy, false convergence, cancellation, and execution-time evidence.
+12. MLX90393 comes later when a quantitative magnetic sensor is available.
+13. ADXL345 comes only after the exact photographed XYZ sensor module is identified or replaced with a confirmed module.
 
 ## Project boundary
 
-- **BetterBoard:** visual circuit design, bounded rule checking, boards, devices, firmware, upload, serial, diagnostics, measurement packaging, experiment recipes, and measured-series pre-analysis.
-- **Physical Lab:** scientific models, high-level numerical analysis, calibration evidence, model/measurement comparison, Digital Twin, V&V.
+- **BetterBoard:** visual circuit design, bounded rule checking, boards, devices, firmware, upload, serial, diagnostics, measurement packaging, experiment recipes, measured-series pre-analysis, and embedded numerical evidence acquisition.
+- **Physical Lab / Engineering Lab:** scientific models, high-level numerical analysis, calibration evidence, model/measurement comparison, Digital Twin, V&V.
 - **OpenPenguin:** optional shared local-AI provider in future; not a hard dependency.
 
 ## License
