@@ -3,11 +3,17 @@
 ## Strong direct/analogue mappings
 
 RADIA Magnet Studio
-  real magnet -> MLX90393 -> Bx,By,Bz -> measured/model field comparison
+  Magnet Bench 01: real magnet -> confirmed MLX90393 -> Bx,By,Bz,|B| -> BetterBoard measurement package
+  Magnet Bench 02: ambient baseline + fixed-position captures -> corrected B(x/y/z), repeatability, gradients, field integral
+  Magnet Bench 03: measured field profile <-> RADIA/model field profile -> residuals, MAE/RMSE/bias/R²,
+                   affine discrepancy fit, residual-guided follow-up positions
+  Control sensor orientation, coordinate origin, scan path, magnet polarity/orientation and distance reference.
+  A field measurement at one geometry is not a universal intrinsic "magnet strength" value.
 
 Radiation Platform
   measured B(z) -> field/trajectory model -> radiation prediction
   (not direct ionizing-radiation measurement)
+  Real-magnet evidence can enter this chain only after the magnetic measurement/model registration is explicit.
 
 Oscillation & Integration
   pendulum/oscillator -> photogate / encoder / accelerometer -> period, angle, acceleration
@@ -32,8 +38,9 @@ Chrono::Modal
   -> compare to Chrono modal calculation
 
 Numerical Error Analysis
-  reuses measured time series from the above experiments
-  -> numerical differentiation/integration/noise/cancellation studies
+  Numerical Bench 01: real analog acquisition
+  Numerical Bench 02: measured time series -> sampling/discretization/integration/differentiation evidence
+  Numerical Bench 03: real MCU Taylor arithmetic -> host-oracle reliability comparison
 
 ## Do not force Arduino where it does not belong
 
