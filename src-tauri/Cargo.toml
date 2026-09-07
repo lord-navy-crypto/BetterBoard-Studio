@@ -12,11 +12,18 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # applicationDidFinishLaunching abort on macOS 26.5.x / Apple Silicon.
 # Keep the desktop runtime on the stable 2.10 line until the upstream
 # macOS 26 lifecycle issue is fixed in a released Tauri runtime.
+#
+# Important: pin the runtime crates too. Tauri 2.10.3 declares them with
+# semver-compatible ranges, so an unlocked Cargo resolver can otherwise select
+# newer 2.11 runtime crates and create an internal trait-object mismatch.
 [build-dependencies]
 tauri-build = { version = "=2.5.6", features = [] }
 
 [dependencies]
 tauri = { version = "=2.10.3", features = [] }
+tauri-runtime = "=2.10.1"
+tauri-runtime-wry = "=2.10.1"
+tauri-utils = "=2.8.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serialport = "4.6"
