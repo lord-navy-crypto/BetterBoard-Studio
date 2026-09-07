@@ -164,6 +164,7 @@ fn embedded_recipe_source(id: &str) -> Result<&'static str, String> {
         "blink" => Ok(include_str!("../resources/firmware/Blink_LED/Blink_LED.ino")),
         "synthetic" => Ok(include_str!("../resources/firmware/SyntheticSignal/SyntheticSignal.ino")),
         "analog_a0" => Ok(include_str!("../resources/firmware/AnalogDAQ/AnalogDAQ.ino")),
+        "numerical_embedded" => Ok(include_str!("../resources/firmware/EmbeddedNumericalReliability/EmbeddedNumericalReliability.ino")),
         "magnetic_mlx90393" => Ok(include_str!("../resources/firmware/MagneticField_MLX90393/MagneticField_MLX90393.ino")),
         "acceleration_adxl345" => Ok(include_str!("../resources/firmware/Accelerometer_ADXL345/Accelerometer_ADXL345.ino")),
         "photogate" => Ok(include_str!("../resources/firmware/PhotogateTimer/PhotogateTimer.ino")),
