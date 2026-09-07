@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
-  Activity, BookOpen, Bot, Boxes, Braces, Cable, CheckCircle2, CircleAlert, Code2,
+  Activity, BookOpen, Bot, Boxes, Braces, Cable, CheckCircle2, CircleAlert, CircuitBoard, Code2,
   Cpu, Database, Download, FileText, Gauge, Link2, Magnet, Play, RefreshCw, RotateCw,
   Search, ShieldCheck, TerminalSquare, TimerReset, Upload, Waves, Wrench,
 } from 'lucide-react';
+import CircuitLab from './CircuitLab';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 type BoardPort = { port: string; protocol: string; board_name?: string; fqbn?: string };
@@ -24,7 +25,7 @@ type MeasurementResult = {
   physical_lab_bridge_path: string; samples: number;
 };
 type BridgeDocs = { hardware_map: string; serial_protocol: string; honeycomb_guide: string };
-type Tab = 'hardware' | 'library' | 'data' | 'bridge' | 'developer';
+type Tab = 'hardware' | 'circuit' | 'library' | 'data' | 'bridge' | 'developer';
 type Task = { id: number; title: string; state: 'running' | 'done' | 'failed'; detail: string };
 
 const iconFor = (id: string) => {
@@ -205,7 +206,7 @@ export default function App() {
   }
 
   const nav = [
-    ['hardware', Cpu, 'Hardware'], ['library', Boxes, 'Recipe Library'], ['data', Waves, 'Data Studio'],
+    ['hardware', Cpu, 'Hardware'], ['circuit', CircuitBoard, 'Circuit Lab'], ['library', Boxes, 'Recipe Library'], ['data', Waves, 'Data Studio'],
     ['bridge', Link2, 'Physical Lab Bridge'], ['developer', Code2, 'Developer'],
   ] as const;
 
@@ -268,6 +269,8 @@ export default function App() {
           </div>
         </section>
       </>}
+
+      {tab === 'circuit' && <CircuitLab onUseRecipe={(id) => { setRecipeId(id); setTab('hardware'); }} />}
 
       {tab === 'library' && <section className="library-layout">
         <div className="panel">
