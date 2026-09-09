@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <math.h>
+#include <float.h>
 
 // BetterBoard Numeric Error Depth — Integration V2
 // Integrates sin(x) over [0, pi] with left, trapezoid and Simpson rules.
