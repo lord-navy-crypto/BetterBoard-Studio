@@ -51,8 +51,7 @@ jobs:
         run: |
           git config user.name 'BetterBoard CI'
           git config user.email 'actions@users.noreply.github.com'
-          git add src src-tauri package.json package-lock.json CHANGELOG.md scripts/self_check.py scripts/functionality_surface_check.py
-          git add -u src/LearningHub.tsx
+          git add -A src src-tauri package.json package-lock.json CHANGELOG.md scripts/self_check.py scripts/functionality_surface_check.py
           git commit -m 'Deepen Observatory and refocus Experiments on Engineering Lab'
           git push origin HEAD:ux/observatory-engineeringlab
 
