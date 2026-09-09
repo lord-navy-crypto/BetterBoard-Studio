@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <math.h>
+#include <float.h>
 
 // BetterBoard Numeric Error Depth — Derivative V2
 // Sweeps h for forward and central differences at x=1.0 on AVR float32.
