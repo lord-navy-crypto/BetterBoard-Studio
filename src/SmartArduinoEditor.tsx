@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import Editor, { type Monaco } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
+import type { editor, Position } from 'monaco-editor';
 
 const ARDUINO_COMPLETIONS = [
   ['setup', 'void setup() {\n\t$0\n}', 'Arduino setup entry point'],
@@ -48,7 +48,7 @@ export default function SmartArduinoEditor({ value, onChange, readOnly = false, 
 
   function beforeMount(monaco: Monaco) {
     monaco.languages.registerCompletionItemProvider('cpp', {
-      provideCompletionItems(model, position) {
+      provideCompletionItems(model: editor.ITextModel, position: Position) {
         const word = model.getWordUntilPosition(position);
         const range = {
           startLineNumber: position.lineNumber,
