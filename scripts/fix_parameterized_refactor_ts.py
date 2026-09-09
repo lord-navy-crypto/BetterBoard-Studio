@@ -18,6 +18,13 @@ old = "onLibrarySaved={saved => setRecipes(current => [saved, ...current.filter(
 new = "onLibrarySaved={() => { void refresh(); }}"
 assert text.count(old) == 1, 'Developer library callback shape changed'
 text = text.replace(old, new, 1)
-
 path.write_text(text)
-print('TypeScript contract fixes applied')
+
+self_path = ROOT / 'scripts' / 'self_check.py'
+self_text = self_path.read_text()
+old = """    for token in ['Recipe settings', 'Save preset to My Library', 'My Library']:\n        assert token in app_text, token\n"""
+new = """    for token in ['Save preset to My Library', 'My Library']:\n        assert token in app_text, token\n    assert 'Recipe settings' in RECIPE_PARAMETERS.read_text()\n"""
+assert self_text.count(old) == 1, 'Parameterized recipe self-check shape changed'
+self_path.write_text(self_text.replace(old, new, 1))
+
+print('TypeScript and self-check contract fixes applied')
