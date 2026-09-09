@@ -7,10 +7,9 @@ import {
 } from 'lucide-react';
 import CircuitLab from './CircuitLab';
 import MonitorDataStudio from './MonitorDataStudio';
+import { useHardwareSession } from './HardwareSession';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
-type BoardPort = { port: string; protocol: string; board_name?: string; fqbn?: string };
-type BoardProfile = { id: string; label: string; fqbn: string; core: string; default_baud: number; notes: string[] };
 type RecipeSpec = {
   id: string; title: string; category: string; description: string; sketch_name: string;
   capture_mode: 'none' | 'numeric' | 'text'; baud: number; columns: string[]; units: string[];
@@ -39,16 +38,21 @@ const iconFor = (id: string) => {
   return Play;
 };
 
+const libraryGroupFor = (recipe: RecipeSpec) => {
+  if (recipe.id === 'blink' || recipe.id === 'i2c_scanner' || recipe.category === 'Verify' || recipe.category === 'Diagnose') return 'Verify & Diagnose';
+  if (recipe.id.includes('numerical') || recipe.id === 'analog_a0' || recipe.id === 'synthetic') return 'Numerical & Measurement';
+  if (recipe.id.includes('magnetic')) return 'Magnetism & Fields';
+  if (recipe.id.includes('acceleration') || recipe.id.includes('photogate') || recipe.id.includes('encoder') || recipe.id.includes('rpm')) return 'Motion & Timing';
+  if (recipe.id.includes('robot') || recipe.category === 'Control') return 'Control & Robotics';
+  return 'Other';
+};
+
 export default function App() {
   const [tab, setTab] = useState<Tab>('hardware');
   const [cli, setCli] = useState<CliInfo | null>(null);
-  const [ports, setPorts] = useState<BoardPort[]>([]);
-  const [profiles, setProfiles] = useState<BoardProfile[]>([]);
   const [recipes, setRecipes] = useState<RecipeSpec[]>([]);
   const [devices, setDevices] = useState<DeviceSpec[]>([]);
   const [bridgeDocs, setBridgeDocs] = useState<BridgeDocs | null>(null);
-  const [selectedPort, setSelectedPort] = useState('');
-  const [fqbn, setFqbn] = useState('arduino:avr:uno');
   const [recipeId, setRecipeId] = useState('blink');
   const [sketchDir, setSketchDir] = useState('');
   const [source, setSource] = useState('');
@@ -57,9 +61,20 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [measurement, setMeasurement] = useState<MeasurementResult | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const {
+    ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn,
+    activePort, hardwareStatus, refreshHardware,
+  } = useHardwareSession();
 
   const recipe = useMemo(() => recipes.find(r => r.id === recipeId), [recipes, recipeId]);
-  const activePort = useMemo(() => ports.find(p => p.port === selectedPort), [ports, selectedPort]);
+  const groupedRecipes = useMemo(() => {
+    const groups = new Map<string, RecipeSpec[]>();
+    for (const item of recipes) {
+      const group = libraryGroupFor(item);
+      groups.set(group, [...(groups.get(group) ?? []), item]);
+    }
+    return [...groups.entries()];
+  }, [recipes]);
 
   function addTask(title: string, detail = 'Starting…') {
     const id = Date.now() + Math.floor(Math.random() * 1000);
@@ -72,30 +87,22 @@ export default function App() {
   }
 
   async function refresh() {
-    setStatus('Detecting toolchain, recipes, and USB boards…');
+    setStatus('Refreshing toolchain, recipes, and shared hardware session…');
     try {
-      const [cliInfo, boardProfiles, recipeCatalog, deviceCatalog, docs] = await Promise.all([
+      const [cliInfo, recipeCatalog, deviceCatalog, docs] = await Promise.all([
         invoke<CliInfo>('arduino_cli_discovery'),
-        invoke<BoardProfile[]>('board_profiles'),
         invoke<RecipeSpec[]>('recipe_catalog'),
         invoke<DeviceSpec[]>('device_catalog'),
         invoke<BridgeDocs>('physical_lab_bridge_docs'),
+        refreshHardware(),
       ]);
-      setCli(cliInfo); setProfiles(boardProfiles); setRecipes(recipeCatalog); setDevices(deviceCatalog); setBridgeDocs(docs);
+      setCli(cliInfo); setRecipes(recipeCatalog); setDevices(deviceCatalog); setBridgeDocs(docs);
       if (!recipeCatalog.some(r => r.id === recipeId) && recipeCatalog.length) setRecipeId(recipeCatalog[0].id);
-      try {
-        const boardPorts = await invoke<BoardPort[]>('board_list');
-        setPorts(boardPorts);
-        if ((!selectedPort || !boardPorts.some(p => p.port === selectedPort)) && boardPorts.length) setSelectedPort(boardPorts[0].port);
-        setStatus(boardPorts.length ? `Ready · ${boardPorts.length} serial device(s) detected` : 'Toolchain ready · no USB serial board detected');
-      } catch (e) {
-        setPorts([]);
-        setStatus(cliInfo.found ? `Arduino CLI ready · board scan: ${e}` : 'Arduino CLI not found');
-      }
+      setStatus(cliInfo.found ? 'Ready · toolchain and hardware session refreshed' : 'Arduino CLI not found');
     } catch (e) { setStatus(String(e)); }
   }
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { void refresh(); }, []);
   useEffect(() => {
     setSketchDir(''); setMeasurement(null); setPreflight(null);
     if (!recipeId) return;
@@ -178,13 +185,13 @@ export default function App() {
 
       <section className="status-strip">
         <div><span className={`dot ${cli?.found ? 'good' : 'bad'}`}/><b>{cli?.found ? 'Arduino CLI ready' : 'Arduino CLI unavailable'}</b><small>{cli?.version || cli?.error || ''}</small></div>
-        <div><TerminalSquare size={16}/><span>{status}</span></div>
+        <div><TerminalSquare size={16}/><span>{status} · {hardwareStatus}</span></div>
       </section>
 
       {tab === 'hardware' && <>
         <section className="hero-grid">
           <div className="panel">
-            <div className="panel-title"><Cable size={18}/> Connection</div>
+            <div className="panel-title"><Cable size={18}/> Shared hardware session</div>
             <label>Serial device<select value={selectedPort} onChange={e => setSelectedPort(e.target.value)}>
               {!ports.length && <option value="">No USB serial device</option>}
               {ports.map(p => <option key={p.port} value={p.port}>{p.port} · {p.board_name || 'Unknown board'}</option>)}
@@ -192,7 +199,7 @@ export default function App() {
             <label>Board profile<select value={fqbn} onChange={e => setFqbn(e.target.value)}>
               {profiles.map(p => <option key={p.fqbn} value={p.fqbn}>{p.label}</option>)}
             </select></label>
-            <div className="hint">Compatible USB-serial boards can report “Unknown”. BetterBoard keeps board-profile choice explicit instead of guessing the MCU.</div>
+            <div className="hint">This selection is shared across Studio and Experiments. Switching workspaces no longer creates a second board session.</div>
             {activePort && <div className="device-line"><b>{activePort.port}</b><span>{activePort.protocol}</span></div>}
           </div>
           <div className="panel">
@@ -225,12 +232,13 @@ export default function App() {
 
       {tab === 'library' && <section className="library-layout">
         <div className="panel">
-          <div className="panel-title"><Boxes size={18}/> Integrated firmware library</div>
-          <div className="recipe-list">{recipes.map(item => { const Icon = iconFor(item.id); return <button key={item.id} className={`recipe-row ${item.id === recipeId ? 'selected' : ''}`} onClick={() => setRecipeId(item.id)}><Icon size={18}/><div><b>{item.title}</b><span>{item.category} · {item.sketch_name}</span></div><small>{item.capture_mode}</small></button>; })}</div>
+          <div className="panel-title"><Boxes size={18}/> Experiment & firmware library</div>
+          <p className="muted">Recipes are grouped by purpose instead of mixing verification, discipline, and workflow labels in one flat list.</p>
+          <div className="recipe-list">{groupedRecipes.map(([group, items]) => <div key={group} className="recipe-group"><div className="eyebrow" style={{ margin: '12px 0 6px' }}>{group}</div>{items.map(item => { const Icon = iconFor(item.id); return <button key={item.id} className={`recipe-row ${item.id === recipeId ? 'selected' : ''}`} onClick={() => setRecipeId(item.id)}><Icon size={18}/><div><b>{item.title}</b><span>{item.category} · {item.sketch_name}</span></div><small>{item.capture_mode}</small></button>; })}</div>)}</div>
         </div>
         <div className="panel inspector">
           {recipe && <>
-            <div className="eyebrow">{recipe.category}</div><h2>{recipe.title}</h2><p className="muted">{recipe.description}</p>
+            <div className="eyebrow">{libraryGroupFor(recipe)}</div><h2>{recipe.title}</h2><p className="muted">{recipe.description}</p>
             <div className="info-section"><b>Hardware</b>{recipe.hardware.map(v => <span key={v}>• {v}</span>)}</div>
             <div className="info-section"><b>Required libraries</b>{recipe.required_libraries.length ? recipe.required_libraries.map(v => <span key={v}>• {v}</span>) : <span>• None</span>}</div>
             <div className="info-section"><b>Data schema</b><span>{recipe.columns.length ? recipe.columns.map((c, i) => `${c} [${recipe.units[i]}]`).join(' · ') : 'No measurement schema'}</span></div>
