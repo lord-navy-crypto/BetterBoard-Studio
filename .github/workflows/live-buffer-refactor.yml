@@ -1,0 +1,61 @@
+name: Live buffer recording refactor
+
+on:
+  push:
+    branches:
+      - ux/unified-monitor-data-workspace
+    paths:
+      - .github/live-buffer-trigger
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/unified-monitor-data-workspace
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev
+
+      - name: Apply bounded live-buffer refactor
+        run: python3 scripts/refactor_live_buffer_recording.py
+
+      - name: Format Rust
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml
+
+      - name: Verify frontend and contracts
+        run: |
+          npm run build
+          python3 scripts/self_check.py
+
+      - name: Verify Rust
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Commit verified refactor
+        run: |
+          if git diff --quiet; then
+            echo "No changes produced"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src-tauri/src/lib.rs src/MonitorDataStudio.tsx
+          git commit -m "Save live monitor buffers as measurement evidence [live-buffer-refactor]"
+          git push origin HEAD:ux/unified-monitor-data-workspace
