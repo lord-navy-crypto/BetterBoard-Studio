@@ -1,0 +1,48 @@
+name: Finalize persistent panes and engineering axes v2
+
+on:
+  push:
+    branches: [ux/persistent-panes-engineering-axes]
+    paths:
+      - '.github/workflows/persistent-panes-axes-finalize-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/persistent-panes-engineering-axes
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply bounded alpha5 refactor
+        run: |
+          python3 scripts/apply_alpha5_persistence_axes.py
+          npm install --package-lock-only --ignore-scripts
+      - name: TypeScript and Vite build
+        run: npm ci && npm run build
+      - name: BetterBoard structural self-check
+        run: python3 scripts/self_check.py
+      - name: Functionality surface no-regression check
+        run: python3 scripts/functionality_surface_check.py
+      - name: Install Tauri Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libudev-dev patchelf
+      - name: Rust check
+        working-directory: src-tauri
+        run: cargo check
+      - name: Commit verified alpha5 product files
+        shell: bash
+        run: |
+          git config user.name 'BetterBoard CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add CHANGELOG.md package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json src-tauri/src/lib.rs src/App.tsx src/MonitorDataStudio.tsx src/MagnetBenchSuiteV2.tsx src/ExperimentsHub.tsx scripts/self_check.py scripts/functionality_surface_check.py
+          git commit -m 'Preserve workspace state and add engineering plot axes'
+          git push origin HEAD:ux/persistent-panes-engineering-axes
