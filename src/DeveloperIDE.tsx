@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Braces, Boxes, Code2, Download, FilePlus2, FolderOpen, Play, RotateCcw, Save, TerminalSquare, Upload } from 'lucide-react';
 import type { TaskCategory, TaskState } from './TaskCenter';
@@ -6,6 +6,7 @@ import OpenPenguinBridge from './OpenPenguinBridge';
 import SmartArduinoEditor from './SmartArduinoEditor';
 import ArduinoEcosystemManager from './ArduinoEcosystemManager';
 import SketchbookExplorer from './SketchbookExplorer';
+import { clearDeveloperDraft, loadDeveloperDraft, saveDeveloperDraft, type DeveloperDraft } from './DeveloperDraftStore';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 type RecipeSpec = {
@@ -64,19 +65,32 @@ export default function DeveloperIDE({
   recipe, canonicalSource, cli, fqbn, selectedPort, integratedDevices, recipes, onLibrarySaved,
   onStatus, onTaskStart, onTaskLog, onTaskFinish,
 }: Props) {
+  const initialDraftRef = useRef<DeveloperDraft | null | undefined>(undefined);
+  if (initialDraftRef.current === undefined) initialDraftRef.current = loadDeveloperDraft();
+  const initialDraft = initialDraftRef.current;
+  const recoveredDraftRef = useRef(Boolean(initialDraft));
+
   const [view, setView] = useState<DeveloperView>('editor');
-  const [source, setSource] = useState(canonicalSource || BLANK_SKETCH);
-  const [sketchName, setSketchName] = useState(safeDefaultName(recipe?.sketch_name));
-  const [savedDir, setSavedDir] = useState('');
-  const [projectDir, setProjectDir] = useState('');
-  const [projectFileName, setProjectFileName] = useState('');
-  const [output, setOutput] = useState('Ready. Edit the sketch, then Verify or Run / Upload.');
+  const [source, setSource] = useState(initialDraft?.source ?? canonicalSource ?? BLANK_SKETCH);
+  const [sketchName, setSketchName] = useState(initialDraft?.sketchName ?? safeDefaultName(recipe?.sketch_name));
+  const [savedDir, setSavedDir] = useState(initialDraft?.savedDir ?? '');
+  const [projectDir, setProjectDir] = useState(initialDraft?.projectDir ?? '');
+  const [projectFileName, setProjectFileName] = useState(initialDraft?.projectFileName ?? '');
+  const [output, setOutput] = useState(initialDraft ? `Recovered unsaved Developer draft from ${new Date(initialDraft.updatedAt).toLocaleString()}.` : 'Ready. Edit the sketch, then Verify or Run / Upload.');
   const [busy, setBusy] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [templateId, setTemplateId] = useState(recipe?.id ?? '');
+  const [dirty, setDirty] = useState(Boolean(initialDraft));
+  const [templateId, setTemplateId] = useState(initialDraft?.templateId ?? recipe?.id ?? '');
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+  const [recoveredAt, setRecoveredAt] = useState(initialDraft?.updatedAt ?? 0);
 
   useEffect(() => {
+    if (recoveredDraftRef.current) {
+      const draftRecipe = initialDraftRef.current?.recipeId ?? '';
+      if (!recipe?.id || !draftRecipe || draftRecipe === recipe.id) return;
+      recoveredDraftRef.current = false;
+      clearDeveloperDraft();
+      setRecoveredAt(0);
+    }
     setSource(canonicalSource || BLANK_SKETCH);
     setSketchName(safeDefaultName(recipe?.sketch_name));
     setSavedDir(''); setProjectDir(''); setProjectFileName('');
@@ -84,7 +98,30 @@ export default function DeveloperIDE({
     setDirty(false); setDiagnostics([]); setTemplateId(recipe?.id ?? '');
   }, [recipe?.id, canonicalSource]);
 
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = window.setTimeout(() => {
+      saveDeveloperDraft({
+        source,
+        sketchName,
+        projectDir,
+        projectFileName,
+        savedDir,
+        templateId,
+        recipeId: recipe?.id ?? '',
+      });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [dirty, source, sketchName, projectDir, projectFileName, savedDir, templateId, recipe?.id]);
+
   const sourceFacts = useMemo(() => ({ lines: source.split(/\r?\n/).length, chars: source.length }), [source]);
+
+  function markAuthoritativeSave() {
+    recoveredDraftRef.current = false;
+    clearDeveloperDraft();
+    setRecoveredAt(0);
+    setDirty(false);
+  }
 
   async function saveCurrent(track = true) {
     const task = track ? onTaskStart('Program', `Save · ${projectFileName || sketchName}`, projectDir ? 'Writing project file…' : 'Writing editable .ino to BetterBoard sketches…') : 0;
@@ -97,7 +134,7 @@ export default function DeveloperIDE({
         compileDir = await invoke<string>('developer_sketch_save', { sketchName, source });
         savedPath = compileDir;
       }
-      setSavedDir(compileDir); setDirty(false);
+      setSavedDir(compileDir); markAuthoritativeSave();
       const detail = `Saved · ${savedPath}`;
       if (track) { onTaskLog(task, detail); onTaskFinish(task, 'done', detail); }
       onStatus(detail);
@@ -147,7 +184,23 @@ export default function DeveloperIDE({
     } finally { setBusy(false); }
   }
 
+  async function formatSource() {
+    if (busy || !source.trim()) return;
+    setBusy(true);
+    const task = onTaskStart('Program', `Format · ${projectFileName || sketchName}`, 'Formatting Arduino/C++ source with clang-format…');
+    try {
+      const formatted = await invoke<string>('developer_format_source', { source });
+      setSource(formatted); setDirty(true); setDiagnostics([]);
+      const detail = 'Formatted source with clang-format. Review changes, then Save or Verify.';
+      setOutput(detail); onTaskLog(task, detail); onTaskFinish(task, 'done', detail); onStatus(detail);
+    } catch (error) {
+      const detail = `Formatter unavailable or failed: ${error}`;
+      setOutput(detail); onTaskLog(task, detail); onTaskFinish(task, 'failed', detail); onStatus(detail);
+    } finally { setBusy(false); }
+  }
+
   function resetToRecipe() {
+    recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
     setSource(canonicalSource || BLANK_SKETCH); setSketchName(safeDefaultName(recipe?.sketch_name));
     setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]);
     setOutput(`Reset editor to canonical ${recipe?.sketch_name || 'blank'} source.`);
@@ -158,6 +211,7 @@ export default function DeveloperIDE({
     if (!template) { resetToRecipe(); return; }
     try {
       const text = await invoke<string>('recipe_source', { recipeId: template.id });
+      recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
       setSource(text); setSketchName(safeDefaultName(template.sketch_name)); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]);
       setOutput(`Loaded recipe template: ${template.title}`); setView('editor');
     } catch (error) { setOutput(`Template load failed: ${error}`); }
@@ -176,11 +230,14 @@ export default function DeveloperIDE({
   }
 
   function newSketch() {
+    recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
     setSource(BLANK_SKETCH); setSketchName('BetterBoardSketch'); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(true); setDiagnostics([]);
-    setOutput('New blank Arduino sketch.'); setView('editor');
+    setOutput('New blank Arduino sketch. Draft autosave is active until the first explicit Save.'); setView('editor');
   }
 
   function openProjectSource(nextSource: string, fileName: string, directory: string) {
+    if (dirty && !window.confirm('The current unsaved edits are protected by Draft Recovery. Open another project file now?')) return;
+    recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
     setSource(nextSource); setProjectFileName(fileName); setProjectDir(directory); setSavedDir(directory);
     setSketchName(safeDefaultName(fileName.replace(/\.[^.]+$/, ''))); setDirty(false); setDiagnostics([]); setView('editor');
     setOutput(`Opened project file: ${fileName}\n${directory}`);
@@ -190,7 +247,7 @@ export default function DeveloperIDE({
     <div className="developer-toolbar panel">
       <div>
         <div className="panel-title"><Code2 size={18}/> Developer · Arduino-style free edit · IDE-class workspace</div>
-        <small className="muted">Smart C++ editing, Arduino CLI package management, sketchbook projects, Verify and Upload — without leaving BetterBoard.</small>
+        <small className="muted">Smart C++ editing, durable draft recovery, Arduino CLI package management, sketchbook projects, Verify and Upload — without leaving BetterBoard.</small>
       </div>
       <div className="ide-subtabs developer-view-tabs">
         <button className={view === 'editor' ? 'active' : ''} onClick={() => setView('editor')}><Code2 size={15}/> Editor</button>
@@ -200,6 +257,7 @@ export default function DeveloperIDE({
       {view === 'editor' && <div className="developer-actions">
         <button className="ghost" disabled={busy} onClick={newSketch}><FilePlus2 size={15}/> New</button>
         <button className="ghost" disabled={busy} onClick={() => void loadTemplate()}><RotateCcw size={15}/> Load recipe template</button>
+        <button className="ghost" disabled={busy || !source.trim()} onClick={() => void formatSource()}><Braces size={15}/> Format</button>
         <button className="ghost" disabled={busy || !source.trim()} onClick={() => void saveCurrent()}><Save size={15}/> Save</button>
         <button className="ghost" disabled={busy || !source.trim()} onClick={() => void saveToLibrary()}><Braces size={15}/> Save to Library</button>
         <button className="ghost" disabled={busy || !source.trim()} onClick={() => void verify()}><Download size={15}/> Verify</button>
@@ -213,7 +271,8 @@ export default function DeveloperIDE({
           <label>Template<select value={templateId} onChange={event => setTemplateId(event.target.value)}><option value="">Blank / current</option>{recipes.map(item => <option key={item.id} value={item.id}>{item.user_defined ? 'My Library · ' : ''}{item.title}</option>)}</select></label>
           {!projectDir && <label>Sketch name<input value={sketchName} disabled={busy} onChange={event => { setSketchName(event.target.value.replace(/[^A-Za-z0-9_]/g, '_')); setDirty(true); }} /></label>}
           {projectDir && <span className="project-chip">Project · {projectFileName}</span>}
-          <span className={dirty ? 'dirty' : ''}>{dirty ? '● unsaved' : 'saved / recipe state'}</span>
+          <span className={dirty ? 'dirty' : ''}>{dirty ? '● unsaved · autosaved draft' : 'saved / recipe state'}</span>
+          {recoveredAt > 0 && <span className="project-chip">Recovered · {new Date(recoveredAt).toLocaleString()}</span>}
           <span>{sourceFacts.lines} lines · {sourceFacts.chars} chars</span>
           {diagnostics.length > 0 && <span className="diagnostic-count">{diagnostics.length} diagnostic(s)</span>}
         </div>
