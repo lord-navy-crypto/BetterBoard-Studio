@@ -29,6 +29,9 @@ jobs:
       - name: BetterBoard structural self-check
         run: python3 scripts/self_check.py
 
+      - name: Functionality surface no-regression check
+        run: python3 scripts/functionality_surface_check.py
+
       - name: Install Tauri Linux build dependencies
         run: |
           sudo apt-get update
