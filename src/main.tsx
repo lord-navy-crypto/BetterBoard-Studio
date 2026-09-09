@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { CircuitBoard, FlaskConical } from 'lucide-react';
 import App from './App';
 import ExperimentsHub from './ExperimentsHub';
+import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
 import './styles.css';
 import './visual-system.css';
 import './monitor-data.css';
@@ -21,6 +22,7 @@ const WORKSPACES: Array<{
 
 function Root() {
   const [workspace, setWorkspace] = useState<Workspace>('studio');
+  const { selectedPort, activePort, hardwareStatus } = useHardwareSession();
 
   return <div className="bb-root">
     <header className="bb-command-bar">
@@ -44,7 +46,10 @@ function Root() {
         })}
       </nav>
 
-      <div className="bb-local-state"><i/><span>Local hardware</span></div>
+      <div className="bb-local-state" title={hardwareStatus}>
+        <i/>
+        <span>{selectedPort ? `${activePort?.board_name || 'Board'} · ${selectedPort}` : 'No board selected'}</span>
+      </div>
     </header>
 
     <div className="bb-workspace-frame">
@@ -55,6 +60,8 @@ function Root() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <Root />
+    <HardwareSessionProvider>
+      <Root />
+    </HardwareSessionProvider>
   </React.StrictMode>,
 );
