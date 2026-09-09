@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { CircuitBoard, Magnet, Sigma } from 'lucide-react';
 import App from './App';
-import NumericalBenchSuite from './NumericalBenchSuite';
+import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
 import MagnetBenchSuite from './MagnetBenchSuite';
 import './styles.css';
 import './visual-system.css';
@@ -17,7 +17,7 @@ const WORKSPACES: Array<{
   icon: typeof CircuitBoard;
 }> = [
   { id: 'studio', label: 'Studio', subtitle: 'setup · program · monitor', icon: CircuitBoard },
-  { id: 'numerical', label: 'Numerical Lab', subtitle: 'bench 01–03', icon: Sigma },
+  { id: 'numerical', label: 'Numerical Lab', subtitle: 'acquire · analyze · results', icon: Sigma },
   { id: 'magnet', label: 'Magnet Lab', subtitle: 'bench 01–03', icon: Magnet },
 ];
 
@@ -51,7 +51,7 @@ function Root() {
 
     <div className="bb-workspace-frame">
       {workspace === 'studio' && <App />}
-      {workspace === 'numerical' && <NumericalBenchSuite />}
+      {workspace === 'numerical' && <NumericalBenchSuiteV2 />}
       {workspace === 'magnet' && <MagnetBenchSuite />}
     </div>
   </div>;
