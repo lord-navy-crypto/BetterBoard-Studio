@@ -1,0 +1,57 @@
+name: BetterBoard alpha.2 macOS verification build
+
+on:
+  push:
+    branches:
+      - ux/unified-monitor-data-workspace
+    paths:
+      - .github/macos-alpha2-trigger
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ux/unified-monitor-data-workspace
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Install Rust toolchain and Apple targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Verify frontend contracts
+        run: |
+          npm run build
+          python3 scripts/self_check.py
+
+      - name: Build unsigned universal macOS application
+        run: npm run desktop:build -- --target universal-apple-darwin
+
+      - name: Inventory verification bundle
+        run: |
+          find src-tauri/target/universal-apple-darwin/release/bundle -maxdepth 3 -type f -print
+          shasum -a 256 src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg || true
+
+      - name: Upload verification package
+        uses: actions/upload-artifact@v4
+        with:
+          name: BetterBoard-Studio-0.2.0-alpha.2-macOS-universal
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
