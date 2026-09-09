@@ -1,9 +1,179 @@
 [
-  {"id":"mlx90393","name":"MLX90393 3-axis magnetometer","interface":"I2C","quantities":["Bx","By","Bz"],"units":["uT"],"libraries":["Adafruit MLX90393"],"status":"supported"},
-  {"id":"adxl345","name":"ADXL345 3-axis accelerometer","interface":"I2C/SPI","quantities":["ax","ay","az"],"units":["m/s^2"],"libraries":["Adafruit ADXL345","Adafruit Unified Sensor"],"status":"supported-template; exact user-owned XYZ module not yet confirmed"},
-  {"id":"potentiometer","name":"Potentiometer / generic analog sensor","interface":"Analog","quantities":["adc_counts"],"units":["count"],"libraries":[],"status":"supported"},
-  {"id":"photogate","name":"Photogate / break-beam event input","interface":"Digital interrupt","quantities":["period","frequency"],"units":["us","Hz"],"libraries":[],"status":"supported-template"},
-  {"id":"quadrature_encoder","name":"Quadrature encoder","interface":"Digital interrupts","quantities":["count","angle"],"units":["count","deg"],"libraries":[],"status":"supported-template; CPR must be configured"},
-  {"id":"pulse_sensor","name":"Pulse / RPM sensor","interface":"Digital interrupt","quantities":["period","rpm"],"units":["us","rpm"],"libraries":[],"status":"supported-template"},
-  {"id":"dual_motor_driver","name":"Low-voltage dual DC motor driver","interface":"PWM + direction","quantities":["command"],"units":["PWM"],"libraries":[],"status":"driver model/pins must be confirmed before wiring"}
+  {
+    "id": "mlx90393",
+    "name": "MLX90393 3-axis magnetometer",
+    "interface": "I2C",
+    "quantities": [
+      "Bx",
+      "By",
+      "Bz"
+    ],
+    "units": [
+      "uT"
+    ],
+    "libraries": [
+      "Adafruit MLX90393"
+    ],
+    "status": "supported"
+  },
+  {
+    "id": "adxl345",
+    "name": "ADXL345 3-axis accelerometer",
+    "interface": "I2C/SPI",
+    "quantities": [
+      "ax",
+      "ay",
+      "az"
+    ],
+    "units": [
+      "m/s^2"
+    ],
+    "libraries": [
+      "Adafruit ADXL345",
+      "Adafruit Unified Sensor"
+    ],
+    "status": "supported-template; exact user-owned XYZ module not yet confirmed"
+  },
+  {
+    "id": "potentiometer",
+    "name": "Potentiometer / generic analog sensor",
+    "interface": "Analog",
+    "quantities": [
+      "adc_counts"
+    ],
+    "units": [
+      "count"
+    ],
+    "libraries": [],
+    "status": "supported"
+  },
+  {
+    "id": "photogate",
+    "name": "Photogate / break-beam event input",
+    "interface": "Digital interrupt",
+    "quantities": [
+      "period",
+      "frequency"
+    ],
+    "units": [
+      "us",
+      "Hz"
+    ],
+    "libraries": [],
+    "status": "supported-template"
+  },
+  {
+    "id": "quadrature_encoder",
+    "name": "Quadrature encoder",
+    "interface": "Digital interrupts",
+    "quantities": [
+      "count",
+      "angle"
+    ],
+    "units": [
+      "count",
+      "deg"
+    ],
+    "libraries": [],
+    "status": "supported-template; CPR must be configured"
+  },
+  {
+    "id": "pulse_sensor",
+    "name": "Pulse / RPM sensor",
+    "interface": "Digital interrupt",
+    "quantities": [
+      "period",
+      "rpm"
+    ],
+    "units": [
+      "us",
+      "rpm"
+    ],
+    "libraries": [],
+    "status": "supported-template"
+  },
+  {
+    "id": "dual_motor_driver",
+    "name": "Low-voltage dual DC motor driver",
+    "interface": "PWM + direction",
+    "quantities": [
+      "command"
+    ],
+    "units": [
+      "PWM"
+    ],
+    "libraries": [],
+    "status": "driver model/pins must be confirmed before wiring"
+  },
+  {
+    "id": "mpu6050",
+    "name": "MPU6050 6-axis accelerometer + gyroscope",
+    "interface": "I2C",
+    "quantities": [
+      "ax",
+      "ay",
+      "az",
+      "gx",
+      "gy",
+      "gz"
+    ],
+    "units": [
+      "m/s^2",
+      "rad/s"
+    ],
+    "libraries": [
+      "Adafruit MPU6050",
+      "Adafruit Unified Sensor"
+    ],
+    "status": "supported"
+  },
+  {
+    "id": "pir",
+    "name": "PIR motion sensor module",
+    "interface": "Digital",
+    "quantities": [
+      "motion_state",
+      "event_time"
+    ],
+    "units": [
+      "bool",
+      "us"
+    ],
+    "libraries": [],
+    "status": "supported-template; threshold/retrigger behavior depends on the exact module"
+  },
+  {
+    "id": "optical_pulse_module",
+    "name": "Optical pulse / motor speed sensor module",
+    "interface": "Digital pulse",
+    "quantities": [
+      "period",
+      "frequency",
+      "rpm"
+    ],
+    "units": [
+      "us",
+      "Hz",
+      "rpm"
+    ],
+    "libraries": [],
+    "status": "supported-template; exact optical module geometry and pulses-per-revolution must be confirmed"
+  },
+  {
+    "id": "stepper_or_rotary_motor",
+    "name": "Stepper / rotary motor hardware",
+    "interface": "Driver-dependent",
+    "quantities": [
+      "command",
+      "step",
+      "speed"
+    ],
+    "units": [
+      "1",
+      "count",
+      "rpm"
+    ],
+    "libraries": [],
+    "status": "hardware model and driver must be confirmed before wiring or control assumptions"
+  }
 ]

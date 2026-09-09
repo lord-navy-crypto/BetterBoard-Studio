@@ -1,0 +1,64 @@
+name: BetterBoard CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'ux/**'
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: TypeScript and Vite build
+        run: npm run build
+
+      - name: BetterBoard structural self-check
+        run: python3 scripts/self_check.py
+
+      - name: Functionality surface no-regression check
+        run: python3 scripts/functionality_surface_check.py
+
+      - name: Numerical depth self-check
+        run: python3 scripts/numerical_depth_self_check.py
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install Arduino AVR core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+
+      - name: Compile numerical microbench firmware for UNO
+        run: |
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericalDerivativeSweep
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericalCancellation
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericalAccumulation
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/EmbeddedNumericalReliability
+
+      - name: Install Tauri Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libudev-dev \
+            patchelf
+
+      - name: Rust check
+        run: cargo check --manifest-path src-tauri/Cargo.toml

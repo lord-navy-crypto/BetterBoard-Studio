@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""BetterBoard Bench 02 — Sampling & Numerical Error.
+"""BetterBoard Bench 02 — Sampling & Numerical Error, depth revision.
 
-Analyze a real BetterBoard measurement package without adding third-party
-Python dependencies. The finest available measured series is treated only as
-an empirical numerical baseline; it is not physical ground truth.
+Analyze a real BetterBoard measurement package without third-party Python
+requirements. The finest available measured series is an empirical numerical
+baseline, not physical ground truth.
+
+Depth revision 0.2 adds:
+- a true second-order three-point derivative for non-uniform timestamps,
+- a comparison against the old span derivative to expose timing-jitter bias,
+- naive float32 vs Kahan-compensated float32 trapezoid accumulation,
+- p95 / max absolute timing-jitter diagnostics.
 """
 from __future__ import annotations
 
@@ -48,6 +54,21 @@ def stdev_population(values: Iterable[float]) -> float:
     return statistics.pstdev(seq) if len(seq) >= 2 else 0.0
 
 
+def percentile(values: Iterable[float], q: float) -> float:
+    seq = sorted(values)
+    if not seq:
+        return math.nan
+    if len(seq) == 1:
+        return seq[0]
+    pos = (len(seq) - 1) * q
+    lo = int(math.floor(pos))
+    hi = int(math.ceil(pos))
+    if lo == hi:
+        return seq[lo]
+    frac = pos - lo
+    return seq[lo] * (1.0 - frac) + seq[hi] * frac
+
+
 def time_scale(column: str) -> float:
     lower = column.lower()
     if lower.endswith("_us") or "microsecond" in lower:
@@ -86,14 +107,14 @@ def load_metadata(path: Path | None) -> dict:
     if path is None:
         return {}
     try:
-        value = json.loads(path.read_text())
+        value = json.loads(path.read_text(encoding="utf-8"))
         return value if isinstance(value, dict) else {}
     except (OSError, json.JSONDecodeError):
         return {}
 
 
 def load_series(csv_path: Path, time_column: str | None, value_column: str | None) -> tuple[list[float], list[float], str, str, int]:
-    with csv_path.open(newline="") as handle:
+    with csv_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         fieldnames = reader.fieldnames or []
         t_col = choose_column(fieldnames, time_column, TIME_PRIORITY, "time")
@@ -129,23 +150,59 @@ def trapz64(times: list[float], values: list[float]) -> float:
     return total
 
 
+def _trapz_area_f32(t0: float, t1: float, y0: float, y1: float) -> float:
+    y_sum = f32(f32(y0) + f32(y1))
+    half_sum = f32(f32(0.5) * y_sum)
+    dt = f32(f32(t1) - f32(t0))
+    return f32(half_sum * dt)
+
+
 def trapz32(times: list[float], values: list[float]) -> float:
     total = f32(0.0)
     for i in range(1, len(times)):
-        y_sum = f32(f32(values[i - 1]) + f32(values[i]))
-        half_sum = f32(f32(0.5) * y_sum)
-        dt = f32(f32(times[i]) - f32(times[i - 1]))
-        area = f32(half_sum * dt)
-        total = f32(total + area)
+        total = f32(total + _trapz_area_f32(times[i - 1], times[i], values[i - 1], values[i]))
     return float(total)
 
 
-def central_derivative(times: list[float], values: list[float]) -> list[float]:
+def trapz32_kahan(times: list[float], values: list[float]) -> float:
+    total = f32(0.0)
+    compensation = f32(0.0)
+    for i in range(1, len(times)):
+        area = _trapz_area_f32(times[i - 1], times[i], values[i - 1], values[i])
+        y = f32(area - compensation)
+        t = f32(total + y)
+        compensation = f32(f32(t - total) - y)
+        total = t
+    return float(total)
+
+
+def span_derivative(times: list[float], values: list[float]) -> list[float]:
+    """Legacy symmetric-span formula. Exact only when the two local spacings match."""
     result = [math.nan] * len(times)
     for i in range(1, len(times) - 1):
         dt = times[i + 1] - times[i - 1]
         if dt > 0:
             result[i] = (values[i + 1] - values[i - 1]) / dt
+    return result
+
+
+def nonuniform_three_point_derivative(times: list[float], values: list[float]) -> list[float]:
+    """Second-order 3-point derivative for arbitrary strictly increasing timestamps.
+
+    The coefficients are the derivative of the local quadratic Lagrange
+    interpolant at t[i]. For h0 == h1 this reduces to the usual central
+    difference formula.
+    """
+    result = [math.nan] * len(times)
+    for i in range(1, len(times) - 1):
+        h0 = times[i] - times[i - 1]
+        h1 = times[i + 1] - times[i]
+        if h0 <= 0.0 or h1 <= 0.0:
+            continue
+        c_prev = -h1 / (h0 * (h0 + h1))
+        c_mid = (h1 - h0) / (h0 * h1)
+        c_next = h0 / (h1 * (h0 + h1))
+        result[i] = c_prev * values[i - 1] + c_mid * values[i] + c_next * values[i + 1]
     return result
 
 
@@ -172,9 +229,15 @@ def analyze(times: list[float], values: list[float], factors: tuple[int, ...], t
     dt_med = median(dt)
     target_dt = 1.0 / target_rate_hz if target_rate_hz and target_rate_hz > 0 else dt_med
     timing_error = [x - target_dt for x in dt]
+    abs_timing_error = [abs(x) for x in timing_error]
 
     baseline_integral = trapz64(times, values)
-    baseline_derivative = central_derivative(times, values)
+    baseline_derivative = nonuniform_three_point_derivative(times, values)
+    legacy_baseline_derivative = span_derivative(times, values)
+    local_formula_disagreement = [
+        a - b for a, b in zip(legacy_baseline_derivative, baseline_derivative)
+        if math.isfinite(a) and math.isfinite(b)
+    ]
     convergence = []
 
     for factor in factors:
@@ -183,7 +246,7 @@ def analyze(times: list[float], values: list[float], factors: tuple[int, ...], t
         idx, t_sub, y_sub = downsample(times, values, factor)
         if len(t_sub) < 5:
             continue
-        derivative = central_derivative(t_sub, y_sub)
+        derivative = nonuniform_three_point_derivative(t_sub, y_sub)
         derivative_error = []
         for local_i in range(1, len(idx) - 1):
             original_i = idx[local_i]
@@ -193,11 +256,12 @@ def analyze(times: list[float], values: list[float], factors: tuple[int, ...], t
                 derivative_error.append(coarse - fine)
         integral = trapz64(t_sub, y_sub)
         integral_delta = integral - baseline_integral
+        local_dt = [b - a for a, b in zip(t_sub, t_sub[1:])]
         convergence.append({
             "factor": factor,
             "samples": len(t_sub),
-            "median_dt_s": median([b - a for a, b in zip(t_sub, t_sub[1:])]),
-            "effective_rate_hz": (1.0 / median([b - a for a, b in zip(t_sub, t_sub[1:])])) if len(t_sub) > 1 else None,
+            "median_dt_s": median(local_dt),
+            "effective_rate_hz": (1.0 / median(local_dt)) if local_dt and median(local_dt) > 0 else None,
             "trapezoid_integral": integral,
             "integral_delta_vs_fine": integral_delta,
             "relative_integral_delta_vs_fine": (integral_delta / baseline_integral) if baseline_integral != 0 else None,
@@ -205,7 +269,7 @@ def analyze(times: list[float], values: list[float], factors: tuple[int, ...], t
         })
 
     integral32 = trapz32(times, values)
-    integral64 = baseline_integral
+    integral32_kahan = trapz32_kahan(times, values)
     value_step = minimum_positive_step(values)
 
     return {
@@ -220,7 +284,10 @@ def analyze(times: list[float], values: list[float], factors: tuple[int, ...], t
             "max_dt_s": max(dt),
             "dt_std_s": stdev_population(dt),
             "jitter_rms_s": rms(timing_error),
+            "jitter_p95_abs_s": percentile(abs_timing_error, 0.95),
+            "jitter_max_abs_s": max(abs_timing_error),
             "observed_rate_hz": 1.0 / dt_med if dt_med > 0 else None,
+            "dt_coefficient_of_variation": stdev_population(dt) / mean(dt) if mean(dt) else None,
         },
         "value": {
             "min": min(values),
@@ -230,11 +297,19 @@ def analyze(times: list[float], values: list[float], factors: tuple[int, ...], t
             "unique_values": len(set(values)),
             "minimum_observed_positive_step": value_step,
         },
+        "derivative": {
+            "method": "nonuniform_quadratic_three_point",
+            "legacy_span_vs_nonuniform_rmse": rms(local_formula_disagreement),
+            "interpretation": "formula disagreement isolates timestamp-spacing sensitivity; it is not physical derivative error",
+        },
         "floating_point_accumulation": {
-            "trapezoid_float64": integral64,
-            "trapezoid_float32_emulated": integral32,
-            "absolute_difference": integral32 - integral64,
-            "relative_difference": ((integral32 - integral64) / integral64) if integral64 != 0 else None,
+            "trapezoid_float64": baseline_integral,
+            "trapezoid_float32_naive": integral32,
+            "trapezoid_float32_kahan": integral32_kahan,
+            "naive_absolute_difference_vs_float64": integral32 - baseline_integral,
+            "kahan_absolute_difference_vs_float64": integral32_kahan - baseline_integral,
+            "naive_relative_difference_vs_float64": ((integral32 - baseline_integral) / baseline_integral) if baseline_integral != 0 else None,
+            "kahan_relative_difference_vs_float64": ((integral32_kahan - baseline_integral) / baseline_integral) if baseline_integral != 0 else None,
         },
         "downsample_convergence": convergence,
     }
@@ -245,7 +320,7 @@ def write_convergence_csv(path: Path, rows: list[dict]) -> None:
         "factor", "samples", "median_dt_s", "effective_rate_hz", "trapezoid_integral",
         "integral_delta_vs_fine", "relative_integral_delta_vs_fine", "derivative_rmse_vs_fine",
     ]
-    with path.open("w", newline="") as handle:
+    with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
@@ -264,6 +339,7 @@ def fmt(value: object) -> str:
 def write_report(path: Path, source: Path, time_col: str, value_col: str, rejected: int, result: dict) -> None:
     timing = result["timing"]
     value = result["value"]
+    derivative = result["derivative"]
     fp = result["floating_point_accumulation"]
     lines = [
         "# BetterBoard Bench 02 — Sampling & Numerical Error Report",
@@ -284,6 +360,8 @@ def write_report(path: Path, source: Path, time_col: str, value_col: str, reject
         f"- Median Δt: {fmt(timing['median_dt_s'])} s",
         f"- Δt standard deviation: {fmt(timing['dt_std_s'])} s",
         f"- RMS timing error/jitter: {fmt(timing['jitter_rms_s'])} s",
+        f"- p95 |timing error|: {fmt(timing['jitter_p95_abs_s'])} s",
+        f"- max |timing error|: {fmt(timing['jitter_max_abs_s'])} s",
         "",
         "## Value statistics",
         "",
@@ -293,11 +371,19 @@ def write_report(path: Path, source: Path, time_col: str, value_col: str, reject
         f"- Unique values: {value['unique_values']}",
         f"- Minimum observed positive step: {fmt(value['minimum_observed_positive_step'])}",
         "",
+        "## Numerical differentiation",
+        "",
+        "- Primary derivative: second-order 3-point Lagrange derivative for non-uniform timestamps.",
+        f"- Legacy symmetric-span vs non-uniform derivative RMSE: {fmt(derivative['legacy_span_vs_nonuniform_rmse'])}",
+        "- This disagreement measures sensitivity to timestamp spacing, not absolute physical derivative error.",
+        "",
         "## Floating-point accumulation",
         "",
         f"- Trapezoid integral, float64: {fmt(fp['trapezoid_float64'])}",
-        f"- Trapezoid integral, emulated float32: {fmt(fp['trapezoid_float32_emulated'])}",
-        f"- Difference: {fmt(fp['absolute_difference'])}",
+        f"- Trapezoid integral, emulated float32 naive: {fmt(fp['trapezoid_float32_naive'])}",
+        f"- Trapezoid integral, emulated float32 Kahan: {fmt(fp['trapezoid_float32_kahan'])}",
+        f"- Naive Δ vs float64: {fmt(fp['naive_absolute_difference_vs_float64'])}",
+        f"- Kahan Δ vs float64: {fmt(fp['kahan_absolute_difference_vs_float64'])}",
         "",
         "## Downsampling convergence",
         "",
@@ -312,10 +398,10 @@ def write_report(path: Path, source: Path, time_col: str, value_col: str, reject
         "",
         "## Interpretation boundary",
         "",
-        "This Bench 02 report is designed to connect real BetterBoard time-series acquisition to numerical-analysis questions such as sampling interval sensitivity, finite-difference sensitivity, trapezoidal integration convergence, timing jitter, ADC quantization structure, and float32/float64 accumulation differences. It does **not** replace the existing Taylor-series/cancellation/false-convergence experiments in Physical Lab's Numerical Error Analysis Studio.",
+        "Bench 02 separates timing irregularity, derivative-formula sensitivity, downsampling sensitivity and floating-point accumulation. The full-rate measured sequence remains only an empirical baseline. No result here establishes calibration traceability, exact sensor accuracy or physical ground truth.",
         "",
     ]
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def parse_factors(text: str) -> tuple[int, ...]:
@@ -344,7 +430,7 @@ def main() -> int:
         target_rate = None
 
     result = analyze(times, values, args.factors, target_rate)
-    result["schema"] = "betterboard.bench02-numerical-error/0.1"
+    result["schema"] = "betterboard.bench02-numerical-error/0.2"
     result["source"] = str(csv_path)
     result["time_column"] = time_col
     result["value_column"] = value_col
@@ -356,20 +442,12 @@ def main() -> int:
     summary_path = output / "bench02_summary.json"
     convergence_path = output / "bench02_convergence.csv"
     report_path = output / "bench02_report.md"
-    summary_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    summary_path.write_text(json.dumps(result, indent=2, allow_nan=False), encoding="utf-8")
     write_convergence_csv(convergence_path, result["downsample_convergence"])
     write_report(report_path, csv_path, time_col, value_col, rejected, result)
 
-    print("BetterBoard Bench 02 — Sampling & Numerical Error")
-    print(f"source: {csv_path}")
-    print(f"samples: {result['sample_count']}  duration_s: {result['duration_s']:.6g}")
-    print(f"time: {time_col}  value: {value_col}")
-    print(f"observed_rate_hz: {fmt(result['timing']['observed_rate_hz'])}")
-    print(f"jitter_rms_s: {fmt(result['timing']['jitter_rms_s'])}")
-    print(f"float32_vs_float64_integral_delta: {fmt(result['floating_point_accumulation']['absolute_difference'])}")
-    print(f"report: {report_path}")
-    print(f"summary: {summary_path}")
-    print(f"convergence: {convergence_path}")
+    print(f"Bench 02 analysis complete: {output}")
+    print(json.dumps(result, indent=2, allow_nan=False))
     return 0
 
 

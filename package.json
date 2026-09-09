@@ -1,17 +1,20 @@
 {
   "name": "betterboard-studio",
   "private": true,
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "icon:generate": "tauri icon src-tauri/app-icon.svg",
+    "desktop:dev": "npm run icon:generate && tauri dev",
+    "desktop:build": "npm run icon:generate && tauri build"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@tauri-apps/api": "2.10.1",
     "lucide-react": "^0.468.0",
+    "monaco-editor": "^0.56.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
