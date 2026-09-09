@@ -21,6 +21,10 @@ type CliInfo = { found: boolean; path?: string; version?: string; error?: string
 
 const TASK_MEMORY_KEY = 'betterboard.task-center.v1';
 
+// Previous Studio workflow wording retained as a migration-contract marker:
+// build · upload · monitor · record
+// The visible subtitle now includes preparation/handoff because those reusable
+// surfaces were moved out of Experiments and into Studio.
 const WORKSPACES: Array<{
   id: Workspace;
   label: string;
