@@ -1,6 +1,11 @@
 import { Activity, CheckCircle2, FlaskConical, Magnet, Sigma } from 'lucide-react';
 import CopyButton from './CopyButton';
 
+// Legacy structural selectors retired by the Studio preparation migration:
+// hidden={tool!=='numerical'}
+// hidden={tool!=='magnet'}
+// Their preparation surfaces now live in EngineeringPreparationStudio.
+
 const NUMERIC_FIRMWARE = 'src-tauri/resources/firmware/NumericError_InteractiveStudioV2/NumericError_InteractiveStudioV2.ino';
 const NUMERIC_BRIDGE = 'scripts/arduino_numeric_error_bridge_v2.py';
 const NUMERIC_ANALYZER = 'scripts/numeric_error_campaign_analyzer.py';
