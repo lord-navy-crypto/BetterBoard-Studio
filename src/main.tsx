@@ -7,6 +7,7 @@ import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
 import './styles.css';
 import './visual-system.css';
 import './monitor-data.css';
+import './workspace-shell.css';
 
 type Workspace = 'studio' | 'experiments';
 
@@ -46,7 +47,7 @@ function Root() {
         })}
       </nav>
 
-      <div className="bb-local-state" title={hardwareStatus}>
+      <div className={`bb-local-state ${selectedPort ? 'connected' : 'disconnected'}`} title={hardwareStatus}>
         <i/>
         <span>{selectedPort ? `${activePort?.board_name || 'Board'} · ${selectedPort}` : 'No board selected'}</span>
       </div>
