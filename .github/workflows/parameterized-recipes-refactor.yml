@@ -41,16 +41,21 @@ jobs:
           set -o pipefail
           npm run build 2>&1 | tee typescript-build.log
 
-      - name: Upload TypeScript diagnostics on failure
+      - name: BetterBoard structural self-check
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 scripts/self_check.py 2>&1 | tee self-check.log
+
+      - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: parameterized-recipes-typescript-diagnostics
-          path: typescript-build.log
+          name: parameterized-recipes-refactor-diagnostics
+          path: |
+            typescript-build.log
+            self-check.log
           retention-days: 2
-
-      - name: BetterBoard structural self-check
-        run: python3 scripts/self_check.py
 
       - name: Functionality surface no-regression check
         run: python3 scripts/functionality_surface_check.py
@@ -73,7 +78,7 @@ jobs:
           rm -f scripts/apply_parameterized_recipes_user_library.py
           rm -f scripts/fix_parameterized_refactor_ts.py
           rm -f .github/workflows/parameterized-recipes-refactor.yml
-          rm -f typescript-build.log
+          rm -f typescript-build.log self-check.log
           git config user.name "BetterBoard CI"
           git config user.email "actions@users.noreply.github.com"
           git add -A
