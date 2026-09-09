@@ -10,8 +10,11 @@ RES = ROOT / 'src-tauri' / 'resources'
 LIB = ROOT / 'src-tauri' / 'src' / 'lib.rs'
 APP = ROOT / 'src' / 'App.tsx'
 MONITOR_DATA = ROOT / 'src' / 'MonitorDataStudio.tsx'
-NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuite.tsx'
-MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuite.tsx'
+NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuiteV2.tsx'
+MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuiteV2.tsx'
+EXPERIMENTS_HUB = ROOT / 'src' / 'ExperimentsHub.tsx'
+HARDWARE_SESSION = ROOT / 'src' / 'HardwareSession.tsx'
+MAIN = ROOT / 'src' / 'main.tsx'
 
 EXPECTED = {
     'blink': ('Blink_LED', 'Blink_LED.ino'),
@@ -27,9 +30,6 @@ EXPECTED = {
     'i2c_scanner': ('I2CScanner', 'I2CScanner.ino'),
 }
 
-# These recipes remain byte-for-byte inherited from the archived Physical Lab v0.4 pack.
-# analog_a0 evolved into BetterBoard Bench 01; numerical_embedded is new; and
-# magnetic_mlx90393 evolved into Magnet Bench 01. Those are intentionally excluded.
 V04_BYTE_IDENTICAL = {
     'synthetic',
     'acceleration_adxl345',
@@ -57,13 +57,18 @@ def main() -> int:
     assert any(d['id'] == 'mlx90393' for d in devices)
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
+    for required in [APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB, HARDWARE_SESSION, MAIN]:
+        assert required.is_file(), required
+
+    # The duplicated pre-refactor lab components must stay gone.
+    assert not (ROOT / 'src' / 'NumericalBenchSuite.tsx').exists()
+    assert not (ROOT / 'src' / 'MagnetBenchSuite.tsx').exists()
+
     rust = LIB.read_text()
-    frontend = (
-        APP.read_text()
-        + '\n' + MONITOR_DATA.read_text()
-        + '\n' + NUMERICAL_SUITE.read_text()
-        + '\n' + MAGNET_SUITE.read_text()
-    )
+    frontend = '\n'.join(path.read_text() for path in [
+        APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE,
+        EXPERIMENTS_HUB, HARDWARE_SESSION, MAIN,
+    ])
     by_id = {r['id']: r for r in catalog}
 
     bench1 = by_id['analog_a0']
@@ -155,8 +160,6 @@ def main() -> int:
     invoke_names = {a or b for a, b in invoked}
     handler_match = re.search(r'tauri::generate_handler!\[(.*?)\]\)', rust, re.S)
     assert handler_match
-    # Commands may be registered as module::command. The frontend invokes the
-    # exported command name, so compare against the final Rust path segment.
     handlers = {
         x.strip().split('::')[-1]
         for x in handler_match.group(1).split(',')
@@ -165,15 +168,36 @@ def main() -> int:
     missing = invoke_names - handlers
     assert not missing, f'frontend invokes missing Rust handlers: {sorted(missing)}'
 
-    assert MONITOR_DATA.is_file()
-    assert 'serial_stream_start' in MONITOR_DATA.read_text()
-    assert 'serial_stream_stop' in MONITOR_DATA.read_text()
-    assert 'Monitor & Data' in APP.read_text()
+    monitor_text = MONITOR_DATA.read_text()
+    app_text = APP.read_text()
+    main = MAIN.read_text()
+    hub = EXPERIMENTS_HUB.read_text()
+    hardware = HARDWARE_SESSION.read_text()
+    numerical = NUMERICAL_SUITE.read_text()
+    magnet_ui = MAGNET_SUITE.read_text()
 
-    main = (ROOT / 'src' / 'main.tsx').read_text()
-    assert 'Numerical Lab' in main
-    assert 'Magnet Lab' in main
-    assert 'setup · program · monitor' in main
+    assert 'serial_stream_start' in monitor_text
+    assert 'serial_stream_stop' in monitor_text
+    assert 'Monitor & Data' in app_text
+    assert 'Shared hardware session' in app_text
+    assert 'Verify & Diagnose' in app_text
+    assert 'Numerical & Measurement' in app_text
+    assert 'Magnetism & Fields' in app_text
+
+    assert "type Workspace = 'studio' | 'experiments'" in main
+    assert "label: 'Studio'" in main
+    assert "label: 'Experiments'" in main
+    assert 'HardwareSessionProvider' in main
+    assert 'useHardwareSession' in main
+    assert 'Numerical Analysis' in hub and 'Magnetism & Fields' in hub
+    assert 'Capture 7 s & Analyze' in numerical
+    assert 'Capture Complete Campaign & Analyze' in numerical
+    assert 'Downsampling convergence' in numerical
+    assert 'Method comparison' in numerical
+    assert 'Spatial scan' in magnet_ui
+    assert 'Measured ↔ model profile' in magnet_ui
+    assert "invoke<BoardPort[]>('board_list')" in hardware
+    assert "invoke<BoardProfile[]>('board_profiles')" in hardware
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
@@ -183,12 +207,14 @@ def main() -> int:
 
     print('BetterBoard Studio v0.2 self-check: PASS')
     print('- 11 canonical recipes registered')
-    print('- Numerical Bench 01 / 02 / 03 workflow registered')
-    print('- Magnet Bench 01 vector acquisition registered')
-    print('- Magnet Bench 02 characterization/spatial analyzer registered')
-    print('- Magnet Bench 03 RADIA/model validation analyzer registered')
     print('- persistent live Serial Monitor handlers registered')
     print('- unified Monitor & Data workspace registered')
+    print('- Studio / Experiments top-level information architecture registered')
+    print('- shared Hardware Session provider registered')
+    print('- grouped Recipe Library registered')
+    print('- Numerical Lab in-app complete-results workflow registered')
+    print('- Magnet Lab in-app characterization/model-validation workflow registered')
+    print('- obsolete duplicate Numerical/Magnet lab components removed')
     print('- inherited Physical Lab v0.4 firmware hashes preserved where intended')
     print('- full multichannel + Physical Lab v1 compatibility bridge present')
     print('- frontend invoke / Rust handler contract consistent')
