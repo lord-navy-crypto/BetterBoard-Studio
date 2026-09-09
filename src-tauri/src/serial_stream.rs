@@ -1,10 +1,10 @@
 use chrono::Utc;
 use serde::Serialize;
 use std::{
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Write},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     time::Duration,
 };
@@ -21,6 +21,7 @@ pub struct SerialStreamEvent {
 pub struct SerialStreamState {
     stop: Arc<AtomicBool>,
     running: Arc<AtomicBool>,
+    writer: Arc<Mutex<Option<Box<dyn serialport::SerialPort>>>>,
 }
 
 impl Default for SerialStreamState {
@@ -28,6 +29,7 @@ impl Default for SerialStreamState {
         Self {
             stop: Arc::new(AtomicBool::new(false)),
             running: Arc::new(AtomicBool::new(false)),
+            writer: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -72,6 +74,7 @@ pub fn serial_stream_start(
     state.stop.store(false, Ordering::SeqCst);
     let stop = Arc::clone(&state.stop);
     let running = Arc::clone(&state.running);
+    let writer_slot = Arc::clone(&state.writer);
 
     std::thread::spawn(move || {
         let result = (|| -> Result<(), String> {
@@ -79,6 +82,19 @@ pub fn serial_stream_start(
                 .timeout(Duration::from_millis(120))
                 .open()
                 .map_err(|e| format!("Could not open serial port {port}: {e}"))?;
+
+            // Clone the already-open serial handle for writes. This keeps TX and RX on
+            // one persistent device session instead of opening a second serial port,
+            // which can reset common AVR boards through USB-serial control lines.
+            let writer = serial
+                .try_clone()
+                .map_err(|e| format!("Could not create serial write handle for {port}: {e}"))?;
+            {
+                let mut slot = writer_slot
+                    .lock()
+                    .map_err(|_| "Serial writer state is unavailable".to_string())?;
+                *slot = Some(writer);
+            }
 
             // Many AVR USB-serial boards reset when a port is opened. Open once,
             // wait once, then keep the same session alive until the user stops it.
@@ -114,6 +130,9 @@ pub fn serial_stream_start(
             Ok(())
         })();
 
+        if let Ok(mut slot) = writer_slot.lock() {
+            *slot = None;
+        }
         match result {
             Ok(()) => {
                 let _ = emit(&on_event, "stopped", "Serial monitor stopped", false);
@@ -127,6 +146,45 @@ pub fn serial_stream_start(
     });
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn serial_stream_write(
+    state: State<'_, SerialStreamState>,
+    text: String,
+    line_ending: String,
+) -> Result<usize, String> {
+    if !state.running.load(Ordering::SeqCst) {
+        return Err("Start Live Monitor before sending serial data.".into());
+    }
+    if text.as_bytes().len() > 8192 {
+        return Err("Serial transmit payload must be 8192 bytes or fewer.".into());
+    }
+
+    let suffix = match line_ending.as_str() {
+        "none" => "",
+        "lf" => "\n",
+        "cr" => "\r",
+        "crlf" => "\r\n",
+        _ => return Err("line_ending must be one of: none, lf, cr, crlf".into()),
+    };
+    let mut payload = text.into_bytes();
+    payload.extend_from_slice(suffix.as_bytes());
+
+    let mut slot = state
+        .writer
+        .lock()
+        .map_err(|_| "Serial writer state is unavailable".to_string())?;
+    let writer = slot
+        .as_mut()
+        .ok_or_else(|| "Serial session is still opening; try Send again once LIVE.".to_string())?;
+    writer
+        .write_all(&payload)
+        .map_err(|e| format!("Serial write failed: {e}"))?;
+    writer
+        .flush()
+        .map_err(|e| format!("Serial flush failed: {e}"))?;
+    Ok(payload.len())
 }
 
 #[tauri::command]
