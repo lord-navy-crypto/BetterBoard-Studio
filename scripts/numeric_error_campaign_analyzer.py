@@ -96,10 +96,11 @@ def analyze(kind, rows):
         fe=[abs(v-ref) for v in f]; ce=[abs(v-ref) for v in c]
         fi=min(range(len(fe)),key=fe.__getitem__) if fe else None; ci=min(range(len(ce)),key=ce.__getitem__) if ce else None
         result['reference']={'type':'host_libm','expression':'cos(1.0)','value':ref}
+        fu=nums(rows,'forward_us'); cu=nums(rows,'central_us')
         m={'best_forward_h':hs[fi] if fi is not None and fi<len(hs) else None,'best_forward_abs_error':fe[fi] if fi is not None else None,
            'best_central_h':hs[ci] if ci is not None and ci<len(hs) else None,'best_central_abs_error':ce[ci] if ci is not None else None,
-           'forward_runtime_median_us':statistics.median(nums(rows,'forward_us')) if nums(rows,'forward_us') else None,
-           'central_runtime_median_us':statistics.median(nums(rows,'central_us')) if nums(rows,'central_us') else None}
+           'forward_runtime_median_us':statistics.median(fu) if fu else None,
+           'central_runtime_median_us':statistics.median(cu) if cu else None}
     elif kind=='integration_v2':
         result['reference']={'type':'analytic','expression':'integral_0_pi sin(x) dx','value':2.0}
         for name in ('left','trapezoid','simpson'):
@@ -149,13 +150,21 @@ def analyze(kind, rows):
     return result
 
 
+def json_safe(value):
+    if isinstance(value, dict): return {k: json_safe(v) for k,v in value.items()}
+    if isinstance(value, list): return [json_safe(v) for v in value]
+    if isinstance(value, float) and not math.isfinite(value): return None
+    return value
+
+
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('input',type=Path); ap.add_argument('--output',type=Path)
     args=ap.parse_args(); src=args.input.expanduser().resolve(); fields,rows=load(src); kind=classify(fields)
-    result=analyze(kind,rows); result['source']=str(src); result['columns']=fields
+    result=analyze(kind,rows); result['source']=str(src); result['columns']=fields; safe=json_safe(result)
     out=(args.output or src.parent/'numeric-error-campaign-analysis').expanduser().resolve(); out.mkdir(parents=True,exist_ok=True)
-    (out/'summary.json').write_text(json.dumps(result,indent=2,sort_keys=True,allow_nan=False)+'\n')
-    (out/'report.md').write_text('# BetterBoard Numeric Error Campaign Report\n\n```json\n'+json.dumps(result,indent=2,sort_keys=True,allow_nan=False)+'\n```\n')
+    payload=json.dumps(safe,indent=2,sort_keys=True,allow_nan=False)
+    (out/'summary.json').write_text(payload+'\n')
+    (out/'report.md').write_text('# BetterBoard Numeric Error Campaign Report\n\n```json\n'+payload+'\n```\n')
     print(out); return 0
 
 if __name__=='__main__': raise SystemExit(main())
