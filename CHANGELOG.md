@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0-alpha.3
+
+- Added compile-time parameter controls for canonical recipes with validated sliders/number inputs that affect real generated firmware.
+- Added **My Library** user presets under `~/Documents/BetterBoard/library` and Developer-derived reusable recipes.
+- Upgraded Developer into a template-first Arduino-style free editor with Save / Verify / Run / Upload / Save to Library.
+- Added a searchable Runtime Log inside Monitor & Data backed by Task Center operation logs.
+- Added a loopback-only **OpenPenguin · Local AI** bridge to the private local runtime at `127.0.0.1:11435`; no automatic cloud upload.
+- Added four numerical-error firmware programs: step-size differentiation, catastrophic cancellation, accumulation/Kahan summation, and MPU6050 rectangle-vs-trapezoidal gyro integration.
+- Added MPU6050, PIR, optical pulse/motor-speed, and driver-dependent rotary/stepper hardware profiles with explicit hardware-boundary warnings.
+- Moved Advanced Tools out of the experiment-domain navigation; legacy full-control workflows remain folded as an expert compatibility escape hatch while useful controls live in the normal Numerical/Magnet labs.
+- Measurement Evidence now carries effective recipe parameters and hashes the parameter-rendered firmware source.
+
 ## 0.2.0-alpha.1
 
 - Merged all previously generated Physical Lab Arduino/hardware packs into BetterBoard provenance.

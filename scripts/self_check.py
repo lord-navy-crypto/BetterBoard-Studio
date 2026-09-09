@@ -245,17 +245,21 @@ def main() -> int:
     for token in ['Template', 'Load recipe template', 'Save to Library', 'OpenPenguinBridge']:
         assert token in developer_text, token
     assert 'Runtime log' in RUNTIME_LOG.read_text()
+    for token in ['parameterValues', 'capture_measurement', 'save_measurement_buffer', 'RuntimeLog']:
+        assert token in monitor_text, token
+    assert 'parameterValues={parameterValues}' in app_text
+    assert 'recipe_parameters' in rust and 'firmware_sha256: sha256_text(&source)' in rust
     for token in ['openguin_probe', 'openguin_generate', '127.0.0.1:11435']:
         assert token in OPENGUIN_BRIDGE.read_text() or token in (ROOT / 'src-tauri' / 'src' / 'openguin_bridge.rs').read_text(), token
     assert 'Expert workflows' in hub and 'Advanced Tools' not in hub
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
-    assert package['version'] == '0.2.0-alpha.2'
-    assert tauri['version'] == '0.2.0-alpha.2'
-    assert '0.2.0-alpha.2' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
+    assert package['version'] == '0.2.0-alpha.3'
+    assert tauri['version'] == '0.2.0-alpha.3'
+    assert '0.2.0-alpha.3' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
 
-    print('BetterBoard Studio v0.2.0-alpha.2 self-check: PASS')
+    print('BetterBoard Studio v0.2.0-alpha.3 self-check: PASS')
     print('- 15 canonical recipes registered, including four new numerical-error programs')
     print('- persistent bidirectional Serial Monitor handlers registered')
     print('- historical Measurement Sessions + replay registered')
