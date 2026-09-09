@@ -177,7 +177,6 @@ fn board_catalog_value() -> Result<Vec<BoardProfile>, String> {
     serde_json::from_str(BOARD_CATALOG_JSON)
         .map_err(|e| format!("Invalid embedded board catalog: {e}"))
 }
-
 fn device_catalog_value() -> Result<Vec<DeviceSpec>, String> {
     serde_json::from_str(DEVICE_CATALOG_JSON)
         .map_err(|e| format!("Invalid embedded device catalog: {e}"))
@@ -410,6 +409,50 @@ fn prepare_recipe(recipe_id: String) -> Result<String, String> {
     let root = sketch_root(&recipe)?;
     let file = root.join(format!("{}.ino", recipe.sketch_name));
     fs::write(&file, source).map_err(|e| e.to_string())?;
+    Ok(root.display().to_string())
+}
+
+fn developer_sketch_base_dir() -> PathBuf {
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home)
+            .join("Documents")
+            .join("BetterBoard")
+            .join("sketches");
+    }
+    std::env::temp_dir().join("BetterBoard").join("sketches")
+}
+
+fn sanitize_developer_sketch_name(raw: &str) -> String {
+    let mut name = raw
+        .trim()
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' })
+        .take(64)
+        .collect::<String>();
+    if name.is_empty() {
+        name = "BetterBoardSketch".into();
+    }
+    if !name.chars().next().is_some_and(|ch| ch.is_ascii_alphabetic() || ch == '_') {
+        name = format!("Sketch_{name}");
+    }
+    name
+}
+
+#[tauri::command]
+fn developer_sketch_save(sketch_name: String, source: String) -> Result<String, String> {
+    if source.len() > 2_000_000 {
+        return Err("Developer sketch source exceeds the 2 MB editor limit.".into());
+    }
+    if source.trim().is_empty() {
+        return Err("Developer sketch source is empty.".into());
+    }
+    let name = sanitize_developer_sketch_name(&sketch_name);
+    let base = developer_sketch_base_dir();
+    fs::create_dir_all(&base).map_err(|e| e.to_string())?;
+    let root = base.join(&name);
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    let file = root.join(format!("{name}.ino"));
+    fs::write(&file, source).map_err(|e| format!("Could not save {}: {e}", file.display()))?;
     Ok(root.display().to_string())
 }
 
@@ -900,6 +943,7 @@ pub fn run() {
             recipe_source,
             physical_lab_bridge_docs,
             prepare_recipe,
+            developer_sketch_save,
             compile_sketch,
             upload_sketch,
             recipe_preflight,
