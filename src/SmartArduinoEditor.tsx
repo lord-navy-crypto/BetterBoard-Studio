@@ -111,7 +111,7 @@ export default function SmartArduinoEditor({ value, onChange, readOnly = false, 
     });
 
     monaco.languages.registerDefinitionProvider('cpp', {
-      provideDefinition(model, position) {
+      provideDefinition(model: editor.ITextModel, position: Position) {
         const current = model.getWordAtPosition(position);
         if (!current?.word) return null;
         const found = findDefinitionLine(model, current.word);
@@ -124,7 +124,7 @@ export default function SmartArduinoEditor({ value, onChange, readOnly = false, 
     });
 
     monaco.languages.registerHoverProvider('cpp', {
-      provideHover(model, position) {
+      provideHover(model: editor.ITextModel, position: Position) {
         const current = model.getWordAtPosition(position);
         if (!current?.word) return null;
         const documentation = ARDUINO_HOVER[current.word];
