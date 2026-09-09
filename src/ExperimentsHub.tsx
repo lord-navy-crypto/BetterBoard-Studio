@@ -7,6 +7,8 @@ import CopyButton from './CopyButton';
 // Their preparation surfaces now live in EngineeringPreparationStudio.
 
 const NUMERIC_FIRMWARE = 'src-tauri/resources/firmware/NumericError_InteractiveStudioV2/NumericError_InteractiveStudioV2.ino';
+const SIGNAL_CHAIN_FIRMWARE = 'src-tauri/resources/firmware/NumericError_SignalChainLabV1/NumericError_SignalChainLabV1.ino';
+const EVENT_TIMING_FIRMWARE = 'src-tauri/resources/firmware/NumericError_EventTimingLabV1/NumericError_EventTimingLabV1.ino';
 const NUMERIC_BRIDGE = 'scripts/arduino_numeric_error_bridge_v2.py';
 const NUMERIC_ANALYZER = 'scripts/numeric_error_campaign_analyzer.py';
 const NUMERIC_COMMANDS = [
@@ -20,20 +22,10 @@ const NUMERIC_COMMANDS = [
 
 const NUMERIC_FAMILIES = [
   'Interactive Taylor reliability · RAW / REDUCED / false convergence',
-  'Aliasing & MCU sample scheduling',
-  'Fixed-point vs float',
-  'Cancellation & algebraic reformulation',
-  'Overflow / wrap / saturation',
-  'ADC stability & nominal-reference boundary',
-  'ADC and PWM quantization',
-  'Filter lag vs scheduler timing',
-  'Derivative roundoff / truncation tradeoff',
-  'Integration convergence',
-  'Naive vs Kahan accumulation',
-  'Debounce / switch edge evidence',
-  'Photogate timing / event loss evidence',
-  'PIR observed-output timing',
-  'Multi-sensor sampled context',
+  'Sampling & aliasing · synthetic sampling theory + scheduler evidence',
+  'Signal Chain Lab · ADC stability + ADC/PWM quantization + EMA filter lag',
+  'Numerical methods · cancellation + fixed-point + overflow + derivative + integration + summation',
+  'Event Timing Lab · switch debounce + photogate timing/loss + PIR observed timing + sampled context',
 ];
 
 const CAMPAIGNS = [
@@ -81,7 +73,7 @@ export default function ExperimentsHub() {
 
     <section className="panel" style={{ maxWidth: 1420, margin: '14px auto 50px' }}>
       <div className="panel-title"><Sigma size={18}/> Numeric Error Depth · embedded numerical reliability</div>
-      <p className="muted">Arduino UNO and its measurement/event path are systems under test. Independent host analysis owns scientific reference work. The old research-pack experiments have been absorbed into the campaign families below rather than copied as duplicate V1/V2 entries.</p>
+      <p className="muted">Arduino UNO and its measurement/event path are systems under test. Independent host analysis owns scientific reference work. Overlapping research-pack programs are fused into integrated campaign labs where they share the same physical data path; orthogonal numerical mechanisms remain separate controlled firmware under one family.</p>
 
       <div className="engineering-model-grid">
         <article className="panel">
@@ -90,25 +82,42 @@ export default function ExperimentsHub() {
           <div className="measurement big"><b>Firmware V2</b><span>{NUMERIC_FIRMWARE}</span></div>
           <CopyButton text={NUMERIC_FIRMWARE} label="Copy firmware path"/>
         </article>
+
         <article className="panel">
-          <div className="panel-title">2 · Campaign families</div>
+          <div className="panel-title">2 · Signal Chain Lab</div>
+          <p>One synchronized A0 → measurement → quantization → EMA → PWM path replaces four overlapping end-to-end demos while preserving the old focused sketches as single-factor controls.</p>
+          <div className="measurement big"><b>Integrated firmware</b><span>{SIGNAL_CHAIN_FIRMWARE}</span></div>
+          <CopyButton text={SIGNAL_CHAIN_FIRMWARE} label="Copy Signal Chain path"/>
+        </article>
+
+        <article className="panel">
+          <div className="panel-title">3 · Event Timing Lab</div>
+          <p>Photogate queue/drop evidence, switch raw-vs-debounced transitions, PIR observed-output timing and periodic context now share one event experiment and one clock.</p>
+          <div className="measurement big"><b>Integrated firmware</b><span>{EVENT_TIMING_FIRMWARE}</span></div>
+          <CopyButton text={EVENT_TIMING_FIRMWARE} label="Copy Event Timing path"/>
+        </article>
+
+        <article className="panel">
+          <div className="panel-title">4 · Campaign families</div>
           <ul className="compact-list">{NUMERIC_FAMILIES.map(item => <li key={item}>{item}</li>)}</ul>
         </article>
+
         <article className="panel">
-          <div className="panel-title">3 · Independent host validation</div>
+          <div className="panel-title">5 · Independent host validation</div>
           <p>Interactive Taylor rows use the Numerical Error Studio bridge; the wider experiment family uses the consolidated campaign analyzer.</p>
           <div className="measurement big"><b>Bridge V2</b><span>{NUMERIC_BRIDGE}</span><b>Campaign analyzer</b><span>{NUMERIC_ANALYZER}</span></div>
           <div className="action-row"><CopyButton text={NUMERIC_BRIDGE} label="Copy bridge path"/><CopyButton text={NUMERIC_ANALYZER} label="Copy analyzer path"/></div>
         </article>
+
         <article className="panel">
-          <div className="panel-title"><FlaskConical size={17}/> 4 · RAW vs REDUCED campaign</div>
+          <div className="panel-title"><FlaskConical size={17}/> 6 · RAW vs REDUCED campaign</div>
           <p>Run the same x-domain in RAW and range-reduced modes. Compare error, cancellation, stopping rule, reliability and false convergence without changing the independent oracle.</p>
           <pre style={{ whiteSpace: 'pre-wrap' }}>{NUMERIC_COMMANDS}</pre>
           <CopyButton text={NUMERIC_COMMANDS} label="Copy campaign commands"/>
         </article>
       </div>
 
-      <div className="boundary"><CheckCircle2 size={14}/> Promotion boundary: being visible in Experiments does not make firmware canonical. UNO compile/upload, serial schema checks, host analyzer/bridge checks and timing/drop evidence still gate canonical recipe registration.</div>
+      <div className="boundary"><CheckCircle2 size={14}/> Promotion boundary: firmware exposed here is research-grade and CI-compile gated. Real UNO upload, serial capture, host analyzer/bridge comparison and timing/drop review remain the evidence gate for claims about physical hardware behavior.</div>
     </section>
   </div>;
 }
