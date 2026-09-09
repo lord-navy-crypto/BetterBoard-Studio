@@ -6,6 +6,7 @@ import NumericalBenchSuite from './NumericalBenchSuite';
 import MagnetBenchSuite from './MagnetBenchSuite';
 import './styles.css';
 import './visual-system.css';
+import './monitor-data.css';
 
 type Workspace = 'studio' | 'numerical' | 'magnet';
 
@@ -15,9 +16,9 @@ const WORKSPACES: Array<{
   subtitle: string;
   icon: typeof CircuitBoard;
 }> = [
-  { id: 'studio', label: 'Studio', subtitle: 'hardware + data', icon: CircuitBoard },
-  { id: 'numerical', label: 'Numerical', subtitle: 'bench 01–03', icon: Sigma },
-  { id: 'magnet', label: 'Magnet', subtitle: 'bench 01–03', icon: Magnet },
+  { id: 'studio', label: 'Studio', subtitle: 'setup · program · monitor', icon: CircuitBoard },
+  { id: 'numerical', label: 'Numerical Lab', subtitle: 'bench 01–03', icon: Sigma },
+  { id: 'magnet', label: 'Magnet Lab', subtitle: 'bench 01–03', icon: Magnet },
 ];
 
 function Root() {
