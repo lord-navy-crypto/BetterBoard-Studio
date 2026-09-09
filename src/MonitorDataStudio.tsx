@@ -117,6 +117,7 @@ export default function MonitorDataStudio({ recipe, selectedPort, fqbn, onStatus
   const lastValue = channelValues.at(-1);
   const minValue = channelValues.length ? Math.min(...channelValues) : undefined;
   const maxValue = channelValues.length ? Math.max(...channelValues) : undefined;
+  const bufferedEvidenceRows = useMemo(() => rows.filter(row => parseNumericRow(row, recipe?.columns.length ?? 0) !== null), [rows, recipe?.columns.length]);
 
   function report(message: string) {
     setMonitorMessage(message);
@@ -222,20 +223,35 @@ export default function MonitorDataStudio({ recipe, selectedPort, fqbn, onStatus
       report('Select a serial device first.');
       return;
     }
-    if (monitorState === 'live' || monitorState === 'starting') {
-      report('Stop Live Monitor before recording a Measurement Package; recording owns the serial port during capture.');
-      return;
-    }
     setBusy(true);
     try {
-      report('Recording full multichannel Measurement Package…');
-      const result = await invoke<MeasurementResult>('capture_measurement', {
-        port: selectedPort,
-        durationMs: 5000,
-        maxLines: 10000,
-        boardProfile: fqbn,
-        recipeId: recipe.id,
-      });
+      let result: MeasurementResult;
+      if (monitorState === 'live' || monitorState === 'starting') {
+        if (!bufferedEvidenceRows.length) {
+          report('Live Monitor has no complete recipe-shaped numeric rows to save yet.');
+          return;
+        }
+        report(`Saving ${bufferedEvidenceRows.length} buffered live rows without closing the serial port…`);
+        result = await invoke<MeasurementResult>('save_measurement_buffer', {
+          port: selectedPort,
+          boardProfile: fqbn,
+          recipeId: recipe.id,
+          rows: bufferedEvidenceRows.map(row => ({
+            host_timestamp_ms: row.hostTimestampMs,
+            line: row.line,
+            numeric: row.numeric,
+          })),
+        });
+      } else {
+        report('Recording a new 5 s full multichannel Measurement Package…');
+        result = await invoke<MeasurementResult>('capture_measurement', {
+          port: selectedPort,
+          durationMs: 5000,
+          maxLines: 10000,
+          boardProfile: fqbn,
+          recipeId: recipe.id,
+        });
+      }
       setMeasurement(result);
       onMeasurement?.(result);
       report(`${result.samples} samples saved · ${result.directory}`);
@@ -302,10 +318,10 @@ export default function MonitorDataStudio({ recipe, selectedPort, fqbn, onStatus
     <div className="monitor-bottom-grid">
       <div className="panel monitor-record-panel">
         <div className="panel-title"><Database size={18}/> Record & evidence</div>
-        <p className="muted">Live monitoring is for inspection. Measurement recording is the evidence path: full recipe-defined CSV, metadata, and Physical Lab compatibility export.</p>
+        <p className="muted">Monitoring and recording now share one evidence path. While Live is running, BetterBoard can save the current structured buffer without closing/reopening the serial port; while stopped, it can acquire a fresh 5 s package.</p>
         <div className="record-actions">
-          <button className="primary" disabled={busy || !selectedPort || recipe?.capture_mode !== 'numeric' || monitorState === 'live' || monitorState === 'starting'} onClick={recordMeasurement}><Save size={15}/> Record 5 s package</button>
-          {monitorState === 'live' && <span className="record-note"><CircleAlert size={14}/> Stop Live Monitor before recording.</span>}
+          <button className="primary" disabled={busy || !selectedPort || recipe?.capture_mode !== 'numeric' || ((monitorState === 'live' || monitorState === 'starting') && !bufferedEvidenceRows.length)} onClick={recordMeasurement}><Save size={15}/> {monitorState === 'live' || monitorState === 'starting' ? `Save live buffer (${bufferedEvidenceRows.length})` : 'Record new 5 s package'}</button>
+          {(monitorState === 'live' || monitorState === 'starting') && <span className="record-note"><CircleAlert size={14}/> Saving the buffer keeps Live Monitor open and does not reset the board.</span>}
         </div>
         {measurement && <div className="measurement big"><b>{measurement.samples} samples</b><span>{measurement.directory}</span><span>{measurement.csv_path}</span><span>{measurement.metadata_path}</span></div>}
       </div>

@@ -16,9 +16,11 @@ const APP_VERSION: &str = "0.2.0-alpha.1";
 const RECIPE_CATALOG_JSON: &str = include_str!("../resources/recipes/catalog.json");
 const BOARD_CATALOG_JSON: &str = include_str!("../resources/boards/boards.json");
 const DEVICE_CATALOG_JSON: &str = include_str!("../resources/devices/devices.json");
-const PHYSICAL_LAB_MAP: &str = include_str!("../resources/physical-lab/PHYSICAL_LAB_HARDWARE_MAP.md");
+const PHYSICAL_LAB_MAP: &str =
+    include_str!("../resources/physical-lab/PHYSICAL_LAB_HARDWARE_MAP.md");
 const PHYSERIAL_V02: &str = include_str!("../resources/physical-lab/PHYSERIAL_V0_2.md");
-const HONEYCOMB_GUIDE: &str = include_str!("../resources/physical-lab/HONEYCOMB_MECHANICAL_ANALOGUE.md");
+const HONEYCOMB_GUIDE: &str =
+    include_str!("../resources/physical-lab/HONEYCOMB_MECHANICAL_ANALOGUE.md");
 
 #[derive(Debug, Serialize)]
 struct CliInfo {
@@ -87,7 +89,7 @@ struct PreflightResult {
     warnings: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CapturedRow {
     host_timestamp_ms: i64,
     line: String,
@@ -117,6 +119,7 @@ struct MeasurementMetadata {
     schema: String,
     created_at_utc: String,
     producer: String,
+    acquisition_mode: String,
     recipe_id: String,
     recipe_title: String,
     board_profile: String,
@@ -163,17 +166,37 @@ fn recipe_by_id(id: &str) -> Result<RecipeSpec, String> {
 
 fn embedded_recipe_source(id: &str) -> Result<&'static str, String> {
     match id {
-        "blink" => Ok(include_str!("../resources/firmware/Blink_LED/Blink_LED.ino")),
-        "synthetic" => Ok(include_str!("../resources/firmware/SyntheticSignal/SyntheticSignal.ino")),
-        "analog_a0" => Ok(include_str!("../resources/firmware/AnalogDAQ/AnalogDAQ.ino")),
-        "numerical_embedded" => Ok(include_str!("../resources/firmware/EmbeddedNumericalReliability/EmbeddedNumericalReliability.ino")),
-        "magnetic_mlx90393" => Ok(include_str!("../resources/firmware/MagneticField_MLX90393/MagneticField_MLX90393.ino")),
-        "acceleration_adxl345" => Ok(include_str!("../resources/firmware/Accelerometer_ADXL345/Accelerometer_ADXL345.ino")),
-        "photogate" => Ok(include_str!("../resources/firmware/PhotogateTimer/PhotogateTimer.ino")),
-        "quadrature_encoder" => Ok(include_str!("../resources/firmware/QuadratureEncoder/QuadratureEncoder.ino")),
+        "blink" => Ok(include_str!(
+            "../resources/firmware/Blink_LED/Blink_LED.ino"
+        )),
+        "synthetic" => Ok(include_str!(
+            "../resources/firmware/SyntheticSignal/SyntheticSignal.ino"
+        )),
+        "analog_a0" => Ok(include_str!(
+            "../resources/firmware/AnalogDAQ/AnalogDAQ.ino"
+        )),
+        "numerical_embedded" => Ok(include_str!(
+            "../resources/firmware/EmbeddedNumericalReliability/EmbeddedNumericalReliability.ino"
+        )),
+        "magnetic_mlx90393" => Ok(include_str!(
+            "../resources/firmware/MagneticField_MLX90393/MagneticField_MLX90393.ino"
+        )),
+        "acceleration_adxl345" => Ok(include_str!(
+            "../resources/firmware/Accelerometer_ADXL345/Accelerometer_ADXL345.ino"
+        )),
+        "photogate" => Ok(include_str!(
+            "../resources/firmware/PhotogateTimer/PhotogateTimer.ino"
+        )),
+        "quadrature_encoder" => Ok(include_str!(
+            "../resources/firmware/QuadratureEncoder/QuadratureEncoder.ino"
+        )),
         "pulse_rpm" => Ok(include_str!("../resources/firmware/PulseRPM/PulseRPM.ino")),
-        "random_walk_robot" => Ok(include_str!("../resources/firmware/RandomWalkRobot/RandomWalkRobot.ino")),
-        "i2c_scanner" => Ok(include_str!("../resources/firmware/I2CScanner/I2CScanner.ino")),
+        "random_walk_robot" => Ok(include_str!(
+            "../resources/firmware/RandomWalkRobot/RandomWalkRobot.ino"
+        )),
+        "i2c_scanner" => Ok(include_str!(
+            "../resources/firmware/I2CScanner/I2CScanner.ino"
+        )),
         _ => Err(format!("No embedded firmware source for recipe: {id}")),
     }
 }
@@ -223,7 +246,11 @@ fn run_cli(args: &[String]) -> Result<String, String> {
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     if out.status.success() {
-        Ok(if stdout.trim().is_empty() { stderr } else { stdout })
+        Ok(if stdout.trim().is_empty() {
+            stderr
+        } else {
+            stdout
+        })
     } else {
         Err(format!("{}{}", stdout, stderr).trim().to_string())
     }
@@ -365,12 +392,7 @@ fn compile_sketch(sketch_dir: String, fqbn: String) -> Result<String, String> {
     if !Path::new(&sketch_dir).exists() {
         return Err("Sketch directory does not exist".into());
     }
-    run_cli(&[
-        "compile".into(),
-        "--fqbn".into(),
-        fqbn,
-        sketch_dir,
-    ])
+    run_cli(&["compile".into(), "--fqbn".into(), fqbn, sketch_dir])
 }
 
 #[tauri::command]
@@ -409,7 +431,10 @@ fn recipe_preflight(recipe_id: String, fqbn: String) -> Result<PreflightResult, 
             core_installed: false,
             required_libraries: recipe.required_libraries.clone(),
             missing_libraries: recipe.required_libraries,
-            warnings: vec!["Arduino CLI is unavailable; BetterBoard will not attempt an automatic reinstall.".into()],
+            warnings: vec![
+                "Arduino CLI is unavailable; BetterBoard will not attempt an automatic reinstall."
+                    .into(),
+            ],
         });
     }
 
@@ -419,7 +444,9 @@ fn recipe_preflight(recipe_id: String, fqbn: String) -> Result<PreflightResult, 
         .to_lowercase();
     let core_installed = core_text.contains(&core.to_lowercase());
     if !core_installed {
-        warnings.push(format!("Board core {core} was not found in arduino-cli core list."));
+        warnings.push(format!(
+            "Board core {core} was not found in arduino-cli core list."
+        ));
     }
 
     let library_text = run_cli_static(&["lib", "list", "--format", "json"])
@@ -436,7 +463,9 @@ fn recipe_preflight(recipe_id: String, fqbn: String) -> Result<PreflightResult, 
         warnings.push("One or more recipe libraries are missing. BetterBoard reports them but does not reinstall existing packages automatically.".into());
     }
     if recipe.id == "random_walk_robot" {
-        warnings.push("Motor driver pins are placeholders until the exact driver is identified.".into());
+        warnings.push(
+            "Motor driver pins are placeholders until the exact driver is identified.".into(),
+        );
     }
     if recipe.id == "acceleration_adxl345" {
         warnings.push("Do not assume the photographed XYZ module is ADXL345 until its exact marking/pinout is confirmed.".into());
@@ -465,8 +494,13 @@ fn capture_lines(
     if max_lines == 0 || max_lines > 100_000 {
         return Err("max_lines must be 1..100000".into());
     }
-    if !(port.starts_with("/dev/cu.") || port.starts_with("/dev/tty.") || cfg!(not(target_os = "macos"))) {
-        return Err("On macOS BetterBoard accepts serial devices under /dev/cu.* or /dev/tty.*.".into());
+    if !(port.starts_with("/dev/cu.")
+        || port.starts_with("/dev/tty.")
+        || cfg!(not(target_os = "macos")))
+    {
+        return Err(
+            "On macOS BetterBoard accepts serial devices under /dev/cu.* or /dev/tty.*.".into(),
+        );
     }
 
     let serial = serialport::new(port, baud)
@@ -536,36 +570,44 @@ fn measurement_base_dir() -> PathBuf {
             .join("BetterBoard")
             .join("measurements");
     }
-    std::env::temp_dir().join("BetterBoard").join("measurements")
+    std::env::temp_dir()
+        .join("BetterBoard")
+        .join("measurements")
 }
 
-#[tauri::command]
-fn capture_measurement(
-    port: String,
-    duration_ms: u64,
-    max_lines: usize,
-    board_profile: String,
-    recipe_id: String,
+fn valid_measurement_rows(recipe: &RecipeSpec, rows: Vec<CapturedRow>) -> Vec<CapturedRow> {
+    rows.into_iter()
+        .filter(|row| {
+            row.numeric
+                && row.line.split(',').count() == recipe.columns.len()
+                && row
+                    .line
+                    .split(',')
+                    .all(|part| part.trim().parse::<f64>().is_ok())
+        })
+        .collect::<Vec<_>>()
+}
+
+fn write_measurement_package(
+    recipe: &RecipeSpec,
+    port: &str,
+    board_profile: &str,
+    acquisition_mode: &str,
+    valid_rows: &[CapturedRow],
 ) -> Result<MeasurementResult, String> {
-    let recipe = recipe_by_id(&recipe_id)?;
-    if recipe.capture_mode != "numeric" {
-        return Err("This recipe does not produce numeric Measurement Evidence.".into());
-    }
-    if recipe.columns.is_empty() || recipe.columns.len() != recipe.units.len() {
-        return Err("Recipe column/unit schema is invalid.".into());
-    }
-
-    let capture = capture_lines(&port, recipe.baud, duration_ms, max_lines, true)?;
-    let valid_rows = capture
-        .rows
-        .iter()
-        .filter(|row| row.numeric && row.line.split(',').count() == recipe.columns.len())
-        .collect::<Vec<_>>();
     if valid_rows.is_empty() {
-        return Err("No rows matched the recipe schema; check firmware, baud rate, and selected recipe.".into());
+        return Err(
+            "No rows matched the recipe schema; check firmware, baud rate, and selected recipe."
+                .into(),
+        );
     }
 
-    let stamp = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let now = Utc::now();
+    let stamp = format!(
+        "{}-{:03}",
+        now.format("%Y%m%dT%H%M%SZ"),
+        now.timestamp_subsec_millis()
+    );
     let dir = measurement_base_dir().join(format!("{}-{stamp}", recipe.id));
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
@@ -576,16 +618,13 @@ fn capture_measurement(
 
     let mut csv = fs::File::create(&csv_path).map_err(|e| e.to_string())?;
     writeln!(csv, "{}", recipe.columns.join(",")).map_err(|e| e.to_string())?;
-    for row in &valid_rows {
+    for row in valid_rows {
         writeln!(csv, "{}", row.line).map_err(|e| e.to_string())?;
     }
 
-    // Physical Lab's current serial-capture contract consumes the last CSV field as the
-    // primary observable and stores timestamp,value. Preserve that compatibility export
-    // while the full BetterBoard CSV keeps every channel.
     let mut bridge_csv = fs::File::create(&physical_lab_csv_path).map_err(|e| e.to_string())?;
     writeln!(bridge_csv, "timestamp,value").map_err(|e| e.to_string())?;
-    for row in &valid_rows {
+    for row in valid_rows {
         let value = row.line.split(',').last().unwrap_or_default().trim();
         writeln!(bridge_csv, "{},{}", row.host_timestamp_ms, value).map_err(|e| e.to_string())?;
     }
@@ -593,12 +632,13 @@ fn capture_measurement(
     let source = embedded_recipe_source(&recipe.id)?;
     let metadata = MeasurementMetadata {
         schema: "betterboard.measurement/0.2".into(),
-        created_at_utc: Utc::now().to_rfc3339(),
+        created_at_utc: now.to_rfc3339(),
         producer: format!("BetterBoard Studio {APP_VERSION}"),
+        acquisition_mode: acquisition_mode.to_string(),
         recipe_id: recipe.id.clone(),
         recipe_title: recipe.title.clone(),
-        board_profile,
-        port: port.clone(),
+        board_profile: board_profile.to_string(),
+        port: port.to_string(),
         baud: recipe.baud,
         columns: recipe.columns.clone(),
         units: recipe.units.clone(),
@@ -618,6 +658,7 @@ fn capture_measurement(
     let bridge = serde_json::json!({
         "schema": "betterboard.physical-lab-bridge/0.2",
         "source_type": "desktop-data-bridge",
+        "acquisition_mode": acquisition_mode,
         "full_dataset": "data.csv",
         "physical_lab_v1_dataset": "physical_lab_v1.csv",
         "current_physical_lab_v1_contract": "timestamp,value; primary observable is the final numeric firmware field",
@@ -643,6 +684,61 @@ fn capture_measurement(
     })
 }
 
+#[tauri::command]
+fn capture_measurement(
+    port: String,
+    duration_ms: u64,
+    max_lines: usize,
+    board_profile: String,
+    recipe_id: String,
+) -> Result<MeasurementResult, String> {
+    let recipe = recipe_by_id(&recipe_id)?;
+    if recipe.capture_mode != "numeric" {
+        return Err("This recipe does not produce numeric Measurement Evidence.".into());
+    }
+    if recipe.columns.is_empty() || recipe.columns.len() != recipe.units.len() {
+        return Err("Recipe column/unit schema is invalid.".into());
+    }
+
+    let capture = capture_lines(&port, recipe.baud, duration_ms, max_lines, true)?;
+    let valid_rows = valid_measurement_rows(&recipe, capture.rows);
+    write_measurement_package(
+        &recipe,
+        &port,
+        &board_profile,
+        "serial-capture",
+        &valid_rows,
+    )
+}
+
+#[tauri::command]
+fn save_measurement_buffer(
+    port: String,
+    board_profile: String,
+    recipe_id: String,
+    rows: Vec<CapturedRow>,
+) -> Result<MeasurementResult, String> {
+    if rows.len() > 100_000 {
+        return Err("Live buffer exceeds the 100000-row evidence limit.".into());
+    }
+    let recipe = recipe_by_id(&recipe_id)?;
+    if recipe.capture_mode != "numeric" {
+        return Err("This recipe does not define numeric Measurement Evidence.".into());
+    }
+    if recipe.columns.is_empty() || recipe.columns.len() != recipe.units.len() {
+        return Err("Recipe column/unit schema is invalid.".into());
+    }
+
+    let valid_rows = valid_measurement_rows(&recipe, rows);
+    write_measurement_package(
+        &recipe,
+        &port,
+        &board_profile,
+        "live-monitor-buffer",
+        &valid_rows,
+    )
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -661,6 +757,7 @@ pub fn run() {
             recipe_preflight,
             serial_capture,
             capture_measurement,
+            save_measurement_buffer,
             serial_stream::serial_stream_start,
             serial_stream::serial_stream_stop,
         ])
