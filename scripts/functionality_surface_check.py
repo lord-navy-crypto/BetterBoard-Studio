@@ -97,6 +97,25 @@ for token in ['Capture 7 s & Analyze', 'Downsampling convergence', 'Capture Comp
 for token in ['Spatial scan', 'Measured ↔ model profile']:
     assert token in magnet_v2, f'Magnet V2 lost {token}'
 
+# Magnet V2 must preserve scientific repeatability and historical scan re-analysis.
+for token in [
+    'Capture repeat',
+    'Rep 1 / Rep 2 / Rep 3',
+    'Between-capture repeatability',
+    'between-capture σ',
+    'sampleStd',
+    'aggregateScan',
+    'Import measured scan CSV',
+    'Measured scan CSV',
+    'corrected_Bx_uT',
+    'corrected_Bmag_uT',
+    'validation uses the repeat mean at each position',
+    'magnet02_scan.csv',
+]:
+    assert token in magnet_v2, f'Magnet V2 repeatability/reanalysis lost {token}'
+assert 'Capture / replace point' not in magnet_v2, 'Magnet V2 regressed to replacing repeated-position evidence'
+assert 'current.filter(p => p.positionMm !== position)' not in magnet_v2, 'Magnet V2 silently deduplicates repeated positions'
+
 # Pre-visual v0.2a Studio capabilities are a product contract, not disposable UI.
 for token in ['Circuit Lab', 'Recipe Library', 'Monitor & Data', 'Developer', 'TaskCenterPanel', 'onTaskStart', 'onTaskLog', 'onTaskFinish']:
     assert token in app, f'Current Studio lost pre-visual capability wiring: {token}'
@@ -185,6 +204,7 @@ print('BetterBoard functionality surface check: PASS')
 print('- four-layer global workspace / mission / hardware status hierarchy protected')
 print('- Observatory is backed by real hardware, CLI, task and measurement-session sources')
 print('- Learning keeps concept → experiment links for numerical and validation work')
+print('- Magnet V2 preserves repeated-position evidence and historical scan re-analysis')
 print('- streamlined V2 workflows preserved')
 print('- pre-visual Studio / Circuit / Bridge capabilities protected')
 print('- Developer is a real editable Arduino-style sketch workflow')
