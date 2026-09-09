@@ -54,3 +54,5 @@ jobs:
           git add -u src/LearningHub.tsx
           git commit -m 'Deepen Observatory and refocus Experiments on Engineering Lab'
           git push origin HEAD:ux/observatory-engineeringlab
+
+# Intentional IA change: Learning is removed; Observatory and Engineering Lab contracts replace it.
