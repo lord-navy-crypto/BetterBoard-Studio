@@ -32,6 +32,24 @@ jobs:
       - name: Functionality surface no-regression check
         run: python3 scripts/functionality_surface_check.py
 
+      - name: Numerical depth self-check
+        run: python3 scripts/numerical_depth_self_check.py
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install Arduino AVR core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+
+      - name: Compile numerical microbench firmware for UNO
+        run: |
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericalDerivativeSweep
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericalCancellation
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericalAccumulation
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/EmbeddedNumericalReliability
+
       - name: Install Tauri Linux build dependencies
         run: |
           sudo apt-get update

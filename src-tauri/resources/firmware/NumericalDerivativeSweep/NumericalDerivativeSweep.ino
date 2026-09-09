@@ -11,7 +11,16 @@ void setup() {
   delay(2000);
   const float x = (float)BB_X_VALUE;
   const float ref = cosf(x);
-  const float hs[] = {1e-1f,5e-2f,2e-2f,1e-2f,5e-3f,2e-3f,1e-3f,5e-4f,2e-4f,1e-4f,5e-5f,2e-5f,1e-5f,5e-6f,2e-6f,1e-6f,5e-7f,2e-7f,1e-7f};
+
+  // Deliberately continue below ordinary float32 spacing so the campaign can
+  // observe the transition from truncation-dominated error to roundoff and,
+  // finally, x +/- h collapsing back to x. mcu_cos is a diagnostic only; the
+  // independent host analyzer supplies the final accuracy reference.
+  const float hs[] = {
+    2e-1f,1e-1f,5e-2f,2e-2f,1e-2f,5e-3f,2e-3f,1e-3f,
+    5e-4f,2e-4f,1e-4f,5e-5f,2e-5f,1e-5f,5e-6f,2e-6f,
+    1e-6f,5e-7f,2e-7f,1e-7f,5e-8f,2e-8f,1e-8f
+  };
   const size_t n = sizeof(hs) / sizeof(hs[0]);
   for (size_t i = 0; i < n; ++i) {
     const float h = hs[i];
