@@ -24,6 +24,7 @@ jobs:
       - name: Apply Alpha 0.8 Observatory/Engineering Lab refocus
         run: |
           python3 scripts/observatory_engineeringlab_phase.py
+          python3 scripts/observatory_contract_fix.py
           rm -f src/LearningHub.tsx
           python3 - <<'PY'
           from pathlib import Path
@@ -49,7 +50,7 @@ jobs:
         run: |
           git config user.name 'BetterBoard CI'
           git config user.email 'actions@users.noreply.github.com'
-          git add src src-tauri package.json package-lock.json CHANGELOG.md scripts/self_check.py
+          git add src src-tauri package.json package-lock.json CHANGELOG.md scripts/self_check.py scripts/functionality_surface_check.py
           git add -u src/LearningHub.tsx
           git commit -m 'Deepen Observatory and refocus Experiments on Engineering Lab'
           git push origin HEAD:ux/observatory-engineeringlab
