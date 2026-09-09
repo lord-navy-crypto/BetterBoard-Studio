@@ -7,6 +7,7 @@ RUST = ROOT / 'src-tauri' / 'src' / 'lib.rs'
 
 required_files = {
     'new Studio': SRC / 'App.tsx',
+    'Engineering Preparation': SRC / 'EngineeringPreparationStudio.tsx',
     'Circuit Lab': SRC / 'CircuitLab.tsx',
     'Monitor & Data': SRC / 'MonitorDataStudio.tsx',
     'Developer IDE': SRC / 'DeveloperIDE.tsx',
@@ -32,6 +33,7 @@ for label, path in required_files.items():
 
 main = (SRC / 'main.tsx').read_text()
 app = (SRC / 'App.tsx').read_text()
+preparation = (SRC / 'EngineeringPreparationStudio.tsx').read_text()
 circuit = (SRC / 'CircuitLab.tsx').read_text()
 hub = (SRC / 'ExperimentsHub.tsx').read_text()
 studio = (SRC / 'StudioAdvanced.tsx').read_text()
@@ -45,20 +47,21 @@ numerical_v2 = (SRC / 'NumericalBenchSuiteV2.tsx').read_text()
 magnet_v2 = (SRC / 'MagnetBenchSuiteV2.tsx').read_text()
 rust = RUST.read_text()
 
-# Global workspace/mission/hardware hierarchy must not collapse back into a flat two-tab shell.
+# Global workspace/mission/hardware hierarchy must not collapse back into a flat shell.
 for token in [
     "'studio' | 'observatory' | 'experiments'",
-    'build · upload · monitor · record',
+    'build · monitor · prepare · handoff',
     'runtime · evidence · system state',
-    'acquire · analyze · compare',
+    'Engineering Lab campaigns',
     'bb-context-strip',
     'No board selected',
     'Acquisition',
     'Tasks',
+    'EngineeringPreparationStudio',
 ]:
     assert token in main, f'Global workspace/status layer lost {token}'
 
-# Observatory is now the whole-system read-mostly observability surface.
+# Observatory remains the whole-system read-mostly observability surface.
 for token in [
     'System Observatory', 'arduino_cli_discovery', 'measurement_sessions', 'measurement_session_load',
     'recipe_catalog', 'device_catalog', 'openguin_probe', 'Latest data observation',
@@ -67,22 +70,32 @@ for token in [
 ]:
     assert token in observatory, f'Observatory lost {token}'
 
-# Learning was intentionally removed; general learning/Arduino guidance belongs in Recipe Library/Studio.
+# Learning was intentionally removed; guidance belongs in Recipe Library/Studio.
 assert not (SRC / 'LearningHub.tsx').exists(), 'Learning workspace should stay removed after IA refocus'
 assert "id: 'learning'" not in main, 'Learning regressed into top-level navigation'
 
-# Experiments is dedicated to Engineering Lab connection, not a duplicate Recipe Library.
+# Experiments is campaign-only. Generic preparation/expert tools must not be mounted here.
 for token in [
-    'Connect with Engineering Lab', 'BetterBoard → Engineering Lab handoff', 'Numerical Error Analysis',
-    'Oscillation & Numerical Integration', 'RADIA Magnet Studio', 'Load BetterBoard evidence',
-    'Copy handoff', 'Numerical evidence preparation', 'Magnet evidence preparation',
+    'Engineering Lab experiments', 'Experiments contains campaigns, not preparation tools.',
+    'Numeric Error Depth', 'Oscillation & Numerical Integration', 'Magnetic Model Validation',
+    'Campaign families', 'Independent host validation', 'RAW vs REDUCED campaign',
 ]:
-    assert token in hub, f'Engineering Lab Experiments lost {token}'
+    assert token in hub, f'Engineering Lab Experiments lost campaign surface {token}'
+for forbidden in ['<NumericalBenchSuiteV2', '<MagnetBenchSuiteV2', '<StudioAdvanced', '<NumericalBenchAdvanced', '<MagnetBenchAdvanced']:
+    assert forbidden not in hub, f'Preparation/expert surface regressed into Experiments: {forbidden}'
 
-# Streamlined defaults must remain.
-for token in ['NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'Expert workflows']:
-    assert token in hub, f'Experiments Hub lost {token}'
-assert 'Advanced Tools' not in hub, 'Advanced Tools regressed into a third primary experiment domain'
+# Studio Engineering Preparation owns reusable preparation, analyzers, bridges and handoff.
+for token in [
+    'Engineering Preparation', 'Numerical preparation', 'Magnetic preparation',
+    'NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'NumericalBenchAdvanced', 'MagnetBenchAdvanced',
+    'StudioAdvanced', 'BetterBoard → Engineering Lab handoff', 'Load saved evidence', 'Copy handoff',
+    'Numeric Error campaign preparation tools', 'numeric_error_campaign_analyzer.py',
+    'numeric_error_campaign_self_check.py', 'arduino_numeric_error_bridge_v2.py',
+    'NUMERIC_ERROR_ABSORPTION_LEDGER.md',
+]:
+    assert token in preparation, f'Engineering Preparation lost {token}'
+
+# Streamlined preparation workflows must remain real.
 for token in ['Start Live', 'Snapshot 3 s', 'Measurement sessions', 'Physical Lab export & bridge', 'serial_stream_write']:
     assert token in monitor, f'Monitor & Data lost {token}'
 for token in ['Capture 7 s & Analyze', 'Downsampling convergence', 'Capture Complete Campaign & Analyze']:
@@ -105,7 +118,7 @@ for token in [
 ]:
     assert token in numerical_v2, f'Numerical V2 source/re-analysis lost {token}'
 
-# Magnet V2 must preserve scientific repeatability and historical scan re-analysis.
+# Magnet V2 must preserve repeatability and historical scan re-analysis.
 for token in [
     'Capture repeat',
     'Rep 1 / Rep 2 / Rep 3',
@@ -124,11 +137,11 @@ for token in [
 assert 'Capture / replace point' not in magnet_v2, 'Magnet V2 regressed to replacing repeated-position evidence'
 assert 'current.filter(p => p.positionMm !== position)' not in magnet_v2, 'Magnet V2 silently deduplicates repeated positions'
 
-# Pre-visual v0.2a Studio capabilities are a product contract, not disposable UI.
+# Pre-visual Studio capabilities are product contracts.
 for token in ['Circuit Lab', 'Recipe Library', 'Monitor & Data', 'Developer', 'TaskCenterPanel', 'onTaskStart', 'onTaskLog', 'onTaskFinish']:
     assert token in app, f'Current Studio lost pre-visual capability wiring: {token}'
 
-# Circuit Lab Phase A/B must stay real and reachable.
+# Circuit Lab Phase A/B stays real and reachable.
 for token in [
     'betterboard.circuit-design/0.1',
     'Visual Wiring Editor + Rule Checker',
@@ -139,25 +152,16 @@ for token in [
 ]:
     assert token in circuit, f'Circuit Lab lost {token}'
 
-# Developer is now the Arduino-style unrestricted sketch surface rather than a read-only source viewer.
+# Developer remains the unrestricted Arduino-style sketch surface.
 for token in [
-    'Arduino-style free edit',
-    'New',
-    'Load recipe',
-    'Save',
-    'Verify',
-    'Run / Upload',
-    'developer_sketch_save',
-    'compile_sketch',
-    'upload_sketch',
-    'Run output',
-    'Runtime facts',
+    'Arduino-style free edit', 'New', 'Load recipe', 'Save', 'Verify', 'Run / Upload',
+    'developer_sketch_save', 'compile_sketch', 'upload_sketch', 'Run output', 'Runtime facts',
 ]:
     assert token in developer, f'Developer IDE lost {token}'
 for token in ['developer_sketch_save', 'Documents', 'BetterBoard', 'sketches', '2 MB editor limit']:
     assert token in rust, f'Developer backend lost {token}'
 
-# Task Center must remain classified, collapsible, logged, persistent in Studio, and cancel-aware.
+# Task Center remains classified, logged, persistent and cancel-aware.
 for token in ['Program', 'Monitor', 'Evidence', 'Analysis', 'Export', 'System', 'Cancel', 'task-log', 'Clear finished']:
     assert token in task_center, f'Task Center lost {token}'
 for token in ['betterboard.task-center.v1', 'Cancellation requested', 'logs:', 'startedAt']:
@@ -165,48 +169,21 @@ for token in ['betterboard.task-center.v1', 'Cancellation requested', 'logs:', '
 for token in ['Live serial', 'Snapshot', 'Record evidence', 'Replay', 'serial_stream_stop']:
     assert token in monitor, f'Monitor no longer reports background work to Task Center: {token}'
 
-# The original Bridge docs were broader than a single hardware-map preview.
+# Bridge docs remain broader than a single preview.
 for token in ['Physical Lab hardware map', 'Physical Lab serial protocol', 'Honeycomb / integration guide', 'Physical Lab v1', 'physical_lab_bridge_path']:
     assert token in monitor, f'Physical Lab Bridge surface lost {token}'
 
-# Original full-control Studio capabilities must remain reachable under Advanced.
-for token in [
-    'Capture 3 s',
-    'Run diagnostics',
-    'Physical Lab Bridge',
-    'Measurement package',
-    'Canonical firmware source',
-    'Task Center',
-]:
+# Full-control compatibility tools remain reachable through Studio preparation.
+for token in ['Capture 3 s', 'Run diagnostics', 'Physical Lab Bridge', 'Measurement package', 'Canonical firmware source', 'Task Center']:
     assert token in studio, f'Advanced Studio lost {token}'
-
-# Original Numerical expert workflows must remain reachable.
-for token in [
-    'Preview campaign',
-    'bench02_numerical_error.py',
-    'bench03_embedded_numerical.py',
-    'Record / replace source dataset',
-    'Record evidence package',
-]:
+for token in ['Preview campaign', 'bench02_numerical_error.py', 'bench03_embedded_numerical.py', 'Record / replace source dataset', 'Record evidence package']:
     assert token in numerical, f'Advanced Numerical lost {token}'
-
-# Original Magnet expert workflows must remain reachable.
 for token in [
-    'Record ambient baseline',
-    'Record magnet capture',
-    'magnet02_characterization.py',
-    'Magnet Bench 02 scan CSV',
-    'RADIA/model CSV',
-    'measured-column',
-    'model-column',
-    'model-unit',
+    'Record ambient baseline', 'Record magnet capture', 'magnet02_characterization.py',
+    'Magnet Bench 02 scan CSV', 'RADIA/model CSV', 'measured-column', 'model-column', 'model-unit',
     'Repeating a position provides between-capture repeatability evidence',
 ]:
     assert token in magnet, f'Advanced Magnet lost {token}'
-
-# Hub must actually expose all three compatibility workspaces.
-for token in ['StudioAdvanced', 'NumericalBenchAdvanced', 'MagnetBenchAdvanced']:
-    assert token in hub, f'Advanced workspace is not reachable: {token}'
 
 # Parameterized Recipe → compile → evidence and user-library loops are protected.
 parameter_panel = (SRC / 'RecipeParameterPanel.tsx').read_text()
@@ -245,28 +222,20 @@ for token in ['SmartArduinoEditor', 'Boards & Libraries', 'Sketchbook', 'compile
 
 # Persistent-page and plotted-axis contracts.
 engineering_plot = (SRC / 'EngineeringPlot.tsx').read_text()
-monitor = (SRC / 'MonitorDataStudio.tsx').read_text()
-magnet = (SRC / 'MagnetBenchSuiteV2.tsx').read_text()
-hub = (SRC / 'ExperimentsHub.tsx').read_text()
 app_surface = (SRC / 'App.tsx').read_text()
 for token in ['xLabel', 'yLabel', 'xTicks', 'yTicks', 'axisTitle', 'engineering-grid-line']:
     assert token in engineering_plot, f'Engineering plot lost {token}'
 for token in ["hidden={tab !== 'developer'}", "hidden={tab !== 'data'}", "hidden={tab !== 'circuit'}"]:
     assert token in app_surface, f'Studio persistence lost {token}'
-for token in ["hidden={tool!=='numerical'}", "hidden={tool!=='magnet'}", 'StudioAdvanced', 'NumericalBenchAdvanced', 'MagnetBenchAdvanced']:
-    assert token in hub, f'Engineering Lab bridge/compatibility surface lost {token}'
 assert 'xLabel="time"' in monitor and 'yLabel={selectedColumn}' in monitor
-assert 'xLabel="position"' in magnet and 'yUnit="µT"' in magnet
+assert 'xLabel="position"' in magnet_v2 and 'yUnit="µT"' in magnet_v2
 
 print('BetterBoard functionality surface check: PASS')
 print('- three-workspace global hierarchy protected: Studio / Observatory / Experiments')
+print('- Studio owns reusable engineering preparation / analyzer / handoff surfaces')
+print('- Experiments owns Engineering Lab campaigns and does not duplicate preparation tools')
 print('- Observatory covers hardware, toolchain, acquisition, data, evidence, inventory, AI and Engineering Lab readiness')
-print('- Learning top-level workspace intentionally removed; guidance remains in Studio/Recipe context')
 print('- Numerical V2 supports capture-once, import and re-analysis workflows')
 print('- Magnet V2 preserves repeated-position evidence and historical scan re-analysis')
-print('- streamlined V2 workflows preserved')
-print('- pre-visual Studio / Circuit / Bridge capabilities protected')
-print('- Developer is a real editable Arduino-style sketch workflow')
-print('- Task Center classification, logs, persistence and live cancellation protected')
-print('- Advanced Studio / Numerical / Magnet compatibility layers preserved')
+print('- Developer, Task Center, Circuit, Monitor and IDE-parity capabilities protected')
 print('- simplification may move features, but cannot silently delete them')
