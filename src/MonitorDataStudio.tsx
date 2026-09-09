@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { BackgroundTask, TaskCategory, TaskState } from './TaskCenter';
 import RuntimeLog from './RuntimeLog';
+import EngineeringPlot from './EngineeringPlot';
 
 type RecipeSpec = {
   id: string;
@@ -105,20 +106,6 @@ function parseNumericRow(row: MonitorRow, expectedColumns: number): number[] | n
   return parts;
 }
 
-function makePolyline(values: number[]): string {
-  if (values.length < 2) return '';
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = Math.max(max - min, 1e-12);
-  return values
-    .map((value, index) => {
-      const x = (index / Math.max(values.length - 1, 1)) * 100;
-      const y = 40 - ((value - min) / span) * 36;
-      return `${x},${y}`;
-    })
-    .join(' ');
-}
-
 export default function MonitorDataStudio({
   recipe, selectedPort, fqbn, latestMeasurement, bridgeDocs, onStatus, onMeasurement, parameterValues = {}, tasks = [],
   onTaskStart, onTaskLog, onTaskFinish,
@@ -173,11 +160,19 @@ export default function MonitorDataStudio({
     .filter((value): value is number[] => value !== null), [displayRows, activeColumns.length]);
 
   const latestValues = numericRows.at(-1) ?? [];
-  const channelValues = useMemo(() => numericRows
-    .slice(-MAX_PLOT_POINTS)
-    .map(parts => parts[selectedChannel])
-    .filter(Number.isFinite), [numericRows, selectedChannel]);
-  const polyline = useMemo(() => makePolyline(channelValues), [channelValues]);
+  const channelPoints = useMemo(() => {
+    const result: Array<{ x: number; y: number }> = [];
+    let firstTimestamp: number | null = null;
+    for (const row of displayRows.slice(-MAX_PLOT_POINTS)) {
+      const parts = parseNumericRow(row, activeColumns.length);
+      const value = parts?.[selectedChannel];
+      if (value === undefined || !Number.isFinite(value)) continue;
+      if (firstTimestamp === null) firstTimestamp = row.hostTimestampMs;
+      result.push({ x: (row.hostTimestampMs - firstTimestamp) / 1000, y: value });
+    }
+    return result;
+  }, [displayRows, activeColumns.length, selectedChannel]);
+  const channelValues = useMemo(() => channelPoints.map(point => point.y), [channelPoints]);
 
   const lastValue = channelValues.at(-1);
   const minValue = channelValues.length ? Math.min(...channelValues) : undefined;
@@ -455,7 +450,7 @@ export default function MonitorDataStudio({
             <div className="metric">{lastValue === undefined ? '—' : lastValue.toFixed(5)} <small>{selectedUnit}</small></div>
             <div className="plot-range"><span>min <b>{minValue === undefined ? '—' : minValue.toFixed(4)}</b></span><span>max <b>{maxValue === undefined ? '—' : maxValue.toFixed(4)}</b></span><span>points <b>{channelValues.length}</b></span></div>
           </div>
-          <svg className="plot monitor-plot" viewBox="0 0 100 44" preserveAspectRatio="none"><polyline points={polyline} fill="none" vectorEffect="non-scaling-stroke"/></svg>
+          <EngineeringPlot series={[{ label: selectedColumn, points: channelPoints }]} xLabel="time" xUnit="s" yLabel={selectedColumn} yUnit={selectedUnit} height={300} />
           <div className="channel-tabs">
             {activeColumns.map((column, index) => <button key={column} className={selectedChannel === index ? 'active' : ''} onClick={() => setSelectedChannel(index)}><span>{column}</span><b>{latestValues[index] ?? '—'}</b><small>{activeUnits[index] ?? ''}</small></button>)}
           </div>

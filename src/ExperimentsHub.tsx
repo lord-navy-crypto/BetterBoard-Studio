@@ -32,17 +32,17 @@ export default function ExperimentsHub({ initialDomain = 'numerical' }: Props) {
       </div>
     </section>
 
-    {domain === 'numerical' && <NumericalBenchSuiteV2 />}
-    {domain === 'magnet' && <MagnetBenchSuiteV2 />}
+    <div className="experiment-persistent-pane" hidden={domain !== 'numerical'}><NumericalBenchSuiteV2 /></div>
+    <div className="experiment-persistent-pane" hidden={domain !== 'magnet'}><MagnetBenchSuiteV2 /></div>
 
     <section style={{ maxWidth: 1420, margin: '14px auto 50px', padding: '0 34px' }}>
       <details className="panel">
         <summary style={{ cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center' }}><Settings2 size={16}/><b>Expert workflows</b><small className="muted">manual analyzers · exact package paths · classic direct controls</small></summary>
         <p className="muted">This is no longer a third experiment domain. It remains available while useful controls are absorbed into Numerical and Magnet V2.</p>
         <div className="action-row"><button className={expertDomain === 'studio' ? 'primary' : 'ghost'} onClick={() => setExpertDomain('studio')}><CircuitBoard size={15}/> Studio expert</button><button className={expertDomain === 'numerical' ? 'primary' : 'ghost'} onClick={() => setExpertDomain('numerical')}><Sigma size={15}/> Numerical expert</button><button className={expertDomain === 'magnet' ? 'primary' : 'ghost'} onClick={() => setExpertDomain('magnet')}><Magnet size={15}/> Magnet expert</button></div>
-        {expertDomain === 'studio' && <StudioAdvanced />}
-        {expertDomain === 'numerical' && <NumericalBenchAdvanced />}
-        {expertDomain === 'magnet' && <MagnetBenchAdvanced />}
+        <div hidden={expertDomain !== 'studio'}><StudioAdvanced /></div>
+        <div hidden={expertDomain !== 'numerical'}><NumericalBenchAdvanced /></div>
+        <div hidden={expertDomain !== 'magnet'}><MagnetBenchAdvanced /></div>
       </details>
     </section>
   </div>;

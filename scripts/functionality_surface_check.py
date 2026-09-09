@@ -16,6 +16,7 @@ required_files = {
     'Recipe Parameters': SRC / 'RecipeParameterPanel.tsx',
     'Runtime Log': SRC / 'RuntimeLog.tsx',
     'OpenPenguin Bridge': SRC / 'OpenPenguinBridge.tsx',
+    'Engineering Plot': SRC / 'EngineeringPlot.tsx',
     'Smart Arduino Editor': SRC / 'SmartArduinoEditor.tsx',
     'Arduino Ecosystem Manager': SRC / 'ArduinoEcosystemManager.tsx',
     'Sketchbook Explorer': SRC / 'SketchbookExplorer.tsx',
@@ -256,6 +257,21 @@ for token in ['arduino_core_list', 'arduino_core_search', 'arduino_library_list'
     assert token in ide_manager, f'IDE backend lost {token}'
 for token in ['SmartArduinoEditor', 'Boards & Libraries', 'Sketchbook', 'compileDiagnostics', 'developer_project_file_save']:
     assert token in developer, f'Developer IDE parity surface lost {token}'
+
+# Persistent-page and plotted-axis contracts.
+engineering_plot = (SRC / 'EngineeringPlot.tsx').read_text()
+monitor = (SRC / 'MonitorDataStudio.tsx').read_text()
+magnet = (SRC / 'MagnetBenchSuiteV2.tsx').read_text()
+hub = (SRC / 'ExperimentsHub.tsx').read_text()
+app_surface = (SRC / 'App.tsx').read_text()
+for token in ['xLabel', 'yLabel', 'xTicks', 'yTicks', 'axisTitle', 'engineering-grid-line']:
+    assert token in engineering_plot, f'Engineering plot lost {token}'
+for token in ["hidden={tab !== 'developer'}", "hidden={tab !== 'data'}", "hidden={tab !== 'circuit'}"]:
+    assert token in app_surface, f'Studio persistence lost {token}'
+for token in ["hidden={domain !== 'numerical'}", "hidden={domain !== 'magnet'}"]:
+    assert token in hub, f'Experiment persistence lost {token}'
+assert 'xLabel="time"' in monitor and 'yLabel={selectedColumn}' in monitor
+assert 'xLabel="position"' in magnet and 'yUnit="µT"' in magnet
 
 print('BetterBoard functionality surface check: PASS')
 print('- four-layer global workspace / mission / hardware status hierarchy protected')

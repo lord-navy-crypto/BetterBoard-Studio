@@ -19,6 +19,7 @@ LEARNING = ROOT / 'src' / 'LearningHub.tsx'
 RECIPE_PARAMETERS = ROOT / 'src' / 'RecipeParameterPanel.tsx'
 RUNTIME_LOG = ROOT / 'src' / 'RuntimeLog.tsx'
 OPENGUIN_BRIDGE = ROOT / 'src' / 'OpenPenguinBridge.tsx'
+ENGINEERING_PLOT = ROOT / 'src' / 'EngineeringPlot.tsx'
 SMART_EDITOR = ROOT / 'src' / 'SmartArduinoEditor.tsx'
 ECOSYSTEM_MANAGER = ROOT / 'src' / 'ArduinoEcosystemManager.tsx'
 SKETCHBOOK_EXPLORER = ROOT / 'src' / 'SketchbookExplorer.tsx'
@@ -70,7 +71,7 @@ def main() -> int:
 
     for required in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB,
-        HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, IDE_MANAGER_RUST, MAIN,
+        HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, IDE_MANAGER_RUST, MAIN,
     ]:
         assert required.is_file(), required
 
@@ -81,7 +82,7 @@ def main() -> int:
     rust = LIB.read_text()
     frontend = '\n'.join(path.read_text() for path in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE,
-        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, IDE_MANAGER_RUST, MAIN,
+        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, IDE_MANAGER_RUST, MAIN,
     ])
     by_id = {r['id']: r for r in catalog}
 
@@ -256,6 +257,19 @@ def main() -> int:
     for token in ['openguin_probe', 'openguin_generate', '127.0.0.1:11435']:
         assert token in OPENGUIN_BRIDGE.read_text() or token in (ROOT / 'src-tauri' / 'src' / 'openguin_bridge.rs').read_text(), token
     assert 'Expert workflows' in hub and 'Advanced Tools' not in hub
+    # Page state and engineering plot contracts.
+    engineering_plot = ENGINEERING_PLOT.read_text()
+    for token in ['xLabel', 'yLabel', 'xTicks', 'yTicks', 'axisTitle', 'engineering-grid-line']:
+        assert token in engineering_plot, token
+    assert "hidden={tab !== 'data'}" in app_text
+    assert "hidden={tab !== 'developer'}" in app_text
+    assert "hidden={tab !== 'circuit'}" in app_text
+    assert "hidden={domain !== 'numerical'}" in hub
+    assert "hidden={domain !== 'magnet'}" in hub
+    assert 'EngineeringPlot' in monitor_text
+    assert 'xLabel="time"' in monitor_text and 'xUnit="s"' in monitor_text
+    assert 'EngineeringPlot' in magnet_ui
+    assert 'xLabel="position"' in magnet_ui and 'xUnit="mm"' in magnet_ui and 'yUnit="µT"' in magnet_ui
 
     # Arduino IDE parity Phase 1 must stay reachable and real.
     smart = SMART_EDITOR.read_text()
@@ -278,11 +292,11 @@ def main() -> int:
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
-    assert package['version'] == '0.2.0-alpha.4'
-    assert tauri['version'] == '0.2.0-alpha.4'
-    assert '0.2.0-alpha.4' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
+    assert package['version'] == '0.2.0-alpha.5'
+    assert tauri['version'] == '0.2.0-alpha.5'
+    assert '0.2.0-alpha.5' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
 
-    print('BetterBoard Studio v0.2.0-alpha.4 self-check: PASS')
+    print('BetterBoard Studio v0.2.0-alpha.5 self-check: PASS')
     print('- 15 canonical recipes registered, including four new numerical-error programs')
     print('- persistent bidirectional Serial Monitor handlers registered')
     print('- historical Measurement Sessions + replay registered')

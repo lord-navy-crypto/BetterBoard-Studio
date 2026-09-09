@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0-alpha.5
+
+- Added a shared **EngineeringPlot** surface with real horizontal/vertical axes, ticks, grid lines, engineering units, and axis titles.
+- Replaced the floating normalized polyline in Monitor & Data with a time-domain plot: `time (s)` versus the selected channel and declared unit.
+- Replaced the Magnet model-validation floating polyline with `position (mm)` versus corrected field `(µT)`, preserving measured/model distinction.
+- Studio stateful pages now remain mounted while hidden, so switching Hardware/Circuit/Library/Monitor/Developer no longer destroys page state; a live Serial Monitor is no longer stopped just because another Studio page is opened.
+- Numerical, Magnet, and expert experiment surfaces likewise remain mounted across domain switching, preserving in-progress parameters, captures, imports, and analysis state.
+- Corrected the Studio sidebar version label to Alpha 0.5.
+
 ## 0.2.0-alpha.4
 
 - Began **IDE Parity Phase 1** so BetterBoard can replace the Arduino IDE for normal local development rather than requiring users to leave the app.

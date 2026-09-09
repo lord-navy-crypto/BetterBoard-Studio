@@ -258,7 +258,7 @@ export default function App() {
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark">B</div><div><b>BetterBoard</b><span>Studio · Alpha 0.3</span></div></div>
+      <div className="brand"><div className="brand-mark">B</div><div><b>BetterBoard</b><span>Studio · Alpha 0.5</span></div></div>
       {nav.map(([id, Icon, label]) => <button key={id} className={`nav ${tab === id ? 'nav-active' : ''}`} onClick={() => setTab(id)}><Icon size={17}/>{label}</button>)}
       <div className="sidebar-spacer"/>
       <div className="small-card"><span>Core workflow</span><b>Connect → program → monitor → record → analyze</b></div>
@@ -276,7 +276,7 @@ export default function App() {
         <div><TerminalSquare size={16}/><span>{status} · {hardwareStatus}</span></div>
       </section>
 
-      {tab === 'hardware' && <>
+      <div className="studio-persistent-pane" hidden={tab !== 'hardware'}>
         <section className="hero-grid">
           <div className="panel">
             <div className="panel-title"><Cable size={18}/> Shared hardware session</div>
@@ -316,11 +316,11 @@ export default function App() {
             {recipe?.capture_mode !== 'none' && <button className="primary secondary" disabled={busy || !selectedPort} onClick={() => setTab('data')}><Waves size={16}/> Open Monitor & Data</button>}
           </div>
         </section>
-      </>}
+      </div>
 
-      {tab === 'circuit' && <CircuitLab onUseRecipe={(id) => { setRecipeId(id); setTab('hardware'); }} />}
+      <div className="studio-persistent-pane" hidden={tab !== 'circuit'}><CircuitLab onUseRecipe={(id) => { setRecipeId(id); setTab('hardware'); }} /></div>
 
-      {tab === 'library' && <section className="library-layout">
+      <div className="studio-persistent-pane" hidden={tab !== 'library'}><section className="library-layout">
         <div className="panel">
           <div className="panel-title"><Boxes size={18}/> Experiment & firmware library</div>
           <p className="muted">Recipes are grouped by purpose instead of mixing verification, discipline, and workflow labels in one flat list.</p>
@@ -338,9 +338,9 @@ export default function App() {
             <div className="action-row"><button className="primary" onClick={() => setTab('hardware')}>Use this recipe</button><button className="ghost" onClick={() => setTab('developer')}><Code2 size={15}/> Open in Developer</button></div>
           </>}
         </div>
-      </section>}
+      </section></div>
 
-      {tab === 'data' && <MonitorDataStudio
+      <div className="studio-persistent-pane" hidden={tab !== 'data'}><MonitorDataStudio
         recipe={recipe}
         selectedPort={selectedPort}
         fqbn={fqbn}
@@ -353,9 +353,9 @@ export default function App() {
         onTaskStart={addTask}
         onTaskLog={logTask}
         onTaskFinish={finishTask}
-      />}
+      /></div>
 
-      {tab === 'developer' && <DeveloperIDE
+      <div className="studio-persistent-pane" hidden={tab !== 'developer'}><DeveloperIDE
         recipe={recipe}
         canonicalSource={source}
         cli={cli}
@@ -368,7 +368,7 @@ export default function App() {
         onTaskStart={addTask}
         onTaskLog={logTask}
         onTaskFinish={finishTask}
-      />}
+      /></div>
 
       <TaskCenterPanel tasks={tasks} onCancel={cancelTask} onClearFinished={clearFinishedTasks}/>
     </main>

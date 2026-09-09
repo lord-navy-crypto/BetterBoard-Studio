@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useHardwareSession } from './HardwareSession';
+import EngineeringPlot from './EngineeringPlot';
 import { Activity, BarChart3, Database, Magnet, MapPinned, RefreshCw, Save, Upload } from 'lucide-react';
 
 type MeasurementResult = { directory: string; csv_path: string; metadata_path: string; physical_lab_csv_path: string; physical_lab_bridge_path: string; samples: number };
@@ -160,12 +161,6 @@ function validate(scan: AggregatedScanPoint[], axis: Axis, model: ModelPoint[]):
     measuredIntegral: trapz(pairs.map(p => ({ x: p.position, y: p.measured }))),
     modelIntegral: trapz(pairs.map(p => ({ x: p.position, y: p.model }))),
   };
-}
-function polyline(values: Array<{ x: number; y: number }>, allY: number[]) {
-  if (values.length < 2) return '';
-  const xs = values.map(v => v.x), minX = Math.min(...xs), maxX = Math.max(...xs), spanX = Math.max(maxX - minX, 1e-9);
-  const minY = Math.min(...allY), maxY = Math.max(...allY), spanY = Math.max(maxY - minY, 1e-9);
-  return values.map(v => `${((v.x - minX) / spanX) * 100},${42 - ((v.y - minY) / spanY) * 38}`).join(' ');
 }
 function Metric({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return <div style={{ border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.025)', borderRadius: 12, padding: 12 }}><span style={{ display: 'block', color: '#8395aa', fontSize: 10 }}>{label}</span><b style={{ display: 'block', fontSize: 20, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{value}</b>{detail && <small style={{ color: '#8395aa' }}>{detail}</small>}</div>;
@@ -338,7 +333,7 @@ export default function MagnetBenchSuiteV2() {
   const correctedMagnet = magnetCapture ? corrected(magnetCapture, baseline) : null;
   const measuredSeries = aggregatedScan.map(point => ({ x: point.positionMm, y: point[axis] }));
   const modelSeries = validation?.pairs.map(point => ({ x: point.position, y: point.model })) ?? [];
-  const allY = [...measuredSeries.map(point => point.y), ...modelSeries.map(point => point.y)];
+  const hasProfilePlot = measuredSeries.length > 1 || modelSeries.length > 1;
   const activeMode = MODES.find(item => item.id === mode)!;
 
   return <div style={{ minHeight: '100vh', padding: '28px 34px 70px', color: '#edf5ff' }}>
@@ -392,7 +387,7 @@ export default function MagnetBenchSuiteV2() {
           {!validation ? <div className="empty">Need at least two distinct measured positions inside the model position range plus a readable model CSV. You can use the current scan or import an existing Magnet Bench 02 `magnet02_scan.csv`.</div> : <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 14 }}><Metric label="RMSE" value={`${fmt(validation.rmse)} µT`}/><Metric label="MAE" value={`${fmt(validation.mae)} µT`}/><Metric label="Bias" value={`${fmt(validation.bias)} µT`}/><Metric label="R²" value={fmt(validation.r2,5)}/></div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 8 }}><Metric label="Max |residual|" value={`${fmt(validation.maxAbsResidual)} µT`}/><Metric label="Affine scale" value={fmt(validation.scale,6)}/><Metric label="Affine offset" value={`${fmt(validation.offset)} µT`}/><Metric label="Field integral Δ" value={`${fmt(validation.measuredIntegral - validation.modelIntegral)} µT·mm`}/></div>
-            {allY.length > 1 && <div style={{ marginTop: 16 }}><h3 style={{ fontSize: 13 }}><BarChart3 size={15}/> Measured ↔ model profile</h3><svg className="plot" viewBox="0 0 100 44" preserveAspectRatio="none"><polyline points={polyline(measuredSeries, allY)} fill="none" vectorEffect="non-scaling-stroke"/><polyline points={polyline(modelSeries, allY)} fill="none" vectorEffect="non-scaling-stroke" style={{ strokeDasharray: '2 1', opacity: .58 }}/></svg><div style={{ display: 'flex', gap: 16, fontSize: 10, color: '#8395aa' }}><span>solid · measured position mean</span><span>dashed · model</span></div></div>}
+            {hasProfilePlot && <div style={{ marginTop: 16 }}><h3 style={{ fontSize: 13 }}><BarChart3 size={15}/> Measured ↔ model profile</h3><EngineeringPlot series={[{ label: 'measured position mean', points: measuredSeries }, { label: 'model', points: modelSeries, dashed: true, opacity: .68 }]} xLabel="position" xUnit="mm" yLabel={`corrected ${axis === 'bmag' ? '|B|' : axis.toUpperCase()}`} yUnit="µT" height={310} /></div>}
             <div style={{ overflow: 'auto', marginTop: 14 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>position mm</th><th>measured mean µT</th><th>model µT</th><th>residual µT</th></tr></thead><tbody>{validation.pairs.map(p => <tr key={p.position}><td>{fmt(p.position,2)}</td><td>{fmt(p.measured)}</td><td>{fmt(p.model)}</td><td>{fmt(p.residual)}</td></tr>)}</tbody></table></div>
           </>}
           <div className="boundary">The model is linearly interpolated at distinct measured positions. Repeated captures are preserved and averaged for the profile while their between-capture spread remains visible as separate repeatability evidence. These metrics test agreement for the supplied geometry, coordinate convention, units, baseline and selected channel; they do not prove global model validity.</div>
