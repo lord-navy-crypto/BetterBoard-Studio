@@ -1,0 +1,63 @@
+name: BetterBoard icon macOS verification
+
+on:
+  push:
+    branches:
+      - fix/app-icon-macos-launch
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Install Rust toolchain and Apple targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Generate and verify platform icons
+        run: |
+          npm run icon:generate
+          test -s src-tauri/icons/32x32.png
+          test -s src-tauri/icons/128x128.png
+          test -s src-tauri/icons/128x128@2x.png
+          test -s src-tauri/icons/icon.icns
+          test -s src-tauri/icons/icon.ico
+          file src-tauri/icons/icon.icns
+
+      - name: Build universal macOS app
+        run: npm run desktop:build -- --target universal-apple-darwin
+
+      - name: Verify bundled macOS icon
+        run: |
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/BetterBoard Studio.app"
+          test -d "$APP"
+          test -s "$APP/Contents/Resources/icon.icns"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$APP/Contents/Info.plist"
+          file "$APP/Contents/Resources/icon.icns"
+          shasum -a 256 "$APP/Contents/Resources/icon.icns"
+          shasum -a 256 src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+
+      - name: Upload verification package
+        uses: actions/upload-artifact@v4
+        with:
+          name: BetterBoard-Studio-icon-fix-macOS-universal
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
