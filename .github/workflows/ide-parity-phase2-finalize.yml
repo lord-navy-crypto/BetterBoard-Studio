@@ -34,19 +34,19 @@ jobs:
           lib_path = root / 'src-tauri/src/lib.rs'
           lib = lib_path.read_text()
           old = '''            ide_manager::developer_sketchbook_list,
-                      ide_manager::developer_project_files,
-                      ide_manager::developer_project_file_save,
-          '''
+            ide_manager::developer_project_files,
+            ide_manager::developer_project_file_save,
+'''
           new = '''            ide_manager::developer_sketchbook_list,
-                      ide_manager::developer_project_files,
-                      ide_manager::developer_project_file_save,
-                      ide_manager::developer_project_create,
-                      ide_manager::developer_project_rename,
-                      ide_manager::developer_project_file_create,
-                      ide_manager::developer_project_file_rename,
-                      ide_manager::developer_project_file_delete,
-                      ide_manager::developer_format_source,
-          '''
+            ide_manager::developer_project_files,
+            ide_manager::developer_project_file_save,
+            ide_manager::developer_project_create,
+            ide_manager::developer_project_rename,
+            ide_manager::developer_project_file_create,
+            ide_manager::developer_project_file_rename,
+            ide_manager::developer_project_file_delete,
+            ide_manager::developer_format_source,
+'''
           assert old in lib
           lib = lib.replace(old, new, 1)
           lib = lib.replace('const APP_VERSION: &str = "0.2.0-alpha.5";', 'const APP_VERSION: &str = "0.2.0-alpha.6";', 1)
@@ -82,24 +82,24 @@ jobs:
           s = s.replace("SKETCHBOOK_EXPLORER = ROOT / 'src' / 'SketchbookExplorer.tsx'\n", "SKETCHBOOK_EXPLORER = ROOT / 'src' / 'SketchbookExplorer.tsx'\nDEVELOPER_DRAFT_STORE = ROOT / 'src' / 'DeveloperDraftStore.ts'\n", 1)
           s = s.replace('SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, IDE_MANAGER_RUST, MAIN,', 'SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,')
           needle = '''    for token in ['ide_manager::arduino_core_list', 'ide_manager::arduino_library_list', 'ide_manager::developer_project_files']:
-                  assert token in rust, token
-          '''
+        assert token in rust, token
+'''
           extra = '''    # Arduino IDE parity Phase 2: durable drafts, project CRUD, formatter, and source navigation.
-              assert DEVELOPER_DRAFT_STORE.is_file()
-              draft_store = DEVELOPER_DRAFT_STORE.read_text()
-              for token in ['betterboard.developer.draft.v1', 'loadDeveloperDraft', 'saveDeveloperDraft', 'clearDeveloperDraft']:
-                  assert token in draft_store, token
-              for token in ['registerDefinitionProvider', 'registerHoverProvider', 'stickyScroll']:
-                  assert token in smart, token
-              for token in ['Draft Recovery', 'autosaved draft', 'developer_format_source', 'Format']:
-                  assert token in developer_text, token
-              for token in ['New project', 'New file', 'developer_project_create', 'developer_project_rename', 'developer_project_file_delete']:
-                  assert token in sketchbook, token
-              for token in ['developer_project_create', 'developer_project_rename', 'developer_project_file_create', 'developer_project_file_rename', 'developer_project_file_delete', 'developer_format_source', 'clang-format']:
-                  assert token in ide_rust, token
-              for token in ['ide_manager::developer_project_create', 'ide_manager::developer_project_rename', 'ide_manager::developer_project_file_create', 'ide_manager::developer_project_file_rename', 'ide_manager::developer_project_file_delete', 'ide_manager::developer_format_source']:
-                  assert token in rust, token
-          '''
+    assert DEVELOPER_DRAFT_STORE.is_file()
+    draft_store = DEVELOPER_DRAFT_STORE.read_text()
+    for token in ['betterboard.developer.draft.v1', 'loadDeveloperDraft', 'saveDeveloperDraft', 'clearDeveloperDraft']:
+        assert token in draft_store, token
+    for token in ['registerDefinitionProvider', 'registerHoverProvider', 'stickyScroll']:
+        assert token in smart, token
+    for token in ['Draft Recovery', 'autosaved draft', 'developer_format_source', 'Format']:
+        assert token in developer_text, token
+    for token in ['New project', 'New file', 'developer_project_create', 'developer_project_rename', 'developer_project_file_delete']:
+        assert token in sketchbook, token
+    for token in ['developer_project_create', 'developer_project_rename', 'developer_project_file_create', 'developer_project_file_rename', 'developer_project_file_delete', 'developer_format_source', 'clang-format']:
+        assert token in ide_rust, token
+    for token in ['ide_manager::developer_project_create', 'ide_manager::developer_project_rename', 'ide_manager::developer_project_file_create', 'ide_manager::developer_project_file_rename', 'ide_manager::developer_project_file_delete', 'ide_manager::developer_format_source']:
+        assert token in rust, token
+'''
           assert needle in s
           s = s.replace(needle, needle + extra, 1)
           s = s.replace("assert package['version'] == '0.2.0-alpha.5'", "assert package['version'] == '0.2.0-alpha.6'")
@@ -144,3 +144,5 @@ jobs:
           git add src src-tauri package.json package-lock.json CHANGELOG.md scripts/self_check.py
           git commit -m 'Strengthen IDE parity with draft recovery and project tooling'
           git push origin HEAD:ux/ide-parity-phase2
+
+# rerun after Monaco provider callback typing fix
