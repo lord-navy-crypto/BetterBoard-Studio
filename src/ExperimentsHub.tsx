@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Magnet, Sigma } from 'lucide-react';
 import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
-import MagnetBenchSuite from './MagnetBenchSuite';
+import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
 
 type Domain = 'numerical' | 'magnet';
 
@@ -61,6 +61,6 @@ export default function ExperimentsHub() {
       </div>
     </section>
 
-    {domain === 'numerical' ? <NumericalBenchSuiteV2 /> : <MagnetBenchSuite />}
+    {domain === 'numerical' ? <NumericalBenchSuiteV2 /> : <MagnetBenchSuiteV2 />}
   </div>;
 }
