@@ -19,6 +19,10 @@ LEARNING = ROOT / 'src' / 'LearningHub.tsx'
 RECIPE_PARAMETERS = ROOT / 'src' / 'RecipeParameterPanel.tsx'
 RUNTIME_LOG = ROOT / 'src' / 'RuntimeLog.tsx'
 OPENGUIN_BRIDGE = ROOT / 'src' / 'OpenPenguinBridge.tsx'
+SMART_EDITOR = ROOT / 'src' / 'SmartArduinoEditor.tsx'
+ECOSYSTEM_MANAGER = ROOT / 'src' / 'ArduinoEcosystemManager.tsx'
+SKETCHBOOK_EXPLORER = ROOT / 'src' / 'SketchbookExplorer.tsx'
+IDE_MANAGER_RUST = ROOT / 'src-tauri' / 'src' / 'ide_manager.rs'
 MAIN = ROOT / 'src' / 'main.tsx'
 
 EXPECTED = {
@@ -66,7 +70,7 @@ def main() -> int:
 
     for required in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB,
-        HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, MAIN,
+        HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, IDE_MANAGER_RUST, MAIN,
     ]:
         assert required.is_file(), required
 
@@ -77,7 +81,7 @@ def main() -> int:
     rust = LIB.read_text()
     frontend = '\n'.join(path.read_text() for path in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE,
-        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, MAIN,
+        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, IDE_MANAGER_RUST, MAIN,
     ])
     by_id = {r['id']: r for r in catalog}
 
@@ -253,13 +257,32 @@ def main() -> int:
         assert token in OPENGUIN_BRIDGE.read_text() or token in (ROOT / 'src-tauri' / 'src' / 'openguin_bridge.rs').read_text(), token
     assert 'Expert workflows' in hub and 'Advanced Tools' not in hub
 
+    # Arduino IDE parity Phase 1 must stay reachable and real.
+    smart = SMART_EDITOR.read_text()
+    ecosystem = ECOSYSTEM_MANAGER.read_text()
+    sketchbook = SKETCHBOOK_EXPLORER.read_text()
+    ide_rust = IDE_MANAGER_RUST.read_text()
+    developer_text = (ROOT / 'src' / 'DeveloperIDE.tsx').read_text()
+    for token in ['@monaco-editor/react', 'registerCompletionItemProvider', 'MarkerSeverity', 'bracketPairColorization']:
+        assert token in smart, token
+    for token in ['Boards', 'Libraries', 'Examples', 'arduino_core_install', 'arduino_library_install', 'arduino_board_url_add']:
+        assert token in ecosystem, token
+    for token in ['Sketchbook & project files', 'developer_sketchbook_list', 'developer_project_files']:
+        assert token in sketchbook, token
+    for token in ['arduino_core_search', 'arduino_library_search', 'developer_project_file_save', 'Documents', 'Arduino']:
+        assert token in ide_rust, token
+    for token in ['SmartArduinoEditor', 'Boards & Libraries', 'Sketchbook', 'developer_project_file_save', 'compileDiagnostics']:
+        assert token in developer_text, token
+    for token in ['ide_manager::arduino_core_list', 'ide_manager::arduino_library_list', 'ide_manager::developer_project_files']:
+        assert token in rust, token
+
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
-    assert package['version'] == '0.2.0-alpha.3'
-    assert tauri['version'] == '0.2.0-alpha.3'
-    assert '0.2.0-alpha.3' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
+    assert package['version'] == '0.2.0-alpha.4'
+    assert tauri['version'] == '0.2.0-alpha.4'
+    assert '0.2.0-alpha.4' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
 
-    print('BetterBoard Studio v0.2.0-alpha.3 self-check: PASS')
+    print('BetterBoard Studio v0.2.0-alpha.4 self-check: PASS')
     print('- 15 canonical recipes registered, including four new numerical-error programs')
     print('- persistent bidirectional Serial Monitor handlers registered')
     print('- historical Measurement Sessions + replay registered')

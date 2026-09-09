@@ -1,5 +1,6 @@
 mod openguin_bridge;
 mod serial_stream;
+mod ide_manager;
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -14,7 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const APP_VERSION: &str = "0.2.0-alpha.3";
+const APP_VERSION: &str = "0.2.0-alpha.4";
 const RECIPE_CATALOG_JSON: &str = include_str!("../resources/recipes/catalog.json");
 const BOARD_CATALOG_JSON: &str = include_str!("../resources/boards/boards.json");
 const DEVICE_CATALOG_JSON: &str = include_str!("../resources/devices/devices.json");
@@ -1122,6 +1123,21 @@ pub fn run() {
             save_measurement_buffer,
             measurement_sessions,
             measurement_session_load,
+            ide_manager::arduino_core_list,
+            ide_manager::arduino_core_search,
+            ide_manager::arduino_core_update_index,
+            ide_manager::arduino_core_install,
+            ide_manager::arduino_core_uninstall,
+            ide_manager::arduino_board_url_add,
+            ide_manager::arduino_library_list,
+            ide_manager::arduino_library_search,
+            ide_manager::arduino_library_update_index,
+            ide_manager::arduino_library_install,
+            ide_manager::arduino_library_uninstall,
+            ide_manager::arduino_library_examples,
+            ide_manager::developer_sketchbook_list,
+            ide_manager::developer_project_files,
+            ide_manager::developer_project_file_save,
             openguin_bridge::openguin_probe,
             openguin_bridge::openguin_generate,
             serial_stream::serial_stream_start,

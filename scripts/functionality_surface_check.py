@@ -16,6 +16,9 @@ required_files = {
     'Recipe Parameters': SRC / 'RecipeParameterPanel.tsx',
     'Runtime Log': SRC / 'RuntimeLog.tsx',
     'OpenPenguin Bridge': SRC / 'OpenPenguinBridge.tsx',
+    'Smart Arduino Editor': SRC / 'SmartArduinoEditor.tsx',
+    'Arduino Ecosystem Manager': SRC / 'ArduinoEcosystemManager.tsx',
+    'Sketchbook Explorer': SRC / 'SketchbookExplorer.tsx',
     'Numerical V2': SRC / 'NumericalBenchSuiteV2.tsx',
     'Magnet V2': SRC / 'MagnetBenchSuiteV2.tsx',
     'Advanced Studio': SRC / 'StudioAdvanced.tsx',
@@ -237,6 +240,22 @@ for token in ['openguin_probe', 'openguin_generate', 'Ipv4Addr::LOCALHOST']:
     assert token in rust or token in (ROOT / 'src-tauri' / 'src' / 'openguin_bridge.rs').read_text(), f'OpenPenguin backend lost {token}'
 for token in ['numerical_derivative', 'numerical_cancellation', 'numerical_accumulation', 'mpu6050_numerics']:
     assert token in rust, f'New numerical recipe backend lost {token}'
+
+# Arduino IDE parity Phase 1 is a baseline capability contract.
+smart_editor = (SRC / 'SmartArduinoEditor.tsx').read_text()
+ecosystem_manager = (SRC / 'ArduinoEcosystemManager.tsx').read_text()
+sketchbook_explorer = (SRC / 'SketchbookExplorer.tsx').read_text()
+ide_manager = (ROOT / 'src-tauri' / 'src' / 'ide_manager.rs').read_text()
+for token in ['@monaco-editor/react', 'registerCompletionItemProvider', 'MarkerSeverity', 'lineNumbers', 'folding']:
+    assert token in smart_editor, f'Smart editor lost {token}'
+for token in ['Boards', 'Libraries', 'Examples', 'arduino_core_install', 'arduino_library_install', 'arduino_board_url_add']:
+    assert token in ecosystem_manager, f'Arduino ecosystem manager lost {token}'
+for token in ['developer_sketchbook_list', 'developer_project_files', 'Sketchbook & project files']:
+    assert token in sketchbook_explorer, f'Sketchbook explorer lost {token}'
+for token in ['arduino_core_list', 'arduino_core_search', 'arduino_library_list', 'arduino_library_search', 'developer_project_file_save']:
+    assert token in ide_manager, f'IDE backend lost {token}'
+for token in ['SmartArduinoEditor', 'Boards & Libraries', 'Sketchbook', 'compileDiagnostics', 'developer_project_file_save']:
+    assert token in developer, f'Developer IDE parity surface lost {token}'
 
 print('BetterBoard functionality surface check: PASS')
 print('- four-layer global workspace / mission / hardware status hierarchy protected')

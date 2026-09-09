@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0-alpha.4
+
+- Began **IDE Parity Phase 1** so BetterBoard can replace the Arduino IDE for normal local development rather than requiring users to leave the app.
+- Replaced the plain Developer textarea with a Monaco-based Arduino/C++ smart editor: syntax highlighting, line numbers, folding, bracket-pair colorization, find/replace, Arduino starter autocomplete, and compile-error/warning markers.
+- Added Developer sub-workspaces for **Editor**, **Boards & Libraries**, and **Sketchbook**.
+- Added Arduino CLI-backed Board Manager operations: installed/search, index update, install/uninstall, and additional package-index URL configuration.
+- Added Arduino CLI-backed Library Manager operations: installed/search, index update, install/uninstall, and library examples.
+- Added local Sketchbook discovery across `~/Documents/Arduino` and `~/Documents/BetterBoard/sketches`.
+- Added bounded multi-file project editing for `.ino`, `.cpp`, `.c`, `.h`, and `.hpp`; project files save back to the selected sketch directory and Verify/Upload compiles the whole project.
+- Kept Recipe templates, My Library, OpenPenguin, Runtime Facts, Task Center, Monitor/Data, Evidence, Numerical and Magnet workflows intact.
+
 ## 0.2.0-alpha.3
 
 - Added compile-time parameter controls for canonical recipes with validated sliders/number inputs that affect real generated firmware.
