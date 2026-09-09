@@ -20,7 +20,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply bounded product refactor
-        run: python3 scripts/apply_parameterized_recipes_user_library.py
+        run: |
+          python3 scripts/apply_parameterized_recipes_user_library.py
+          python3 scripts/fix_parameterized_refactor_ts.py
 
       - name: Diff sanity
         run: git diff --check
@@ -69,6 +71,7 @@ jobs:
       - name: Commit verified product changes
         run: |
           rm -f scripts/apply_parameterized_recipes_user_library.py
+          rm -f scripts/fix_parameterized_refactor_ts.py
           rm -f .github/workflows/parameterized-recipes-refactor.yml
           rm -f typescript-build.log
           git config user.name "BetterBoard CI"
