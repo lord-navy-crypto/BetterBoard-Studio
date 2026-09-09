@@ -82,7 +82,7 @@ export default function EngineeringPlot({ series, xLabel, xUnit, yLabel, yUnit, 
       {xTicks.map((tick, index) => {
         const x = mapX(tick);
         return <g key={`x-${index}`}>
-          <line x1={x} y1={MARGIN.top} x2={x} y2={MARGIN.top + plotHeight} stroke="rgba(255,255,255,.07)" strokeWidth="1" />
+          <line className="engineering-grid-line" x1={x} y1={MARGIN.top} x2={x} y2={MARGIN.top + plotHeight} stroke="rgba(255,255,255,.07)" strokeWidth="1" />
           <line x1={x} y1={MARGIN.top + plotHeight} x2={x} y2={MARGIN.top + plotHeight + 6} stroke="rgba(210,226,242,.6)" strokeWidth="1" />
           <text x={x} y={MARGIN.top + plotHeight + 22} textAnchor="middle" fill="#8395aa" fontSize="10">{formatTick(tick)}</text>
         </g>;
@@ -91,14 +91,14 @@ export default function EngineeringPlot({ series, xLabel, xUnit, yLabel, yUnit, 
       {yTicks.map((tick, index) => {
         const y = mapY(tick);
         return <g key={`y-${index}`}>
-          <line x1={MARGIN.left} y1={y} x2={MARGIN.left + plotWidth} y2={y} stroke="rgba(255,255,255,.07)" strokeWidth="1" />
+          <line className="engineering-grid-line" x1={MARGIN.left} y1={y} x2={MARGIN.left + plotWidth} y2={y} stroke="rgba(255,255,255,.07)" strokeWidth="1" />
           <line x1={MARGIN.left - 6} y1={y} x2={MARGIN.left} y2={y} stroke="rgba(210,226,242,.6)" strokeWidth="1" />
           <text x={MARGIN.left - 10} y={y + 3.5} textAnchor="end" fill="#8395aa" fontSize="10">{formatTick(tick)}</text>
         </g>;
       })}
 
-      <line x1={MARGIN.left} y1={MARGIN.top + plotHeight} x2={MARGIN.left + plotWidth} y2={MARGIN.top + plotHeight} stroke="rgba(222,236,250,.82)" strokeWidth="1.3" />
-      <line x1={MARGIN.left} y1={MARGIN.top} x2={MARGIN.left} y2={MARGIN.top + plotHeight} stroke="rgba(222,236,250,.82)" strokeWidth="1.3" />
+      <line className="engineering-axis-line" x1={MARGIN.left} y1={MARGIN.top + plotHeight} x2={MARGIN.left + plotWidth} y2={MARGIN.top + plotHeight} stroke="rgba(222,236,250,.82)" strokeWidth="1.3" />
+      <line className="engineering-axis-line" x1={MARGIN.left} y1={MARGIN.top} x2={MARGIN.left} y2={MARGIN.top + plotHeight} stroke="rgba(222,236,250,.82)" strokeWidth="1.3" />
 
       {prepared.map((item, index) => <polyline
         key={`${item.label}-${index}`}
