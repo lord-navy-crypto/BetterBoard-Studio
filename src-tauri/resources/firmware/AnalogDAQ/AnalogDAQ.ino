@@ -1,33 +1,29 @@
 // BetterBoard Bench 01 — Analog Control & Instrumentation
-// Canonical firmware for the existing analog_a0 recipe.
-//
-// Minimum hardware:
-//   - UNO-compatible board
-//   - potentiometer or other known-safe low-voltage analog source on A0
-// Optional output:
-//   - LED + suitable series resistor on PWM pin D9
-//   - built-in LED is used as a simple >50% status indicator
-//
-// Serial contract @ 115200 baud, 50 Hz:
-// time_us,raw_adc,normalized,nominal_voltage_v,pwm_command,filtered_voltage_v
-//
-// Scientific boundary:
-// NOMINAL_ADC_REFERENCE_V is a nominal conversion only. Accurate voltage requires
-// characterization/calibration of the real ADC reference and input path.
+// Parameter overrides are injected by BetterBoard before compilation.
+#ifndef BB_SAMPLE_INTERVAL_US
+#define BB_SAMPLE_INTERVAL_US 20000
+#endif
+#ifndef BB_NOMINAL_ADC_REFERENCE_V
+#define BB_NOMINAL_ADC_REFERENCE_V 5.0
+#endif
+#ifndef BB_ADC_MIN_COUNTS
+#define BB_ADC_MIN_COUNTS 0
+#endif
+#ifndef BB_ADC_MAX_COUNTS
+#define BB_ADC_MAX_COUNTS 1023
+#endif
+#ifndef BB_FILTER_ALPHA
+#define BB_FILTER_ALPHA 0.20
+#endif
 
 const uint8_t ANALOG_PIN = A0;
 const uint8_t PWM_PIN = 9;
 const uint8_t STATUS_LED_PIN = LED_BUILTIN;
-
-const unsigned long SAMPLE_INTERVAL_US = 20000UL; // 50 Hz
-const float NOMINAL_ADC_REFERENCE_V = 5.0f;
-
-// Replace these endpoints after a two-point calibration if desired.
-const int ADC_MIN_COUNTS = 0;
-const int ADC_MAX_COUNTS = 1023;
-
-// First-order exponential smoothing. 0 < alpha <= 1.
-const float FILTER_ALPHA = 0.20f;
+const unsigned long SAMPLE_INTERVAL_US = (unsigned long)BB_SAMPLE_INTERVAL_US;
+const float NOMINAL_ADC_REFERENCE_V = (float)BB_NOMINAL_ADC_REFERENCE_V;
+const int ADC_MIN_COUNTS = (int)BB_ADC_MIN_COUNTS;
+const int ADC_MAX_COUNTS = (int)BB_ADC_MAX_COUNTS;
+const float FILTER_ALPHA = (float)BB_FILTER_ALPHA;
 
 unsigned long last_sample_us = 0;
 float filtered_voltage_v = 0.0f;
@@ -57,7 +53,6 @@ void loop() {
   const float normalized = span > 0
     ? clamp01((float)(raw_adc - ADC_MIN_COUNTS) / (float)span)
     : 0.0f;
-
   const float nominal_voltage_v = ((float)raw_adc / 1023.0f) * NOMINAL_ADC_REFERENCE_V;
 
   if (!filter_initialized) {
@@ -71,7 +66,6 @@ void loop() {
   analogWrite(PWM_PIN, pwm_command);
   digitalWrite(STATUS_LED_PIN, normalized >= 0.5f ? HIGH : LOW);
 
-  // Keep the primary observable last for BetterBoard / Physical Lab v1 compatibility.
   Serial.print(now);
   Serial.print(',');
   Serial.print(raw_adc);

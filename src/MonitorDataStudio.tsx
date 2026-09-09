@@ -4,7 +4,8 @@ import {
   Activity, CircleAlert, Database, Eraser, Gauge, History, Link2, Radio, RefreshCw,
   Save, Send, Square, TerminalSquare, Waves,
 } from 'lucide-react';
-import type { TaskCategory, TaskState } from './TaskCenter';
+import type { BackgroundTask, TaskCategory, TaskState } from './TaskCenter';
+import RuntimeLog from './RuntimeLog';
 
 type RecipeSpec = {
   id: string;
@@ -85,6 +86,8 @@ type Props = {
   bridgeDocs?: BridgeDocs | null;
   onStatus?: (status: string) => void;
   onMeasurement?: (measurement: MeasurementResult) => void;
+  parameterValues?: Record<string, string>;
+  tasks?: BackgroundTask[];
   onTaskStart?: (category: TaskCategory, title: string, detail?: string, cancel?: () => Promise<void> | void) => number;
   onTaskLog?: (id: number, message: string) => void;
   onTaskFinish?: (id: number, state: Exclude<TaskState, 'running'>, detail: string) => void;
@@ -117,7 +120,7 @@ function makePolyline(values: number[]): string {
 }
 
 export default function MonitorDataStudio({
-  recipe, selectedPort, fqbn, latestMeasurement, bridgeDocs, onStatus, onMeasurement,
+  recipe, selectedPort, fqbn, latestMeasurement, bridgeDocs, onStatus, onMeasurement, parameterValues = {}, tasks = [],
   onTaskStart, onTaskLog, onTaskFinish,
 }: Props) {
   const [rows, setRows] = useState<MonitorRow[]>([]);
@@ -380,6 +383,7 @@ export default function MonitorDataStudio({
             line: row.line,
             numeric: row.numeric,
           })),
+          parameterValues,
         });
       } else {
         report('Recording a new 5 s full multichannel Measurement Package…');
@@ -389,6 +393,7 @@ export default function MonitorDataStudio({
           maxLines: 10000,
           boardProfile: fqbn,
           recipeId: recipe.id,
+          parameterValues,
         });
       }
       setMeasurement(result);
@@ -515,5 +520,6 @@ export default function MonitorDataStudio({
         {bridgeDocs?.honeycomb_guide && <details className="bridge-details"><summary>Honeycomb / integration guide</summary><pre className="docs-preview">{bridgeDocs.honeycomb_guide}</pre></details>}
       </div>
     </div>
+    <RuntimeLog tasks={tasks} />
   </section>;
 }

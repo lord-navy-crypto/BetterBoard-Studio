@@ -13,6 +13,9 @@ required_files = {
     'Task Center': SRC / 'TaskCenter.tsx',
     'Observatory': SRC / 'Observatory.tsx',
     'Learning': SRC / 'LearningHub.tsx',
+    'Recipe Parameters': SRC / 'RecipeParameterPanel.tsx',
+    'Runtime Log': SRC / 'RuntimeLog.tsx',
+    'OpenPenguin Bridge': SRC / 'OpenPenguinBridge.tsx',
     'Numerical V2': SRC / 'NumericalBenchSuiteV2.tsx',
     'Magnet V2': SRC / 'MagnetBenchSuiteV2.tsx',
     'Advanced Studio': SRC / 'StudioAdvanced.tsx',
@@ -88,8 +91,9 @@ for token in ['initialDomain', 'setDomain(initialDomain)']:
     assert token in hub, f'Learning-to-experiment handoff lost {token}'
 
 # Streamlined defaults must remain.
-for token in ['NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'Advanced Tools']:
+for token in ['NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'Expert workflows']:
     assert token in hub, f'Experiments Hub lost {token}'
+assert 'Advanced Tools' not in hub, 'Advanced Tools regressed into a third primary experiment domain'
 for token in ['Start Live', 'Snapshot 3 s', 'Measurement sessions', 'Physical Lab export & bridge', 'serial_stream_write']:
     assert token in monitor, f'Monitor & Data lost {token}'
 for token in ['Capture 7 s & Analyze', 'Downsampling convergence', 'Capture Complete Campaign & Analyze']:
@@ -214,6 +218,25 @@ for token in [
 # Hub must actually expose all three compatibility workspaces.
 for token in ['StudioAdvanced', 'NumericalBenchAdvanced', 'MagnetBenchAdvanced']:
     assert token in hub, f'Advanced workspace is not reachable: {token}'
+
+# Parameterized Recipe → compile → evidence and user-library loops are protected.
+parameter_panel = (SRC / 'RecipeParameterPanel.tsx').read_text()
+runtime_log = (SRC / 'RuntimeLog.tsx').read_text()
+openguin = (SRC / 'OpenPenguinBridge.tsx').read_text()
+for token in ['Recipe settings', 'slider', 'macro_name', 'Defaults']:
+    assert token in parameter_panel, f'Recipe parameter UI lost {token}'
+for token in ['prepare_recipe_with_params', 'user_recipe_save', 'Save preset to My Library', 'My Library']:
+    assert token in app + rust, f'Parameterized/user recipe loop lost {token}'
+for token in ['Load recipe template', 'Save to Library', 'OpenPenguinBridge']:
+    assert token in developer, f'Developer template/library loop lost {token}'
+for token in ['Runtime log', 'Task Center / Arduino CLI / monitor / evidence operations']:
+    assert token in runtime_log, f'Runtime log lost {token}'
+for token in ['Connect OpenPenguin', '127.0.0.1:11435', 'Ask local AI']:
+    assert token in openguin, f'OpenPenguin UI bridge lost {token}'
+for token in ['openguin_probe', 'openguin_generate', 'Ipv4Addr::LOCALHOST']:
+    assert token in rust or token in (ROOT / 'src-tauri' / 'src' / 'openguin_bridge.rs').read_text(), f'OpenPenguin backend lost {token}'
+for token in ['numerical_derivative', 'numerical_cancellation', 'numerical_accumulation', 'mpu6050_numerics']:
+    assert token in rust, f'New numerical recipe backend lost {token}'
 
 print('BetterBoard functionality surface check: PASS')
 print('- four-layer global workspace / mission / hardware status hierarchy protected')

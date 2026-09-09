@@ -1,3 +1,4 @@
+mod openguin_bridge;
 mod serial_stream;
 
 use chrono::Utc;
@@ -5,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeMap,
     fs,
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
@@ -49,6 +51,20 @@ struct BoardProfile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct RecipeParameterSpec {
+    key: String,
+    label: String,
+    kind: String,
+    default_value: String,
+    #[serde(default)] min: Option<f64>,
+    #[serde(default)] max: Option<f64>,
+    #[serde(default)] step: Option<f64>,
+    #[serde(default)] unit: Option<String>,
+    macro_name: String,
+    #[serde(default)] choices: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct RecipeSpec {
     id: String,
     title: String,
@@ -66,6 +82,16 @@ struct RecipeSpec {
     physical_lab_targets: Vec<String>,
     notes: Vec<String>,
     boundary: String,
+    #[serde(default)] parameters: Vec<RecipeParameterSpec>,
+    #[serde(default)] user_defined: bool,
+    #[serde(default)] base_recipe_id: Option<String>,
+    #[serde(default)] parameter_values: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct UserRecipeFile {
+    spec: RecipeSpec,
+    source: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,6 +157,8 @@ struct MeasurementMetadata {
     sample_rate_hz: Option<f64>,
     sample_count: usize,
     firmware_sha256: String,
+    #[serde(default)]
+    recipe_parameters: BTreeMap<String, String>,
     physical_lab_targets: Vec<String>,
     scientific_boundary: String,
 }
@@ -173,6 +201,30 @@ fn recipe_catalog_value() -> Result<Vec<RecipeSpec>, String> {
         .map_err(|e| format!("Invalid embedded recipe catalog: {e}"))
 }
 
+fn user_recipe_base_dir() -> PathBuf {
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home).join("Documents").join("BetterBoard").join("library");
+    }
+    std::env::temp_dir().join("BetterBoard").join("library")
+}
+
+fn load_user_recipe_files() -> Vec<UserRecipeFile> {
+    let base = user_recipe_base_dir();
+    if fs::create_dir_all(&base).is_err() { return Vec::new(); }
+    let mut result = fs::read_dir(base).ok().into_iter().flatten().filter_map(Result::ok)
+        .map(|entry| entry.path()).filter(|path| path.extension().and_then(|value| value.to_str()) == Some("json"))
+        .filter_map(|path| fs::read_to_string(path).ok())
+        .filter_map(|text| serde_json::from_str::<UserRecipeFile>(&text).ok()).collect::<Vec<_>>();
+    result.sort_by(|a, b| a.spec.title.cmp(&b.spec.title));
+    result
+}
+
+fn recipe_catalog_all() -> Result<Vec<RecipeSpec>, String> {
+    let mut catalog = recipe_catalog_value()?;
+    catalog.extend(load_user_recipe_files().into_iter().map(|entry| entry.spec));
+    Ok(catalog)
+}
+
 fn board_catalog_value() -> Result<Vec<BoardProfile>, String> {
     serde_json::from_str(BOARD_CATALOG_JSON)
         .map_err(|e| format!("Invalid embedded board catalog: {e}"))
@@ -183,47 +235,100 @@ fn device_catalog_value() -> Result<Vec<DeviceSpec>, String> {
 }
 
 fn recipe_by_id(id: &str) -> Result<RecipeSpec, String> {
-    recipe_catalog_value()?
-        .into_iter()
-        .find(|recipe| recipe.id == id)
+    recipe_catalog_all()?.into_iter().find(|recipe| recipe.id == id)
         .ok_or_else(|| format!("Unknown recipe: {id}"))
+}
+
+fn user_recipe_by_id(id: &str) -> Option<UserRecipeFile> {
+    load_user_recipe_files().into_iter().find(|entry| entry.spec.id == id)
 }
 
 fn embedded_recipe_source(id: &str) -> Result<&'static str, String> {
     match id {
-        "blink" => Ok(include_str!(
-            "../resources/firmware/Blink_LED/Blink_LED.ino"
-        )),
-        "synthetic" => Ok(include_str!(
-            "../resources/firmware/SyntheticSignal/SyntheticSignal.ino"
-        )),
-        "analog_a0" => Ok(include_str!(
-            "../resources/firmware/AnalogDAQ/AnalogDAQ.ino"
-        )),
-        "numerical_embedded" => Ok(include_str!(
-            "../resources/firmware/EmbeddedNumericalReliability/EmbeddedNumericalReliability.ino"
-        )),
-        "magnetic_mlx90393" => Ok(include_str!(
-            "../resources/firmware/MagneticField_MLX90393/MagneticField_MLX90393.ino"
-        )),
-        "acceleration_adxl345" => Ok(include_str!(
-            "../resources/firmware/Accelerometer_ADXL345/Accelerometer_ADXL345.ino"
-        )),
-        "photogate" => Ok(include_str!(
-            "../resources/firmware/PhotogateTimer/PhotogateTimer.ino"
-        )),
-        "quadrature_encoder" => Ok(include_str!(
-            "../resources/firmware/QuadratureEncoder/QuadratureEncoder.ino"
-        )),
+        "blink" => Ok(include_str!("../resources/firmware/Blink_LED/Blink_LED.ino")),
+        "synthetic" => Ok(include_str!("../resources/firmware/SyntheticSignal/SyntheticSignal.ino")),
+        "analog_a0" => Ok(include_str!("../resources/firmware/AnalogDAQ/AnalogDAQ.ino")),
+        "numerical_embedded" => Ok(include_str!("../resources/firmware/EmbeddedNumericalReliability/EmbeddedNumericalReliability.ino")),
+        "numerical_derivative" => Ok(include_str!("../resources/firmware/NumericalDerivativeSweep/NumericalDerivativeSweep.ino")),
+        "numerical_cancellation" => Ok(include_str!("../resources/firmware/NumericalCancellation/NumericalCancellation.ino")),
+        "numerical_accumulation" => Ok(include_str!("../resources/firmware/NumericalAccumulation/NumericalAccumulation.ino")),
+        "mpu6050_numerics" => Ok(include_str!("../resources/firmware/MPU6050Numerics/MPU6050Numerics.ino")),
+        "magnetic_mlx90393" => Ok(include_str!("../resources/firmware/MagneticField_MLX90393/MagneticField_MLX90393.ino")),
+        "acceleration_adxl345" => Ok(include_str!("../resources/firmware/Accelerometer_ADXL345/Accelerometer_ADXL345.ino")),
+        "photogate" => Ok(include_str!("../resources/firmware/PhotogateTimer/PhotogateTimer.ino")),
+        "quadrature_encoder" => Ok(include_str!("../resources/firmware/QuadratureEncoder/QuadratureEncoder.ino")),
         "pulse_rpm" => Ok(include_str!("../resources/firmware/PulseRPM/PulseRPM.ino")),
-        "random_walk_robot" => Ok(include_str!(
-            "../resources/firmware/RandomWalkRobot/RandomWalkRobot.ino"
-        )),
-        "i2c_scanner" => Ok(include_str!(
-            "../resources/firmware/I2CScanner/I2CScanner.ino"
-        )),
+        "random_walk_robot" => Ok(include_str!("../resources/firmware/RandomWalkRobot/RandomWalkRobot.ino")),
+        "i2c_scanner" => Ok(include_str!("../resources/firmware/I2CScanner/I2CScanner.ino")),
         _ => Err(format!("No embedded firmware source for recipe: {id}")),
     }
+}
+
+fn recipe_source_text(id: &str) -> Result<String, String> {
+    if let Some(user) = user_recipe_by_id(id) { return Ok(user.source); }
+    Ok(embedded_recipe_source(id)?.to_string())
+}
+
+fn normalize_parameter_value(spec: &RecipeParameterSpec, raw: &str) -> Result<String, String> {
+    match spec.kind.as_str() {
+        "integer" => {
+            let value = raw.trim().parse::<i64>().map_err(|_| format!("{} must be an integer", spec.label))?;
+            let number = value as f64;
+            if spec.min.is_some_and(|min| number < min) || spec.max.is_some_and(|max| number > max) {
+                return Err(format!("{} is outside its allowed range", spec.label));
+            }
+            Ok(value.to_string())
+        }
+        "number" => {
+            let value = raw.trim().parse::<f64>().map_err(|_| format!("{} must be numeric", spec.label))?;
+            if !value.is_finite() { return Err(format!("{} must be finite", spec.label)); }
+            if spec.min.is_some_and(|min| value < min) || spec.max.is_some_and(|max| value > max) {
+                return Err(format!("{} is outside its allowed range", spec.label));
+            }
+            let mut text = format!("{value:.12}");
+            while text.contains('.') && text.ends_with('0') { text.pop(); }
+            if text.ends_with('.') { text.push('0'); }
+            Ok(text)
+        }
+        "select" => {
+            if !spec.choices.iter().any(|choice| choice == raw) { return Err(format!("{} has an unsupported choice", spec.label)); }
+            Ok(raw.to_string())
+        }
+        other => Err(format!("Unsupported parameter kind: {other}")),
+    }
+}
+
+fn normalized_parameter_values(recipe: &RecipeSpec, provided: &BTreeMap<String, String>) -> Result<BTreeMap<String, String>, String> {
+    for key in provided.keys() {
+        if !recipe.parameters.iter().any(|spec| &spec.key == key) { return Err(format!("Unknown parameter for {}: {key}", recipe.title)); }
+    }
+    let mut result = BTreeMap::new();
+    for spec in &recipe.parameters {
+        let raw = provided.get(&spec.key).or_else(|| recipe.parameter_values.get(&spec.key)).map(String::as_str).unwrap_or(&spec.default_value);
+        result.insert(spec.key.clone(), normalize_parameter_value(spec, raw)?);
+    }
+    Ok(result)
+}
+
+fn render_recipe_source(recipe: &RecipeSpec, provided: &BTreeMap<String, String>) -> Result<String, String> {
+    let source = recipe_source_text(&recipe.id)?;
+    let values = normalized_parameter_values(recipe, provided)?;
+    if values.is_empty() { return Ok(source); }
+    let mut prefix = String::from("// BetterBoard compile-time recipe overrides\n");
+    for spec in &recipe.parameters {
+        let value = values.get(&spec.key).ok_or_else(|| format!("Missing normalized parameter {}", spec.key))?;
+        prefix.push_str(&format!("#define {} {}\n", spec.macro_name, value));
+    }
+    prefix.push('\n');
+    prefix.push_str(&source);
+    Ok(prefix)
+}
+
+fn effective_sample_rate(recipe: &RecipeSpec, values: &BTreeMap<String, String>) -> Option<f64> {
+    if let Some(raw) = values.get("sample_interval_us") {
+        if let Ok(us) = raw.parse::<f64>() { if us > 0.0 { return Some(1_000_000.0 / us); } }
+    }
+    recipe.sample_rate_hz
 }
 
 fn sha256_text(text: &str) -> String {
@@ -366,7 +471,7 @@ fn board_list() -> Result<Vec<BoardPort>, String> {
 
 #[tauri::command]
 fn recipe_catalog() -> Result<Vec<RecipeSpec>, String> {
-    recipe_catalog_value()
+    recipe_catalog_all()
 }
 
 #[tauri::command]
@@ -381,7 +486,7 @@ fn device_catalog() -> Result<Vec<DeviceSpec>, String> {
 
 #[tauri::command]
 fn recipe_source(recipe_id: String) -> Result<String, String> {
-    Ok(embedded_recipe_source(&recipe_id)?.to_string())
+    recipe_source_text(&recipe_id)
 }
 
 #[tauri::command]
@@ -402,14 +507,69 @@ fn sketch_root(recipe: &RecipeSpec) -> Result<PathBuf, String> {
     Ok(base)
 }
 
-#[tauri::command]
-fn prepare_recipe(recipe_id: String) -> Result<String, String> {
-    let recipe = recipe_by_id(&recipe_id)?;
-    let source = embedded_recipe_source(&recipe_id)?;
-    let root = sketch_root(&recipe)?;
+fn write_prepared_recipe(recipe: &RecipeSpec, parameter_values: &BTreeMap<String, String>) -> Result<String, String> {
+    let source = render_recipe_source(recipe, parameter_values)?;
+    let root = sketch_root(recipe)?;
     let file = root.join(format!("{}.ino", recipe.sketch_name));
     fs::write(&file, source).map_err(|e| e.to_string())?;
     Ok(root.display().to_string())
+}
+
+#[tauri::command]
+fn prepare_recipe(recipe_id: String) -> Result<String, String> {
+    let recipe = recipe_by_id(&recipe_id)?;
+    write_prepared_recipe(&recipe, &BTreeMap::new())
+}
+
+#[tauri::command]
+fn prepare_recipe_with_params(recipe_id: String, parameter_values: BTreeMap<String, String>) -> Result<String, String> {
+    let recipe = recipe_by_id(&recipe_id)?;
+    write_prepared_recipe(&recipe, &parameter_values)
+}
+
+#[tauri::command]
+fn user_recipe_save(title: String, base_recipe_id: String, source: Option<String>, parameter_values: BTreeMap<String, String>) -> Result<RecipeSpec, String> {
+    let title = title.trim();
+    if title.is_empty() || title.len() > 120 { return Err("User recipe title must be 1..120 characters.".into()); }
+    let base_id = base_recipe_id.trim();
+    let (mut spec, inherited_source) = if base_id.is_empty() {
+        (RecipeSpec {
+            id: String::new(), title: title.to_string(), category: "My Library".into(),
+            description: "User-authored Arduino sketch saved from BetterBoard Developer.".into(),
+            sketch_name: sanitize_developer_sketch_name(title), capture_mode: "none".into(), baud: 115200,
+            columns: Vec::new(), units: Vec::new(), primary_column: None, sample_rate_hz: None,
+            required_libraries: Vec::new(), hardware: vec!["User-defined hardware".into()],
+            physical_lab_targets: Vec::new(), notes: vec!["User-authored recipe; verify its hardware assumptions before use.".into()],
+            boundary: "User-authored firmware has no automatic measurement/calibration claim.".into(), parameters: Vec::new(),
+            user_defined: true, base_recipe_id: None, parameter_values: BTreeMap::new(),
+        }, source.clone().unwrap_or_default())
+    } else {
+        let base = recipe_by_id(base_id)?;
+        let inherited = recipe_source_text(base_id)?;
+        let mut derived = base.clone();
+        derived.base_recipe_id = Some(base.id.clone());
+        derived.description = format!("User recipe derived from {}.", base.title);
+        (derived, inherited)
+    };
+    let source_text = source.unwrap_or(inherited_source);
+    if source_text.trim().is_empty() { return Err("User recipe source is empty.".into()); }
+    if source_text.len() > 2_000_000 { return Err("User recipe source exceeds the 2 MB limit.".into()); }
+    let normalized = normalized_parameter_values(&spec, &parameter_values)?;
+    let slug = sanitize_developer_sketch_name(title);
+    let id = format!("user_{}_{}", slug.to_lowercase(), Utc::now().timestamp_millis());
+    spec.id = id.clone();
+    spec.title = title.to_string();
+    spec.category = "My Library".into();
+    spec.sketch_name = slug;
+    spec.user_defined = true;
+    spec.parameter_values = normalized;
+    let file = UserRecipeFile { spec: spec.clone(), source: source_text };
+    let base = user_recipe_base_dir();
+    fs::create_dir_all(&base).map_err(|e| e.to_string())?;
+    let path = base.join(format!("{id}.json"));
+    fs::write(&path, serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("Could not save user recipe {}: {e}", path.display()))?;
+    Ok(spec)
 }
 
 fn developer_sketch_base_dir() -> PathBuf {
@@ -784,6 +944,7 @@ fn write_measurement_package(
     port: &str,
     board_profile: &str,
     acquisition_mode: &str,
+    parameter_values: &BTreeMap<String, String>,
     valid_rows: &[CapturedRow],
 ) -> Result<MeasurementResult, String> {
     if valid_rows.is_empty() {
@@ -820,7 +981,8 @@ fn write_measurement_package(
         writeln!(bridge_csv, "{},{}", row.host_timestamp_ms, value).map_err(|e| e.to_string())?;
     }
 
-    let source = embedded_recipe_source(&recipe.id)?;
+    let normalized_parameters = normalized_parameter_values(recipe, parameter_values)?;
+    let source = render_recipe_source(recipe, &normalized_parameters)?;
     let metadata = MeasurementMetadata {
         schema: "betterboard.measurement/0.2".into(),
         created_at_utc: now.to_rfc3339(),
@@ -834,9 +996,10 @@ fn write_measurement_package(
         columns: recipe.columns.clone(),
         units: recipe.units.clone(),
         primary_column: recipe.primary_column.clone(),
-        sample_rate_hz: recipe.sample_rate_hz,
+        sample_rate_hz: effective_sample_rate(recipe, &normalized_parameters),
         sample_count: valid_rows.len(),
-        firmware_sha256: sha256_text(source),
+        firmware_sha256: sha256_text(&source),
+        recipe_parameters: normalized_parameters.clone(),
         physical_lab_targets: recipe.physical_lab_targets.clone(),
         scientific_boundary: recipe.boundary.clone(),
     };
@@ -854,6 +1017,7 @@ fn write_measurement_package(
         "physical_lab_v1_dataset": "physical_lab_v1.csv",
         "current_physical_lab_v1_contract": "timestamp,value; primary observable is the final numeric firmware field",
         "recipe_id": recipe.id,
+        "recipe_parameters": normalized_parameters,
         "primary_column": recipe.primary_column,
         "source_units": recipe.units,
         "physical_lab_targets": recipe.physical_lab_targets,
@@ -882,6 +1046,7 @@ fn capture_measurement(
     max_lines: usize,
     board_profile: String,
     recipe_id: String,
+    parameter_values: Option<BTreeMap<String, String>>,
 ) -> Result<MeasurementResult, String> {
     let recipe = recipe_by_id(&recipe_id)?;
     if recipe.capture_mode != "numeric" {
@@ -898,6 +1063,7 @@ fn capture_measurement(
         &port,
         &board_profile,
         "serial-capture",
+        &parameter_values.unwrap_or_default(),
         &valid_rows,
     )
 }
@@ -908,6 +1074,7 @@ fn save_measurement_buffer(
     board_profile: String,
     recipe_id: String,
     rows: Vec<CapturedRow>,
+    parameter_values: Option<BTreeMap<String, String>>,
 ) -> Result<MeasurementResult, String> {
     if rows.len() > 100_000 {
         return Err("Live buffer exceeds the 100000-row evidence limit.".into());
@@ -926,6 +1093,7 @@ fn save_measurement_buffer(
         &port,
         &board_profile,
         "live-monitor-buffer",
+        &parameter_values.unwrap_or_default(),
         &valid_rows,
     )
 }
@@ -943,6 +1111,8 @@ pub fn run() {
             recipe_source,
             physical_lab_bridge_docs,
             prepare_recipe,
+            prepare_recipe_with_params,
+            user_recipe_save,
             developer_sketch_save,
             compile_sketch,
             upload_sketch,
@@ -952,6 +1122,8 @@ pub fn run() {
             save_measurement_buffer,
             measurement_sessions,
             measurement_session_load,
+            openguin_bridge::openguin_probe,
+            openguin_bridge::openguin_generate,
             serial_stream::serial_stream_start,
             serial_stream::serial_stream_write,
             serial_stream::serial_stream_stop,

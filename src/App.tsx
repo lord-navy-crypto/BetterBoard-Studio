@@ -3,13 +3,14 @@ import { invoke } from '@tauri-apps/api/core';
 import {
   Activity, BookOpen, Bot, Boxes, Braces, Cable, CircleAlert, CircuitBoard, Code2,
   Cpu, Download, Gauge, Magnet, Play, RefreshCw, RotateCw,
-  Search, ShieldCheck, TerminalSquare, TimerReset, Upload, Waves, Wrench,
+  Save, Search, ShieldCheck, TerminalSquare, TimerReset, Upload, Waves, Wrench,
 } from 'lucide-react';
 import CircuitLab from './CircuitLab';
 import DeveloperIDE from './DeveloperIDE';
 import MonitorDataStudio from './MonitorDataStudio';
 import TaskCenterPanel, { type BackgroundTask, type TaskCategory, type TaskState } from './TaskCenter';
 import { useHardwareSession } from './HardwareSession';
+import RecipeParameterPanel, { recipeParameterDefaults, type RecipeParameterSpec } from './RecipeParameterPanel';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 type RecipeSpec = {
@@ -17,6 +18,8 @@ type RecipeSpec = {
   capture_mode: 'none' | 'numeric' | 'text'; baud: number; columns: string[]; units: string[];
   primary_column?: string | null; sample_rate_hz?: number | null; required_libraries: string[];
   hardware: string[]; physical_lab_targets: string[]; notes: string[]; boundary: string;
+  parameters?: RecipeParameterSpec[]; user_defined?: boolean; base_recipe_id?: string | null;
+  parameter_values?: Record<string, string>;
 };
 type DeviceSpec = { id: string; name: string; interface: string; quantities: string[]; units: string[]; libraries: string[]; status: string };
 type PreflightResult = { cli_ready: boolean; core: string; core_installed: boolean; required_libraries: string[]; missing_libraries: string[]; warnings: string[] };
@@ -42,6 +45,7 @@ const iconFor = (id: string) => {
 };
 
 const libraryGroupFor = (recipe: RecipeSpec) => {
+  if (recipe.user_defined) return 'My Library';
   if (recipe.id === 'blink' || recipe.id === 'i2c_scanner' || recipe.category === 'Verify' || recipe.category === 'Diagnose') return 'Verify & Diagnose';
   if (recipe.id.includes('numerical') || recipe.id === 'analog_a0' || recipe.id === 'synthetic') return 'Numerical & Measurement';
   if (recipe.id.includes('magnetic')) return 'Magnetism & Fields';
@@ -76,6 +80,8 @@ export default function App() {
   const [status, setStatus] = useState('Ready');
   const [busy, setBusy] = useState(false);
   const [measurement, setMeasurement] = useState<MeasurementResult | null>(null);
+  const [parameterValues, setParameterValues] = useState<Record<string, string>>({});
+  const [presetName, setPresetName] = useState('');
   const [tasks, setTasks] = useState<BackgroundTask[]>(restoreTaskMemory);
   const {
     ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn,
@@ -164,6 +170,12 @@ export default function App() {
     if (!recipeId) return;
     invoke<string>('recipe_source', { recipeId }).then(setSource).catch(e => setSource(String(e)));
   }, [recipeId]);
+  useEffect(() => {
+    if (!recipe) return;
+    setParameterValues(recipeParameterDefaults(recipe));
+    setPresetName(`${recipe.title} preset`);
+    setSketchDir('');
+  }, [recipe?.id]);
 
   async function checkPreflight() {
     if (!recipe) return;
@@ -184,7 +196,7 @@ export default function App() {
     const task = addTask('Program', `Prepare · ${recipe.title}`, 'Writing canonical firmware into the BetterBoard temporary sketch workspace…');
     setBusy(true);
     try {
-      const path = await invoke<string>('prepare_recipe', { recipeId: recipe.id });
+      const path = await invoke<string>('prepare_recipe_with_params', { recipeId: recipe.id, parameterValues });
       setSketchDir(path); setStatus(`Firmware ready: ${path}`); logTask(task, path); finishTask(task, 'done', 'Canonical firmware prepared'); return path;
     } catch (e) { setStatus(String(e)); logTask(task, String(e)); finishTask(task, 'failed', String(e)); return ''; }
     finally { setBusy(false); }
@@ -220,6 +232,23 @@ export default function App() {
       setStatus(detail); finishTask(task, 'done', detail);
     } catch (e) { setStatus(`Upload failed: ${e}`); logTask(task, String(e)); finishTask(task, 'failed', String(e)); }
     finally { setBusy(false); }
+  }
+
+  async function saveRecipePreset() {
+    if (!recipe) return;
+    const title = presetName.trim() || `${recipe.title} preset`;
+    const task = addTask('System', `Save preset · ${title}`, 'Saving parameterized recipe into Documents/BetterBoard/library…');
+    try {
+      const saved = await invoke<RecipeSpec>('user_recipe_save', {
+        title, baseRecipeId: recipe.id, source: null, parameterValues,
+      });
+      const catalog = await invoke<RecipeSpec[]>('recipe_catalog');
+      setRecipes(catalog); setRecipeId(saved.id);
+      const detail = `Saved to My Library · ${saved.title}`;
+      logTask(task, detail); finishTask(task, 'done', detail); setStatus(detail);
+    } catch (error) {
+      logTask(task, String(error)); finishTask(task, 'failed', `Preset save failed: ${error}`); setStatus(`Preset save failed: ${error}`);
+    }
   }
 
   const nav = [
@@ -277,7 +306,9 @@ export default function App() {
         <section className="panel">
           <div className="panel-title"><Play size={18}/> Program</div>
           <div className="selected-recipe-row"><div><span className="eyebrow">Selected recipe</span><h2>{recipe?.title}</h2><p>{recipe?.description}</p></div><button className="ghost" onClick={() => setTab('library')}><BookOpen size={16}/> Browse all</button></div>
-          {recipe && <div className="schema-row"><span>{recipe.sketch_name}.ino</span><span>{recipe.baud} baud</span><span>{recipe.capture_mode}</span>{recipe.sample_rate_hz && <span>{recipe.sample_rate_hz} Hz</span>}</div>}
+          {recipe && <div className="schema-row"><span>{recipe.sketch_name}.ino</span><span>{recipe.baud} baud</span><span>{recipe.capture_mode}</span>{recipe.sample_rate_hz && <span>{recipe.sample_rate_hz} Hz nominal</span>}</div>}
+          {recipe && <RecipeParameterPanel recipe={recipe} values={parameterValues} onChange={values => { setParameterValues(values); setSketchDir(''); }} />}
+          {recipe && <div className="action-row" style={{ alignItems: 'end' }}><label style={{ flex: '1 1 260px' }}>Preset name<input value={presetName} onChange={event => setPresetName(event.target.value)} /></label><button className="ghost" disabled={busy} onClick={() => void saveRecipePreset()}><Save size={15}/> Save preset to My Library</button></div>}
           <div className="action-row">
             <button className="ghost" disabled={busy || !recipe} onClick={() => void prepare()}><Braces size={16}/> Prepare firmware</button>
             <button className="ghost" disabled={busy || !recipe} onClick={() => void compile()}><Download size={16}/> Compile</button>
@@ -293,7 +324,7 @@ export default function App() {
         <div className="panel">
           <div className="panel-title"><Boxes size={18}/> Experiment & firmware library</div>
           <p className="muted">Recipes are grouped by purpose instead of mixing verification, discipline, and workflow labels in one flat list.</p>
-          <div className="recipe-list">{groupedRecipes.map(([group, items]) => <div key={group} className="recipe-group"><div className="eyebrow" style={{ margin: '12px 0 6px' }}>{group}</div>{items.map(item => { const Icon = iconFor(item.id); return <button key={item.id} className={`recipe-row ${item.id === recipeId ? 'selected' : ''}`} onClick={() => setRecipeId(item.id)}><Icon size={18}/><div><b>{item.title}</b><span>{item.category} · {item.sketch_name}</span></div><small>{item.capture_mode}</small></button>; })}</div>)}</div>
+          <div className="recipe-list">{groupedRecipes.map(([group, items]) => <details key={group} className="recipe-group"><summary className="eyebrow" style={{ margin: '12px 0 6px', cursor: 'pointer' }}>{group} · {items.length}</summary>{items.map(item => { const Icon = iconFor(item.id); return <button key={item.id} className={`recipe-row ${item.id === recipeId ? 'selected' : ''}`} onClick={() => setRecipeId(item.id)}><Icon size={18}/><div><b>{item.title}</b><span>{item.user_defined ? 'USER PRESET' : item.category} · {item.sketch_name}</span></div><small>{item.capture_mode}</small></button>; })}</details>)}</div>
         </div>
         <div className="panel inspector">
           {recipe && <>
@@ -302,8 +333,9 @@ export default function App() {
             <div className="info-section"><b>Required libraries</b>{recipe.required_libraries.length ? recipe.required_libraries.map(v => <span key={v}>• {v}</span>) : <span>• None</span>}</div>
             <div className="info-section"><b>Data schema</b><span>{recipe.columns.length ? recipe.columns.map((c, i) => `${c} [${recipe.units[i]}]`).join(' · ') : 'No measurement schema'}</span></div>
             <div className="info-section"><b>Physical Lab consumers</b>{recipe.physical_lab_targets.map(v => <span key={v}>• {v}</span>)}</div>
+            <RecipeParameterPanel compact recipe={recipe} values={parameterValues} onChange={values => { setParameterValues(values); setSketchDir(''); }} />
             <div className="boundary"><ShieldCheck size={15}/>{recipe.boundary}</div>
-            <button className="primary" onClick={() => setTab('hardware')}>Use this recipe</button>
+            <div className="action-row"><button className="primary" onClick={() => setTab('hardware')}>Use this recipe</button><button className="ghost" onClick={() => setTab('developer')}><Code2 size={15}/> Open in Developer</button></div>
           </>}
         </div>
       </section>}
@@ -316,6 +348,8 @@ export default function App() {
         bridgeDocs={bridgeDocs}
         onStatus={setStatus}
         onMeasurement={setMeasurement}
+        parameterValues={parameterValues}
+        tasks={tasks}
         onTaskStart={addTask}
         onTaskLog={logTask}
         onTaskFinish={finishTask}
@@ -328,6 +362,8 @@ export default function App() {
         fqbn={fqbn}
         selectedPort={selectedPort}
         integratedDevices={devices.length}
+        recipes={recipes}
+        onLibrarySaved={() => { void refresh(); }}
         onStatus={setStatus}
         onTaskStart={addTask}
         onTaskLog={logTask}

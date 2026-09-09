@@ -16,6 +16,9 @@ EXPERIMENTS_HUB = ROOT / 'src' / 'ExperimentsHub.tsx'
 HARDWARE_SESSION = ROOT / 'src' / 'HardwareSession.tsx'
 OBSERVATORY = ROOT / 'src' / 'Observatory.tsx'
 LEARNING = ROOT / 'src' / 'LearningHub.tsx'
+RECIPE_PARAMETERS = ROOT / 'src' / 'RecipeParameterPanel.tsx'
+RUNTIME_LOG = ROOT / 'src' / 'RuntimeLog.tsx'
+OPENGUIN_BRIDGE = ROOT / 'src' / 'OpenPenguinBridge.tsx'
 MAIN = ROOT / 'src' / 'main.tsx'
 
 EXPECTED = {
@@ -23,6 +26,10 @@ EXPECTED = {
     'synthetic': ('SyntheticSignal', 'SyntheticSignal.ino'),
     'analog_a0': ('AnalogDAQ', 'AnalogDAQ.ino'),
     'numerical_embedded': ('EmbeddedNumericalReliability', 'EmbeddedNumericalReliability.ino'),
+    'numerical_derivative': ('NumericalDerivativeSweep', 'NumericalDerivativeSweep.ino'),
+    'numerical_cancellation': ('NumericalCancellation', 'NumericalCancellation.ino'),
+    'numerical_accumulation': ('NumericalAccumulation', 'NumericalAccumulation.ino'),
+    'mpu6050_numerics': ('MPU6050Numerics', 'MPU6050Numerics.ino'),
     'magnetic_mlx90393': ('MagneticField_MLX90393', 'MagneticField_MLX90393.ino'),
     'acceleration_adxl345': ('Accelerometer_ADXL345', 'Accelerometer_ADXL345.ino'),
     'photogate': ('PhotogateTimer', 'PhotogateTimer.ino'),
@@ -33,11 +40,7 @@ EXPECTED = {
 }
 
 V04_BYTE_IDENTICAL = {
-    'synthetic',
     'acceleration_adxl345',
-    'photogate',
-    'quadrature_encoder',
-    'pulse_rpm',
     'random_walk_robot',
     'i2c_scanner',
 }
@@ -52,16 +55,18 @@ def main() -> int:
     boards = json.loads((RES / 'boards' / 'boards.json').read_text())
     devices = json.loads((RES / 'devices' / 'devices.json').read_text())
     units = json.loads((RES / 'devices' / 'units.json').read_text())
-    assert len(catalog) == 11, len(catalog)
-    assert len({r['id'] for r in catalog}) == 11
+    assert len(catalog) == 15, len(catalog)
+    assert len({r['id'] for r in catalog}) == 15
     assert set(EXPECTED) == {r['id'] for r in catalog}
     assert any(b['fqbn'] == 'arduino:avr:uno' for b in boards)
     assert any(d['id'] == 'mlx90393' for d in devices)
+    for device_id in ['mpu6050', 'pir', 'optical_pulse_module', 'stepper_or_rotary_motor']:
+        assert any(d['id'] == device_id for d in devices), device_id
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
     for required in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB,
-        HARDWARE_SESSION, OBSERVATORY, LEARNING, MAIN,
+        HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, MAIN,
     ]:
         assert required.is_file(), required
 
@@ -72,7 +77,7 @@ def main() -> int:
     rust = LIB.read_text()
     frontend = '\n'.join(path.read_text() for path in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE,
-        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, LEARNING, MAIN,
+        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, MAIN,
     ])
     by_id = {r['id']: r for r in catalog}
 
@@ -228,6 +233,22 @@ def main() -> int:
     assert "invoke<BoardPort[]>('board_list')" in hardware
     assert "invoke<BoardProfile[]>('board_profiles')" in hardware
 
+    # Parameterized recipes / user library / local AI are first-class contracts.
+    for rid in ['blink', 'synthetic', 'analog_a0', 'photogate', 'quadrature_encoder', 'pulse_rpm', 'numerical_derivative', 'numerical_accumulation', 'mpu6050_numerics']:
+        assert by_id[rid].get('parameters'), rid
+    for token in ['prepare_recipe_with_params', 'user_recipe_save', 'recipe_parameters', 'Documents', 'BetterBoard', 'library']:
+        assert token in rust, token
+    for token in ['Save preset to My Library', 'My Library']:
+        assert token in app_text, token
+    assert 'Recipe settings' in RECIPE_PARAMETERS.read_text()
+    developer_text = (ROOT / 'src' / 'DeveloperIDE.tsx').read_text()
+    for token in ['Template', 'Load recipe template', 'Save to Library', 'OpenPenguinBridge']:
+        assert token in developer_text, token
+    assert 'Runtime log' in RUNTIME_LOG.read_text()
+    for token in ['openguin_probe', 'openguin_generate', '127.0.0.1:11435']:
+        assert token in OPENGUIN_BRIDGE.read_text() or token in (ROOT / 'src-tauri' / 'src' / 'openguin_bridge.rs').read_text(), token
+    assert 'Expert workflows' in hub and 'Advanced Tools' not in hub
+
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
     assert package['version'] == '0.2.0-alpha.2'
@@ -235,7 +256,7 @@ def main() -> int:
     assert '0.2.0-alpha.2' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
 
     print('BetterBoard Studio v0.2.0-alpha.2 self-check: PASS')
-    print('- 11 canonical recipes registered')
+    print('- 15 canonical recipes registered, including four new numerical-error programs')
     print('- persistent bidirectional Serial Monitor handlers registered')
     print('- historical Measurement Sessions + replay registered')
     print('- Physical Lab Bridge merged into Monitor & Data')

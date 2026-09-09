@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Braces, Code2, Download, FilePlus2, Play, RotateCcw, Save, TerminalSquare, Upload } from 'lucide-react';
 import type { TaskCategory, TaskState } from './TaskCenter';
+import OpenPenguinBridge from './OpenPenguinBridge';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 type RecipeSpec = {
@@ -10,6 +11,8 @@ type RecipeSpec = {
   sketch_name: string;
   baud: number;
   notes: string[];
+  user_defined?: boolean;
+  parameter_values?: Record<string, string>;
 };
 
 type Props = {
@@ -19,6 +22,8 @@ type Props = {
   fqbn: string;
   selectedPort: string;
   integratedDevices: number;
+  recipes: RecipeSpec[];
+  onLibrarySaved?: (recipe: RecipeSpec) => void;
   onStatus: (message: string) => void;
   onTaskStart: (category: TaskCategory, title: string, detail?: string) => number;
   onTaskLog: (id: number, message: string) => void;
@@ -40,7 +45,7 @@ function safeDefaultName(name?: string) {
 }
 
 export default function DeveloperIDE({
-  recipe, canonicalSource, cli, fqbn, selectedPort, integratedDevices,
+  recipe, canonicalSource, cli, fqbn, selectedPort, integratedDevices, recipes, onLibrarySaved,
   onStatus, onTaskStart, onTaskLog, onTaskFinish,
 }: Props) {
   const [source, setSource] = useState(canonicalSource || BLANK_SKETCH);
@@ -49,6 +54,7 @@ export default function DeveloperIDE({
   const [output, setOutput] = useState('Ready. Edit the sketch, then Verify or Run / Upload.');
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [templateId, setTemplateId] = useState(recipe?.id ?? '');
 
   useEffect(() => {
     setSource(canonicalSource || BLANK_SKETCH);
@@ -56,6 +62,7 @@ export default function DeveloperIDE({
     setSavedDir('');
     setOutput(`Loaded ${recipe?.title || 'blank sketch'} as the editing starting point.`);
     setDirty(false);
+    setTemplateId(recipe?.id ?? '');
   }, [recipe?.id, canonicalSource]);
 
   const sourceFacts = useMemo(() => ({
@@ -149,6 +156,33 @@ export default function DeveloperIDE({
     setOutput(`Reset editor to canonical ${recipe?.sketch_name || 'blank'} source.`);
   }
 
+  async function loadTemplate() {
+    const template = recipes.find(item => item.id === templateId);
+    if (!template) { resetToRecipe(); return; }
+    try {
+      const text = await invoke<string>('recipe_source', { recipeId: template.id });
+      setSource(text); setSketchName(safeDefaultName(template.sketch_name)); setSavedDir(''); setDirty(false);
+      setOutput(`Loaded recipe template: ${template.title}`);
+    } catch (error) { setOutput(`Template load failed: ${error}`); }
+  }
+
+  async function saveToLibrary() {
+    const task = onTaskStart('System', `Save to Library · ${sketchName}`, 'Saving editable sketch as a BetterBoard user recipe…');
+    try {
+      const template = recipes.find(item => item.id === templateId);
+      const saved = await invoke<RecipeSpec>('user_recipe_save', {
+        title: sketchName, baseRecipeId: template?.id ?? recipe?.id ?? '', source,
+        parameterValues: template?.parameter_values ?? {},
+      });
+      onLibrarySaved?.(saved);
+      const detail = `Saved user recipe · ${saved.title}`;
+      onTaskLog(task, detail); onTaskFinish(task, 'done', detail); onStatus(detail); setOutput(detail);
+    } catch (error) {
+      const detail = `Save to Library failed: ${error}`;
+      onTaskLog(task, detail); onTaskFinish(task, 'failed', detail); onStatus(detail); setOutput(detail);
+    }
+  }
+
   function newSketch() {
     setSource(BLANK_SKETCH);
     setSketchName('BetterBoardSketch');
@@ -165,8 +199,9 @@ export default function DeveloperIDE({
       </div>
       <div className="developer-actions">
         <button className="ghost" disabled={busy} onClick={newSketch}><FilePlus2 size={15}/> New</button>
-        <button className="ghost" disabled={busy} onClick={resetToRecipe}><RotateCcw size={15}/> Load recipe</button>
+        <button className="ghost" disabled={busy} onClick={() => void loadTemplate()}><RotateCcw size={15}/> Load recipe template</button>
         <button className="ghost" disabled={busy || !source.trim()} onClick={() => void saveDraft()}><Save size={15}/> Save</button>
+        <button className="ghost" disabled={busy || !source.trim()} onClick={() => void saveToLibrary()}><Braces size={15}/> Save to Library</button>
         <button className="ghost" disabled={busy || !source.trim()} onClick={() => void verify()}><Download size={15}/> Verify</button>
         <button className="primary" disabled={busy || !source.trim() || !selectedPort} onClick={() => void runUpload()}><Upload size={15}/> Run / Upload</button>
       </div>
@@ -175,6 +210,7 @@ export default function DeveloperIDE({
     <div className="developer-ide-grid">
       <div className="panel developer-editor-panel">
         <div className="developer-filebar">
+          <label>Template<select value={templateId} onChange={event => setTemplateId(event.target.value)}><option value="">Blank / current</option>{recipes.map(item => <option key={item.id} value={item.id}>{item.user_defined ? 'My Library · ' : ''}{item.title}</option>)}</select></label>
           <label>Sketch name<input value={sketchName} disabled={busy} onChange={event => { setSketchName(event.target.value.replace(/[^A-Za-z0-9_]/g, '_')); setDirty(true); }} /></label>
           <span className={dirty ? 'dirty' : ''}>{dirty ? '● unsaved' : 'saved / recipe state'}</span>
           <span>{sourceFacts.lines} lines · {sourceFacts.chars} chars</span>
@@ -206,6 +242,12 @@ export default function DeveloperIDE({
           </div>
           <div className="info-section"><b>Starting recipe notes</b>{recipe?.notes?.length ? recipe.notes.map(note => <span key={note}>• {note}</span>) : <span>• Free sketch mode is not constrained to a recipe.</span>}</div>
         </div>
+        <OpenPenguinBridge context={`Recipe: ${recipe?.title || 'free sketch'}
+Board: ${fqbn}
+Port: ${selectedPort || 'none'}
+
+Sketch:
+${source}`} />
       </div>
     </div>
   </section>;
