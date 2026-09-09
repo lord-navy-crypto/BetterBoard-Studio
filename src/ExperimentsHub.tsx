@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CircuitBoard, Magnet, Settings2, Sigma } from 'lucide-react';
 import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
 import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
@@ -8,6 +8,10 @@ import StudioAdvanced from './StudioAdvanced';
 
 type Domain = 'numerical' | 'magnet' | 'advanced';
 type AdvancedDomain = 'studio' | 'numerical' | 'magnet';
+
+type Props = {
+  initialDomain?: 'numerical' | 'magnet';
+};
 
 const DOMAINS = [
   {
@@ -30,9 +34,11 @@ const DOMAINS = [
   },
 ];
 
-export default function ExperimentsHub() {
-  const [domain, setDomain] = useState<Domain>('numerical');
+export default function ExperimentsHub({ initialDomain = 'numerical' }: Props) {
+  const [domain, setDomain] = useState<Domain>(initialDomain);
   const [advancedDomain, setAdvancedDomain] = useState<AdvancedDomain>('studio');
+
+  useEffect(() => setDomain(initialDomain), [initialDomain]);
 
   return <div className="experiments-hub">
     <section style={{ maxWidth: 1420, margin: '0 auto', padding: '22px 34px 0' }}>
