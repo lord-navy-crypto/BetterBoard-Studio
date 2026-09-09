@@ -14,6 +14,8 @@ NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuiteV2.tsx'
 MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuiteV2.tsx'
 EXPERIMENTS_HUB = ROOT / 'src' / 'ExperimentsHub.tsx'
 HARDWARE_SESSION = ROOT / 'src' / 'HardwareSession.tsx'
+OBSERVATORY = ROOT / 'src' / 'Observatory.tsx'
+LEARNING = ROOT / 'src' / 'LearningHub.tsx'
 MAIN = ROOT / 'src' / 'main.tsx'
 
 EXPECTED = {
@@ -57,7 +59,10 @@ def main() -> int:
     assert any(d['id'] == 'mlx90393' for d in devices)
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
-    for required in [APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB, HARDWARE_SESSION, MAIN]:
+    for required in [
+        APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB,
+        HARDWARE_SESSION, OBSERVATORY, LEARNING, MAIN,
+    ]:
         assert required.is_file(), required
 
     # The duplicated pre-refactor lab components must stay gone.
@@ -67,7 +72,7 @@ def main() -> int:
     rust = LIB.read_text()
     frontend = '\n'.join(path.read_text() for path in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE,
-        EXPERIMENTS_HUB, HARDWARE_SESSION, MAIN,
+        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, LEARNING, MAIN,
     ])
     by_id = {r['id']: r for r in catalog}
 
@@ -170,9 +175,11 @@ def main() -> int:
 
     monitor_text = MONITOR_DATA.read_text()
     app_text = APP.read_text()
-    main = MAIN.read_text()
+    main_text = MAIN.read_text()
     hub = EXPERIMENTS_HUB.read_text()
     hardware = HARDWARE_SESSION.read_text()
+    observatory = OBSERVATORY.read_text()
+    learning = LEARNING.read_text()
     numerical = NUMERICAL_SUITE.read_text()
     magnet_ui = MAGNET_SUITE.read_text()
 
@@ -197,12 +204,21 @@ def main() -> int:
     assert 'Numerical & Measurement' in app_text
     assert 'Magnetism & Fields' in app_text
 
-    assert "type Workspace = 'studio' | 'experiments'" in main
-    assert "label: 'Studio'" in main
-    assert "label: 'Experiments'" in main
-    assert 'HardwareSessionProvider' in main
-    assert 'useHardwareSession' in main
+    assert "type Workspace = 'studio' | 'observatory' | 'experiments' | 'learning'" in main_text
+    for label in ['Studio', 'Observatory', 'Experiments', 'Learning']:
+        assert f"label: '{label}'" in main_text
+    assert 'bb-context-strip' in main_text
+    assert 'bb-workspace-pane' in main_text
+    assert "hidden={workspace !== 'studio'}" in main_text
+    assert 'HardwareSessionProvider' in main_text
+    assert 'useHardwareSession' in main_text
+    assert 'Live runtime observatory' in observatory
+    assert 'measurement_sessions' in observatory
+    assert 'betterboard.task-center.v1' in observatory
+    assert 'Understand the number before trusting the number.' in learning
+    assert 'onOpenExperiment' in learning
     assert 'Numerical Analysis' in hub and 'Magnetism & Fields' in hub
+    assert 'initialDomain' in hub
     assert 'Capture 7 s & Analyze' in numerical
     assert 'Capture Complete Campaign & Analyze' in numerical
     assert 'Downsampling convergence' in numerical
@@ -224,7 +240,8 @@ def main() -> int:
     print('- historical Measurement Sessions + replay registered')
     print('- Physical Lab Bridge merged into Monitor & Data')
     print('- unified Monitor & Data workspace registered')
-    print('- Studio / Experiments top-level information architecture registered')
+    print('- persistent Studio / Observatory / Experiments / Learning architecture registered')
+    print('- global CLI / hardware / acquisition / task context strip registered')
     print('- shared Hardware Session provider registered')
     print('- grouped Recipe Library registered')
     print('- Numerical Lab in-app complete-results workflow registered')
