@@ -11,6 +11,8 @@ required_files = {
     'Monitor & Data': SRC / 'MonitorDataStudio.tsx',
     'Developer IDE': SRC / 'DeveloperIDE.tsx',
     'Task Center': SRC / 'TaskCenter.tsx',
+    'Observatory': SRC / 'Observatory.tsx',
+    'Learning': SRC / 'LearningHub.tsx',
     'Numerical V2': SRC / 'NumericalBenchSuiteV2.tsx',
     'Magnet V2': SRC / 'MagnetBenchSuiteV2.tsx',
     'Advanced Studio': SRC / 'StudioAdvanced.tsx',
@@ -22,6 +24,7 @@ required_files = {
 for label, path in required_files.items():
     assert path.is_file(), f'{label} missing: {path}'
 
+main = (SRC / 'main.tsx').read_text()
 app = (SRC / 'App.tsx').read_text()
 circuit = (SRC / 'CircuitLab.tsx').read_text()
 hub = (SRC / 'ExperimentsHub.tsx').read_text()
@@ -31,9 +34,58 @@ magnet = (SRC / 'MagnetBenchAdvanced.tsx').read_text()
 monitor = (SRC / 'MonitorDataStudio.tsx').read_text()
 developer = (SRC / 'DeveloperIDE.tsx').read_text()
 task_center = (SRC / 'TaskCenter.tsx').read_text()
+observatory = (SRC / 'Observatory.tsx').read_text()
+learning = (SRC / 'LearningHub.tsx').read_text()
 numerical_v2 = (SRC / 'NumericalBenchSuiteV2.tsx').read_text()
 magnet_v2 = (SRC / 'MagnetBenchSuiteV2.tsx').read_text()
 rust = RUST.read_text()
+
+# Global workspace/mission/hardware hierarchy must not collapse back into a flat two-tab shell.
+for token in [
+    "'studio' | 'observatory' | 'experiments' | 'learning'",
+    'build · upload · monitor · record',
+    'runtime · evidence · system state',
+    'acquire · analyze · compare',
+    'concepts · guided labs · equations',
+    'bb-context-strip',
+    'No board selected',
+    'Acquisition',
+    'Tasks',
+]:
+    assert token in main, f'Global workspace/status layer lost {token}'
+
+# Observatory must be a real runtime surface backed by existing system/evidence/task sources.
+for token in [
+    'Live runtime observatory',
+    'arduino_cli_discovery',
+    'measurement_sessions',
+    'betterboard.task-center.v1',
+    'Hardware & runtime',
+    'Acquisition state',
+    'Background operations',
+    'Recent measurement evidence',
+    'RX rows observed',
+]:
+    assert token in observatory, f'Observatory lost {token}'
+
+# Learning is a concept-to-experiment bridge, not a detached tutorial page.
+for token in [
+    'Understand the number before trusting the number.',
+    'Measurement error',
+    'Numerical error',
+    'Model error',
+    'Roundoff',
+    'Truncation',
+    'Differentiation noise',
+    'Repeatability',
+    'Residual',
+    'Verification',
+    'Validation',
+    'onOpenExperiment',
+]:
+    assert token in learning, f'Learning workspace lost {token}'
+for token in ['initialDomain', 'setDomain(initialDomain)']:
+    assert token in hub, f'Learning-to-experiment handoff lost {token}'
 
 # Streamlined defaults must remain.
 for token in ['NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'Advanced Tools']:
@@ -130,6 +182,9 @@ for token in ['StudioAdvanced', 'NumericalBenchAdvanced', 'MagnetBenchAdvanced']
     assert token in hub, f'Advanced workspace is not reachable: {token}'
 
 print('BetterBoard functionality surface check: PASS')
+print('- four-layer global workspace / mission / hardware status hierarchy protected')
+print('- Observatory is backed by real hardware, CLI, task and measurement-session sources')
+print('- Learning keeps concept → experiment links for numerical and validation work')
 print('- streamlined V2 workflows preserved')
 print('- pre-visual Studio / Circuit / Bridge capabilities protected')
 print('- Developer is a real editable Arduino-style sketch workflow')
