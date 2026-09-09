@@ -189,7 +189,7 @@ export default function DeveloperIDE({
   return <section className="developer-ide">
     <div className="developer-toolbar panel">
       <div>
-        <div className="panel-title"><Code2 size={18}/> Developer · Arduino IDE-class workspace</div>
+        <div className="panel-title"><Code2 size={18}/> Developer · Arduino-style free edit · IDE-class workspace</div>
         <small className="muted">Smart C++ editing, Arduino CLI package management, sketchbook projects, Verify and Upload — without leaving BetterBoard.</small>
       </div>
       <div className="ide-subtabs developer-view-tabs">
