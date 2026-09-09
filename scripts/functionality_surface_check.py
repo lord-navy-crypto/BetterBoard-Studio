@@ -87,7 +87,7 @@ for token in ['Live serial', 'Snapshot', 'Record evidence', 'Replay', 'serial_st
     assert token in monitor, f'Monitor no longer reports background work to Task Center: {token}'
 
 # The original Bridge docs were broader than a single hardware-map preview.
-for token in ['Physical Lab hardware map', 'Physical Lab serial protocol', 'Honeycomb / integration guide', 'physical_lab_v1', 'physical_lab_bridge_path']:
+for token in ['Physical Lab hardware map', 'Physical Lab serial protocol', 'Honeycomb / integration guide', 'Physical Lab v1', 'physical_lab_bridge_path']:
     assert token in monitor, f'Physical Lab Bridge surface lost {token}'
 
 # Original full-control Studio capabilities must remain reachable under Advanced.
