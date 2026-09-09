@@ -1,0 +1,44 @@
+name: Global Task Runtime Refactor
+
+on:
+  push:
+    branches:
+      - ux/global-task-runtime
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: ${{ !contains(github.event.head_commit.message, '[global-task-refactor]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/global-task-runtime
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply bounded refactor
+        run: python3 scripts/refactor_global_task_runtime.py
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: TypeScript and Vite build
+        run: npm run build
+      - name: Structural self-check
+        run: python3 scripts/self_check.py
+      - name: Functionality no-regression check
+        run: python3 scripts/functionality_surface_check.py
+      - name: Commit verified refactor
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx
+          if git diff --cached --quiet; then
+            echo "No refactor changes to commit"
+          else
+            git commit -m "Use global Task Runtime in Studio [global-task-refactor]"
+            git push origin HEAD:ux/global-task-runtime
+          fi
