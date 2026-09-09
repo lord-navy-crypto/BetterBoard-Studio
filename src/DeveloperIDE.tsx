@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Braces, Code2, Download, FilePlus2, Play, RotateCcw, Save, TerminalSquare, Upload } from 'lucide-react';
+import { Braces, Boxes, Code2, Download, FilePlus2, FolderOpen, Play, RotateCcw, Save, TerminalSquare, Upload } from 'lucide-react';
 import type { TaskCategory, TaskState } from './TaskCenter';
 import OpenPenguinBridge from './OpenPenguinBridge';
+import SmartArduinoEditor from './SmartArduinoEditor';
+import ArduinoEcosystemManager from './ArduinoEcosystemManager';
+import SketchbookExplorer from './SketchbookExplorer';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 type RecipeSpec = {
@@ -30,6 +33,9 @@ type Props = {
   onTaskFinish: (id: number, state: Exclude<TaskState, 'running'>, detail: string) => void;
 };
 
+type DeveloperView = 'editor' | 'ecosystem' | 'sketchbook';
+type Diagnostic = { line: number; column?: number; message: string; severity?: 'error' | 'warning' };
+
 const BLANK_SKETCH = `void setup() {
   // runs once
 }
@@ -44,115 +50,106 @@ function safeDefaultName(name?: string) {
   return candidate || 'BetterBoardSketch';
 }
 
+function compileDiagnostics(text: string): Diagnostic[] {
+  const rows: Diagnostic[] = [];
+  const regex = /:(\d+):(\d+):\s+(error|warning):\s+(.+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text))) {
+    rows.push({ line: Number(match[1]), column: Number(match[2]), severity: match[3].toLowerCase() === 'warning' ? 'warning' : 'error', message: match[4].trim() });
+  }
+  return rows.slice(0, 200);
+}
+
 export default function DeveloperIDE({
   recipe, canonicalSource, cli, fqbn, selectedPort, integratedDevices, recipes, onLibrarySaved,
   onStatus, onTaskStart, onTaskLog, onTaskFinish,
 }: Props) {
+  const [view, setView] = useState<DeveloperView>('editor');
   const [source, setSource] = useState(canonicalSource || BLANK_SKETCH);
   const [sketchName, setSketchName] = useState(safeDefaultName(recipe?.sketch_name));
   const [savedDir, setSavedDir] = useState('');
+  const [projectDir, setProjectDir] = useState('');
+  const [projectFileName, setProjectFileName] = useState('');
   const [output, setOutput] = useState('Ready. Edit the sketch, then Verify or Run / Upload.');
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [templateId, setTemplateId] = useState(recipe?.id ?? '');
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
 
   useEffect(() => {
     setSource(canonicalSource || BLANK_SKETCH);
     setSketchName(safeDefaultName(recipe?.sketch_name));
-    setSavedDir('');
+    setSavedDir(''); setProjectDir(''); setProjectFileName('');
     setOutput(`Loaded ${recipe?.title || 'blank sketch'} as the editing starting point.`);
-    setDirty(false);
-    setTemplateId(recipe?.id ?? '');
+    setDirty(false); setDiagnostics([]); setTemplateId(recipe?.id ?? '');
   }, [recipe?.id, canonicalSource]);
 
-  const sourceFacts = useMemo(() => ({
-    lines: source.split(/\r?\n/).length,
-    chars: source.length,
-  }), [source]);
+  const sourceFacts = useMemo(() => ({ lines: source.split(/\r?\n/).length, chars: source.length }), [source]);
 
-  async function saveDraft(track = true) {
-    const task = track ? onTaskStart('Program', `Save sketch · ${sketchName}`, 'Writing editable .ino to BetterBoard sketches…') : 0;
+  async function saveCurrent(track = true) {
+    const task = track ? onTaskStart('Program', `Save · ${projectFileName || sketchName}`, projectDir ? 'Writing project file…' : 'Writing editable .ino to BetterBoard sketches…') : 0;
     try {
-      const dir = await invoke<string>('developer_sketch_save', { sketchName, source });
-      setSavedDir(dir);
-      setDirty(false);
-      const detail = `Saved · ${dir}`;
+      let compileDir = projectDir;
+      let savedPath = '';
+      if (projectDir && projectFileName) {
+        savedPath = await invoke<string>('developer_project_file_save', { directory: projectDir, fileName: projectFileName, source });
+      } else {
+        compileDir = await invoke<string>('developer_sketch_save', { sketchName, source });
+        savedPath = compileDir;
+      }
+      setSavedDir(compileDir); setDirty(false);
+      const detail = `Saved · ${savedPath}`;
       if (track) { onTaskLog(task, detail); onTaskFinish(task, 'done', detail); }
       onStatus(detail);
-      return dir;
+      return compileDir;
     } catch (error) {
       const detail = `Save failed: ${error}`;
       if (track) { onTaskLog(task, detail); onTaskFinish(task, 'failed', detail); }
-      setOutput(detail);
-      onStatus(detail);
-      return '';
+      setOutput(detail); onStatus(detail); return '';
     }
   }
 
   async function verify() {
     if (busy) return;
-    setBusy(true);
-    const task = onTaskStart('Program', `Verify · ${sketchName}`, `Saving and compiling for ${fqbn}…`);
+    setBusy(true); setDiagnostics([]);
+    const task = onTaskStart('Program', `Verify · ${projectFileName || sketchName}`, `Saving and compiling for ${fqbn}…`);
     try {
-      const dir = await invoke<string>('developer_sketch_save', { sketchName, source });
-      setSavedDir(dir); setDirty(false);
-      onTaskLog(task, `Saved sketch: ${dir}`);
-      onTaskLog(task, `arduino-cli compile --fqbn ${fqbn}`);
+      const dir = await saveCurrent(false); if (!dir) throw new Error('Save failed before compile');
+      onTaskLog(task, `Compile target: ${fqbn}`);
       const result = await invoke<string>('compile_sketch', { sketchDir: dir, fqbn });
       const text = result.trim() || 'Compile succeeded.';
-      setOutput(text);
-      onTaskLog(task, text);
-      onTaskFinish(task, 'done', 'Verify succeeded');
-      onStatus('Developer verify succeeded.');
+      setOutput(text); setDiagnostics(compileDiagnostics(text)); onTaskLog(task, text);
+      onTaskFinish(task, 'done', 'Verify succeeded'); onStatus('Developer verify succeeded.');
     } catch (error) {
-      const text = String(error);
-      setOutput(text);
-      onTaskLog(task, text);
-      onTaskFinish(task, 'failed', 'Verify failed');
-      onStatus(`Developer verify failed: ${text}`);
-    } finally {
-      setBusy(false);
-    }
+      const text = String(error); setOutput(text); setDiagnostics(compileDiagnostics(text)); onTaskLog(task, text);
+      onTaskFinish(task, 'failed', 'Verify failed'); onStatus(`Developer verify failed: ${text}`);
+    } finally { setBusy(false); }
   }
 
   async function runUpload() {
     if (busy) return;
-    if (!selectedPort) {
-      onStatus('Select a serial device before Run / Upload.');
-      return;
-    }
-    setBusy(true);
-    const task = onTaskStart('Program', `Run / Upload · ${sketchName}`, `Compile → upload to ${selectedPort}`);
+    if (!selectedPort) { onStatus('Select a serial device before Run / Upload.'); return; }
+    setBusy(true); setDiagnostics([]);
+    const task = onTaskStart('Program', `Run / Upload · ${projectFileName || sketchName}`, `Compile → upload to ${selectedPort}`);
     try {
-      const dir = await invoke<string>('developer_sketch_save', { sketchName, source });
-      setSavedDir(dir); setDirty(false);
-      onTaskLog(task, `Saved sketch: ${dir}`);
+      const dir = await saveCurrent(false); if (!dir) throw new Error('Save failed before upload');
       onTaskLog(task, `Compile target: ${fqbn}`);
       const compileResult = await invoke<string>('compile_sketch', { sketchDir: dir, fqbn });
-      onTaskLog(task, compileResult.trim() || 'Compile succeeded.');
+      setDiagnostics(compileDiagnostics(compileResult)); onTaskLog(task, compileResult.trim() || 'Compile succeeded.');
       onTaskLog(task, `Uploading to ${selectedPort}…`);
       const uploadResult = await invoke<string>('upload_sketch', { sketchDir: dir, fqbn, port: selectedPort });
       const combined = [compileResult.trim(), uploadResult.trim()].filter(Boolean).join('\n\n');
-      setOutput(combined || 'Compile & upload succeeded.');
-      onTaskLog(task, uploadResult.trim() || 'Upload succeeded.');
-      onTaskFinish(task, 'done', `Uploaded to ${selectedPort}`);
-      onStatus(`Developer sketch uploaded to ${selectedPort}.`);
+      setOutput(combined || 'Compile & upload succeeded.'); onTaskLog(task, uploadResult.trim() || 'Upload succeeded.');
+      onTaskFinish(task, 'done', `Uploaded to ${selectedPort}`); onStatus(`Developer sketch uploaded to ${selectedPort}.`);
     } catch (error) {
-      const text = String(error);
-      setOutput(text);
-      onTaskLog(task, text);
-      onTaskFinish(task, 'failed', 'Run / Upload failed');
-      onStatus(`Developer run failed: ${text}`);
-    } finally {
-      setBusy(false);
-    }
+      const text = String(error); setOutput(text); setDiagnostics(compileDiagnostics(text)); onTaskLog(task, text);
+      onTaskFinish(task, 'failed', 'Run / Upload failed'); onStatus(`Developer run failed: ${text}`);
+    } finally { setBusy(false); }
   }
 
   function resetToRecipe() {
-    setSource(canonicalSource || BLANK_SKETCH);
-    setSketchName(safeDefaultName(recipe?.sketch_name));
-    setSavedDir('');
-    setDirty(false);
+    setSource(canonicalSource || BLANK_SKETCH); setSketchName(safeDefaultName(recipe?.sketch_name));
+    setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]);
     setOutput(`Reset editor to canonical ${recipe?.sketch_name || 'blank'} source.`);
   }
 
@@ -161,8 +158,8 @@ export default function DeveloperIDE({
     if (!template) { resetToRecipe(); return; }
     try {
       const text = await invoke<string>('recipe_source', { recipeId: template.id });
-      setSource(text); setSketchName(safeDefaultName(template.sketch_name)); setSavedDir(''); setDirty(false);
-      setOutput(`Loaded recipe template: ${template.title}`);
+      setSource(text); setSketchName(safeDefaultName(template.sketch_name)); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]);
+      setOutput(`Loaded recipe template: ${template.title}`); setView('editor');
     } catch (error) { setOutput(`Template load failed: ${error}`); }
   }
 
@@ -170,85 +167,75 @@ export default function DeveloperIDE({
     const task = onTaskStart('System', `Save to Library · ${sketchName}`, 'Saving editable sketch as a BetterBoard user recipe…');
     try {
       const template = recipes.find(item => item.id === templateId);
-      const saved = await invoke<RecipeSpec>('user_recipe_save', {
-        title: sketchName, baseRecipeId: template?.id ?? recipe?.id ?? '', source,
-        parameterValues: template?.parameter_values ?? {},
-      });
-      onLibrarySaved?.(saved);
-      const detail = `Saved user recipe · ${saved.title}`;
+      const saved = await invoke<RecipeSpec>('user_recipe_save', { title: sketchName, baseRecipeId: template?.id ?? recipe?.id ?? '', source, parameterValues: template?.parameter_values ?? {} });
+      onLibrarySaved?.(saved); const detail = `Saved user recipe · ${saved.title}`;
       onTaskLog(task, detail); onTaskFinish(task, 'done', detail); onStatus(detail); setOutput(detail);
     } catch (error) {
-      const detail = `Save to Library failed: ${error}`;
-      onTaskLog(task, detail); onTaskFinish(task, 'failed', detail); onStatus(detail); setOutput(detail);
+      const detail = `Save to Library failed: ${error}`; onTaskLog(task, detail); onTaskFinish(task, 'failed', detail); onStatus(detail); setOutput(detail);
     }
   }
 
   function newSketch() {
-    setSource(BLANK_SKETCH);
-    setSketchName('BetterBoardSketch');
-    setSavedDir('');
-    setDirty(true);
-    setOutput('New blank Arduino sketch.');
+    setSource(BLANK_SKETCH); setSketchName('BetterBoardSketch'); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(true); setDiagnostics([]);
+    setOutput('New blank Arduino sketch.'); setView('editor');
+  }
+
+  function openProjectSource(nextSource: string, fileName: string, directory: string) {
+    setSource(nextSource); setProjectFileName(fileName); setProjectDir(directory); setSavedDir(directory);
+    setSketchName(safeDefaultName(fileName.replace(/\.[^.]+$/, ''))); setDirty(false); setDiagnostics([]); setView('editor');
+    setOutput(`Opened project file: ${fileName}\n${directory}`);
   }
 
   return <section className="developer-ide">
     <div className="developer-toolbar panel">
       <div>
-        <div className="panel-title"><Code2 size={18}/> Developer · Arduino-style free edit</div>
-        <small className="muted">Edit a real `.ino`, save it under Documents/BetterBoard/sketches, Verify with Arduino CLI, or compile and upload it to the selected board.</small>
+        <div className="panel-title"><Code2 size={18}/> Developer · Arduino IDE-class workspace</div>
+        <small className="muted">Smart C++ editing, Arduino CLI package management, sketchbook projects, Verify and Upload — without leaving BetterBoard.</small>
       </div>
-      <div className="developer-actions">
+      <div className="ide-subtabs developer-view-tabs">
+        <button className={view === 'editor' ? 'active' : ''} onClick={() => setView('editor')}><Code2 size={15}/> Editor</button>
+        <button className={view === 'ecosystem' ? 'active' : ''} onClick={() => setView('ecosystem')}><Boxes size={15}/> Boards & Libraries</button>
+        <button className={view === 'sketchbook' ? 'active' : ''} onClick={() => setView('sketchbook')}><FolderOpen size={15}/> Sketchbook</button>
+      </div>
+      {view === 'editor' && <div className="developer-actions">
         <button className="ghost" disabled={busy} onClick={newSketch}><FilePlus2 size={15}/> New</button>
         <button className="ghost" disabled={busy} onClick={() => void loadTemplate()}><RotateCcw size={15}/> Load recipe template</button>
-        <button className="ghost" disabled={busy || !source.trim()} onClick={() => void saveDraft()}><Save size={15}/> Save</button>
+        <button className="ghost" disabled={busy || !source.trim()} onClick={() => void saveCurrent()}><Save size={15}/> Save</button>
         <button className="ghost" disabled={busy || !source.trim()} onClick={() => void saveToLibrary()}><Braces size={15}/> Save to Library</button>
         <button className="ghost" disabled={busy || !source.trim()} onClick={() => void verify()}><Download size={15}/> Verify</button>
         <button className="primary" disabled={busy || !source.trim() || !selectedPort} onClick={() => void runUpload()}><Upload size={15}/> Run / Upload</button>
-      </div>
+      </div>}
     </div>
 
-    <div className="developer-ide-grid">
+    {view === 'editor' && <div className="developer-ide-grid">
       <div className="panel developer-editor-panel">
         <div className="developer-filebar">
           <label>Template<select value={templateId} onChange={event => setTemplateId(event.target.value)}><option value="">Blank / current</option>{recipes.map(item => <option key={item.id} value={item.id}>{item.user_defined ? 'My Library · ' : ''}{item.title}</option>)}</select></label>
-          <label>Sketch name<input value={sketchName} disabled={busy} onChange={event => { setSketchName(event.target.value.replace(/[^A-Za-z0-9_]/g, '_')); setDirty(true); }} /></label>
+          {!projectDir && <label>Sketch name<input value={sketchName} disabled={busy} onChange={event => { setSketchName(event.target.value.replace(/[^A-Za-z0-9_]/g, '_')); setDirty(true); }} /></label>}
+          {projectDir && <span className="project-chip">Project · {projectFileName}</span>}
           <span className={dirty ? 'dirty' : ''}>{dirty ? '● unsaved' : 'saved / recipe state'}</span>
           <span>{sourceFacts.lines} lines · {sourceFacts.chars} chars</span>
+          {diagnostics.length > 0 && <span className="diagnostic-count">{diagnostics.length} diagnostic(s)</span>}
         </div>
-        <textarea
-          className="code developer-editor"
-          value={source}
-          disabled={busy}
-          spellCheck={false}
-          aria-label="Arduino sketch editor"
-          onChange={event => { setSource(event.target.value); setDirty(true); }}
-        />
+        <div className="smart-editor-host"><SmartArduinoEditor value={source} readOnly={busy} diagnostics={diagnostics} onChange={value => { setSource(value); setDirty(true); }} /></div>
       </div>
 
       <div className="developer-side">
-        <div className="panel developer-output-panel">
-          <div className="panel-title"><Play size={18}/> Run output</div>
-          <pre className="terminal developer-output">{output}</pre>
-        </div>
+        <div className="panel developer-output-panel"><div className="panel-title"><Play size={18}/> Run output</div><pre className="terminal developer-output">{output}</pre></div>
         <div className="panel">
           <div className="panel-title"><TerminalSquare size={18}/> Runtime facts</div>
           <div className="facts">
-            <span>Arduino CLI</span><b>{cli?.path || 'not found'}</b>
-            <span>CLI version</span><b>{cli?.version || '—'}</b>
-            <span>Board profile</span><b>{fqbn}</b>
-            <span>Serial port</span><b>{selectedPort || 'not selected'}</b>
-            <span>Sketch folder</span><b>{savedDir || 'not saved yet'}</b>
-            <span>Integrated devices</span><b>{integratedDevices}</b>
+            <span>Arduino CLI</span><b>{cli?.path || 'not found'}</b><span>CLI version</span><b>{cli?.version || '—'}</b>
+            <span>Board profile</span><b>{fqbn}</b><span>Serial port</span><b>{selectedPort || 'not selected'}</b>
+            <span>Project / sketch</span><b>{projectDir || savedDir || 'not saved yet'}</b><span>Integrated devices</span><b>{integratedDevices}</b>
           </div>
           <div className="info-section"><b>Starting recipe notes</b>{recipe?.notes?.length ? recipe.notes.map(note => <span key={note}>• {note}</span>) : <span>• Free sketch mode is not constrained to a recipe.</span>}</div>
         </div>
-        <OpenPenguinBridge context={`Recipe: ${recipe?.title || 'free sketch'}
-Board: ${fqbn}
-Port: ${selectedPort || 'none'}
-
-Sketch:
-${source}`} />
+        <OpenPenguinBridge context={`Recipe: ${recipe?.title || 'free sketch'}\nBoard: ${fqbn}\nPort: ${selectedPort || 'none'}\nProject: ${projectDir || 'BetterBoard sketch'}\nFile: ${projectFileName || `${sketchName}.ino`}\n\nSketch:\n${source}`} />
       </div>
-    </div>
+    </div>}
+
+    {view === 'ecosystem' && <ArduinoEcosystemManager fqbn={fqbn} onStatus={onStatus} />}
+    {view === 'sketchbook' && <div className="panel"><SketchbookExplorer onOpenSource={openProjectSource} onStatus={onStatus} /></div>}
   </section>;
 }
