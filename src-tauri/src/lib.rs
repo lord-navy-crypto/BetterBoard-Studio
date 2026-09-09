@@ -15,7 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const APP_VERSION: &str = "0.2.0-alpha.6";
+const APP_VERSION: &str = "0.2.0-alpha.7";
 const RECIPE_CATALOG_JSON: &str = include_str!("../resources/recipes/catalog.json");
 const BOARD_CATALOG_JSON: &str = include_str!("../resources/boards/boards.json");
 const DEVICE_CATALOG_JSON: &str = include_str!("../resources/devices/devices.json");

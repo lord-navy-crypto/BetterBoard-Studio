@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0-alpha.7
+
+- Added reusable one-click Copy controls with clipboard fallback for Developer run output, Monitor serial/data rows, filtered Runtime Log output, and OpenPenguin answers.
+- Added a top-level **OpenPenguin** launcher and persistent local-AI drawer so the bridge is globally reachable instead of being hidden only inside Developer.
+- OpenPenguin now exposes its loopback endpoint explicitly and uses a **Connect / reload OpenPenguin** action before local model selection.
+- Preserved all Alpha 0.6 IDE parity, experiment, evidence, and hardware-session behavior while adding no-regression contracts for copy/AI entry surfaces.
+
 ## 0.2.0-alpha.6
 
 - Added durable **Developer Draft Recovery** in local app storage. Unsaved source is debounced to a bounded draft and restored after app restart/crash instead of being lost. Explicit Save/Reset remains authoritative and clears the draft.

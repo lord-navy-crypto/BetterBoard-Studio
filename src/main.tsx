@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
-import { BookOpen, CircuitBoard, FlaskConical, RadioTower } from 'lucide-react';
+import { BookOpen, Bot, CircuitBoard, FlaskConical, RadioTower, X } from 'lucide-react';
 import App from './App';
 import ExperimentsHub from './ExperimentsHub';
 import Observatory from './Observatory';
 import LearningHub from './LearningHub';
+import OpenPenguinBridge from './OpenPenguinBridge';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
 import type { BackgroundTask } from './TaskCenter';
 import './styles.css';
@@ -13,6 +14,7 @@ import './visual-system.css';
 import './monitor-data.css';
 import './workspace-shell.css';
 import './developer-task.css';
+import './copy-ai.css';
 
 type Workspace = 'studio' | 'observatory' | 'experiments' | 'learning';
 type ExperimentDomain = 'numerical' | 'magnet';
@@ -47,6 +49,7 @@ function Root() {
   const [experimentDomain, setExperimentDomain] = useState<ExperimentDomain>('numerical');
   const [cli, setCli] = useState<CliInfo | null>(null);
   const [tasks, setTasks] = useState<BackgroundTask[]>(readTaskMemory);
+  const [aiOpen, setAiOpen] = useState(false);
   const { selectedPort, activePort, hardwareStatus, fqbn } = useHardwareSession();
 
   useEffect(() => {
@@ -58,6 +61,15 @@ function Root() {
   const runningTasks = useMemo(() => tasks.filter(task => task.state === 'running'), [tasks]);
   const latestRunning = runningTasks[0];
   const liveSerial = runningTasks.find(task => task.category === 'Monitor' && /live serial/i.test(task.title));
+  const openPenguinContext = useMemo(() => [
+    `Workspace: ${workspace}`,
+    `Arduino CLI: ${cli?.found ? 'ready' : 'unavailable'}`,
+    `Board profile: ${fqbn}`,
+    `Hardware: ${selectedPort ? `${activePort?.board_name || 'Board'} · ${selectedPort}` : 'none selected'}`,
+    `Acquisition: ${liveSerial ? 'LIVE' : 'idle'}`,
+    `Running tasks: ${runningTasks.length}`,
+    `Current status: ${latestRunning?.detail || hardwareStatus}`,
+  ].join('\n'), [workspace, cli?.found, fqbn, selectedPort, activePort?.board_name, liveSerial, runningTasks.length, latestRunning?.detail, hardwareStatus]);
 
   function openExperiment(domain: ExperimentDomain) {
     setExperimentDomain(domain);
@@ -86,6 +98,8 @@ function Root() {
         })}
       </nav>
 
+      <button className={`bb-ai-launch ${aiOpen ? 'active' : ''}`} onClick={() => setAiOpen(value => !value)} aria-pressed={aiOpen} title="Open OpenPenguin local AI bridge"><Bot size={16}/><span><b>OpenPenguin</b><small>local AI bridge</small></span></button>
+
       <div className={`bb-local-state ${selectedPort ? 'connected' : 'disconnected'}`} title={hardwareStatus}>
         <i/>
         <span><b>{selectedPort ? (activePort?.board_name || 'Board') : 'No board'}</b><small>{selectedPort || 'select hardware in Studio'}</small></span>
@@ -100,6 +114,12 @@ function Root() {
       <span><b>Tasks</b>{runningTasks.length ? `${runningTasks.length} running` : 'Background idle'}</span>
       <span className="bb-context-current"><b>Current</b>{latestRunning?.detail || hardwareStatus}</span>
     </div>
+
+    <div className="bb-ai-drawer-backdrop" hidden={!aiOpen} onClick={() => setAiOpen(false)} />
+    <aside className="bb-ai-drawer" hidden={!aiOpen} aria-label="OpenPenguin local AI bridge">
+      <div className="bb-ai-drawer-head"><span><Bot size={17}/><b>OpenPenguin · Local AI</b></span><button className="ghost mini" onClick={() => setAiOpen(false)}><X size={13}/> Close</button></div>
+      <OpenPenguinBridge context={openPenguinContext} />
+    </aside>
 
     <div className="bb-workspace-frame">
       <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /></div>

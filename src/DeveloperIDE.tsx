@@ -6,6 +6,7 @@ import OpenPenguinBridge from './OpenPenguinBridge';
 import SmartArduinoEditor from './SmartArduinoEditor';
 import ArduinoEcosystemManager from './ArduinoEcosystemManager';
 import SketchbookExplorer from './SketchbookExplorer';
+import CopyButton from './CopyButton';
 import { clearDeveloperDraft, loadDeveloperDraft, saveDeveloperDraft, type DeveloperDraft } from './DeveloperDraftStore';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
@@ -280,7 +281,7 @@ export default function DeveloperIDE({
       </div>
 
       <div className="developer-side">
-        <div className="panel developer-output-panel"><div className="panel-title"><Play size={18}/> Run output</div><pre className="terminal developer-output">{output}</pre></div>
+        <div className="panel developer-output-panel"><div className="panel-title panel-title-with-action"><span><Play size={18}/> Run output</span><CopyButton text={output} label="Copy output" /></div><pre className="terminal developer-output">{output}</pre></div>
         <div className="panel">
           <div className="panel-title"><TerminalSquare size={18}/> Runtime facts</div>
           <div className="facts">

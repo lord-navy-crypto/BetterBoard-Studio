@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Bot, RefreshCw, Send } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import CopyButton from './CopyButton';
 
 type Status = { found: boolean; endpoint: string; models: string[]; error?: string | null };
 type Props = { context: string };
@@ -32,13 +33,14 @@ export default function OpenPenguinBridge({ context }: Props) {
 
   return <div className="panel" style={{ marginTop: 12 }}>
     <div className="panel-title"><Bot size={18}/> OpenPenguin · Local AI</div>
-    <p className="muted">Optional loopback-only bridge to OpenPenguin's private local runtime. BetterBoard only connects to <code>127.0.0.1:11435</code>; it does not upload experiment data to a cloud service.</p>
-    <div className="action-row"><button className="ghost" disabled={busy} onClick={() => void probe()}><RefreshCw size={14}/> Connect OpenPenguin</button>{status && <span className={status.found ? 'ok' : 'warn'}>{status.found ? `${status.models.length} local model(s)` : status.error || 'not detected'}</span>}</div>
+    <p className="muted">Optional loopback-only bridge to OpenPenguin's private local runtime. BetterBoard never sends this context to a cloud service.</p>
+    <div className="facts"><span>Local endpoint</span><b><code>{status?.endpoint || 'http://127.0.0.1:11435'}</code></b><span>Bridge</span><b>{status?.found ? 'Connected' : 'Not connected'}</b></div>
+    <div className="action-row"><button className="ghost" disabled={busy} onClick={() => void probe()}><RefreshCw size={14}/> Connect OpenPenguin / reload models</button>{status && <span className={status.found ? 'ok' : 'warn'}>{status.found ? `${status.models.length} local model(s) loaded` : status.error || 'not detected'}</span>}</div>
     {status?.found && <>
       <label>Local model<select value={model} onChange={event => setModel(event.target.value)}>{status.models.map(name => <option key={name}>{name}</option>)}</select></label>
       <label>Ask about this sketch / recipe<textarea style={{ minHeight: 86 }} value={prompt} onChange={event => setPrompt(event.target.value)}/></label>
       <button className="primary" disabled={busy || !model || !prompt.trim()} onClick={() => void ask()}><Send size={14}/> Ask local AI</button>
-      {answer && <pre className="terminal" style={{ maxHeight: 260, whiteSpace: 'pre-wrap' }}>{answer}</pre>}
+      {answer && <><div className="copy-data-actions" style={{ marginTop: 8 }}><CopyButton text={answer} label="Copy answer" /></div><pre className="terminal" style={{ maxHeight: 260, whiteSpace: 'pre-wrap' }}>{answer}</pre></>}
     </>}
   </div>;
 }

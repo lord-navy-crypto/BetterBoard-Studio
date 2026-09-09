@@ -23,6 +23,7 @@ ENGINEERING_PLOT = ROOT / 'src' / 'EngineeringPlot.tsx'
 SMART_EDITOR = ROOT / 'src' / 'SmartArduinoEditor.tsx'
 ECOSYSTEM_MANAGER = ROOT / 'src' / 'ArduinoEcosystemManager.tsx'
 SKETCHBOOK_EXPLORER = ROOT / 'src' / 'SketchbookExplorer.tsx'
+COPY_BUTTON = ROOT / 'src' / 'CopyButton.tsx'
 DEVELOPER_DRAFT_STORE = ROOT / 'src' / 'DeveloperDraftStore.ts'
 IDE_MANAGER_RUST = ROOT / 'src-tauri' / 'src' / 'ide_manager.rs'
 MAIN = ROOT / 'src' / 'main.tsx'
@@ -72,7 +73,7 @@ def main() -> int:
 
     for required in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB,
-        HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
+        HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, COPY_BUTTON, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
     ]:
         assert required.is_file(), required
 
@@ -305,14 +306,29 @@ def main() -> int:
         assert token in ide_rust, token
     for token in ['ide_manager::developer_project_create', 'ide_manager::developer_project_rename', 'ide_manager::developer_project_file_create', 'ide_manager::developer_project_file_rename', 'ide_manager::developer_project_file_delete', 'ide_manager::developer_format_source']:
         assert token in rust, token
+    # Alpha 0.7: one-click copy surfaces and globally reachable OpenPenguin bridge.
+    assert COPY_BUTTON.is_file()
+    copy_button = COPY_BUTTON.read_text()
+    for token in ['navigator.clipboard', 'execCommand', 'Copied', 'Copy failed']:
+        assert token in copy_button, token
+    for token in ['Copy output', 'CopyButton']:
+        assert token in developer_text, token
+    for token in ['Copy data', 'serialCopyText']:
+        assert token in monitor_text, token
+    runtime_text = RUNTIME_LOG.read_text()
+    assert 'Copy log' in runtime_text and 'CopyButton' in runtime_text
+    for token in ['Connect OpenPenguin / reload models', 'Copy answer', 'Local endpoint']:
+        assert token in OPENGUIN_BRIDGE.read_text(), token
+    for token in ['bb-ai-launch', 'bb-ai-drawer', 'OpenPenguinBridge', 'openPenguinContext']:
+        assert token in main_text, token
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
-    assert package['version'] == '0.2.0-alpha.6'
-    assert tauri['version'] == '0.2.0-alpha.6'
-    assert '0.2.0-alpha.6' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
+    assert package['version'] == '0.2.0-alpha.7'
+    assert tauri['version'] == '0.2.0-alpha.7'
+    assert '0.2.0-alpha.7' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
 
-    print('BetterBoard Studio v0.2.0-alpha.6 self-check: PASS')
+    print('BetterBoard Studio v0.2.0-alpha.7 self-check: PASS')
     print('- 15 canonical recipes registered, including four new numerical-error programs')
     print('- persistent bidirectional Serial Monitor handlers registered')
     print('- historical Measurement Sessions + replay registered')

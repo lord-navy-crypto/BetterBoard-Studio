@@ -7,6 +7,7 @@ import {
 import type { BackgroundTask, TaskCategory, TaskState } from './TaskCenter';
 import RuntimeLog from './RuntimeLog';
 import EngineeringPlot from './EngineeringPlot';
+import CopyButton from './CopyButton';
 
 type RecipeSpec = {
   id: string;
@@ -154,6 +155,7 @@ export default function MonitorDataStudio({
   const activeColumns = replay?.columns ?? recipe?.columns ?? [];
   const activeUnits = replay?.units ?? recipe?.units ?? [];
   const activePrimary = replay?.primary_column ?? recipe?.primary_column;
+  const serialCopyText = useMemo(() => displayRows.map(row => row.line).join('\n'), [displayRows]);
 
   const numericRows = useMemo(() => displayRows
     .map(row => parseNumericRow(row, activeColumns.length))
@@ -459,7 +461,7 @@ export default function MonitorDataStudio({
       </div>
 
       <div className="panel monitor-console-panel">
-        <div className="panel-title"><TerminalSquare size={18}/> Serial monitor</div>
+        <div className="panel-title panel-title-with-action"><span><TerminalSquare size={18}/> Serial monitor</span><CopyButton text={serialCopyText} label="Copy data" /></div>
         <div className="monitor-transmit">
           <input value={txText} disabled={monitorState !== 'live'} onChange={event => setTxText(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendSerial(); } }} placeholder={monitorState === 'live' ? 'Send text or command to the board…' : 'Start Live Monitor to send'} aria-label="Serial transmit text" />
           <select value={lineEnding} disabled={monitorState !== 'live'} onChange={event => setLineEnding(event.target.value as typeof lineEnding)} aria-label="Serial line ending">
