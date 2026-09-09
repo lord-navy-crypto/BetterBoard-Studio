@@ -6,7 +6,9 @@ import {
   Search, ShieldCheck, TerminalSquare, TimerReset, Upload, Waves, Wrench,
 } from 'lucide-react';
 import CircuitLab from './CircuitLab';
+import DeveloperIDE from './DeveloperIDE';
 import MonitorDataStudio from './MonitorDataStudio';
+import TaskCenterPanel, { type BackgroundTask, type TaskCategory, type TaskState } from './TaskCenter';
 import { useHardwareSession } from './HardwareSession';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
@@ -24,7 +26,8 @@ type MeasurementResult = {
 };
 type BridgeDocs = { hardware_map: string; serial_protocol: string; honeycomb_guide: string };
 type Tab = 'hardware' | 'circuit' | 'library' | 'data' | 'developer';
-type Task = { id: number; title: string; state: 'running' | 'done' | 'failed'; detail: string };
+
+const TASK_MEMORY_KEY = 'betterboard.task-center.v1';
 
 const iconFor = (id: string) => {
   if (id.includes('magnetic')) return Magnet;
@@ -47,6 +50,19 @@ const libraryGroupFor = (recipe: RecipeSpec) => {
   return 'Other';
 };
 
+function restoreTaskMemory(): BackgroundTask[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TASK_MEMORY_KEY) || '[]') as BackgroundTask[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(0, 40).map(task => task.state === 'running'
+      ? { ...task, state: 'failed', detail: 'Previous app session ended before this task reported completion.', finishedAt: Date.now(), cancellable: false, cancel: undefined }
+      : { ...task, cancellable: false, cancel: undefined });
+  } catch {
+    return [];
+  }
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>('hardware');
   const [cli, setCli] = useState<CliInfo | null>(null);
@@ -60,7 +76,7 @@ export default function App() {
   const [status, setStatus] = useState('Ready');
   const [busy, setBusy] = useState(false);
   const [measurement, setMeasurement] = useState<MeasurementResult | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<BackgroundTask[]>(restoreTaskMemory);
   const {
     ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn,
     activePort, hardwareStatus, refreshHardware,
@@ -76,18 +92,55 @@ export default function App() {
     return [...groups.entries()];
   }, [recipes]);
 
-  function addTask(title: string, detail = 'Starting…') {
+  useEffect(() => {
+    if (typeof localStorage === 'undefined') return;
+    const serializable = tasks.slice(0, 40).map(({ cancel: _cancel, ...task }) => ({ ...task, cancellable: task.state === 'running' ? task.cancellable : false }));
+    localStorage.setItem(TASK_MEMORY_KEY, JSON.stringify(serializable));
+  }, [tasks]);
+
+  function addTask(category: TaskCategory, title: string, detail = 'Starting…', cancel?: () => Promise<void> | void) {
     const id = Date.now() + Math.floor(Math.random() * 1000);
-    const task: Task = { id, title, state: 'running', detail };
-    setTasks(current => [task, ...current].slice(0, 8));
+    const task: BackgroundTask = {
+      id, category, title, state: 'running', detail,
+      logs: [`${new Date().toLocaleTimeString([], { hour12: false })} · ${detail}`],
+      startedAt: Date.now(), cancellable: Boolean(cancel), cancel,
+    };
+    setTasks(current => [task, ...current].slice(0, 40));
     return id;
   }
-  function finishTask(id: number, state: 'done' | 'failed', detail: string) {
-    setTasks(current => current.map(task => task.id === id ? { ...task, state, detail } : task));
+
+  function logTask(id: number, message: string) {
+    const line = `${new Date().toLocaleTimeString([], { hour12: false })} · ${message}`;
+    setTasks(current => current.map(task => task.id === id ? { ...task, detail: message, logs: [...task.logs, line].slice(-120) } : task));
+  }
+
+  function finishTask(id: number, state: Exclude<TaskState, 'running'>, detail: string) {
+    const line = `${new Date().toLocaleTimeString([], { hour12: false })} · ${detail}`;
+    setTasks(current => current.map(task => task.id === id && task.state === 'running'
+      ? { ...task, state, detail, logs: [...task.logs, line].slice(-120), finishedAt: Date.now(), cancellable: false, cancel: undefined }
+      : task));
+  }
+
+  async function cancelTask(id: number) {
+    const task = tasks.find(item => item.id === id);
+    if (!task || task.state !== 'running' || !task.cancel) return;
+    logTask(id, 'Cancellation requested…');
+    try {
+      await task.cancel();
+      finishTask(id, 'cancelled', 'Cancelled by user');
+    } catch (error) {
+      logTask(id, `Cancel failed: ${error}`);
+      finishTask(id, 'failed', `Cancellation failed: ${error}`);
+    }
+  }
+
+  function clearFinishedTasks() {
+    setTasks(current => current.filter(task => task.state === 'running'));
   }
 
   async function refresh() {
     setStatus('Refreshing toolchain, recipes, and shared hardware session…');
+    const task = addTask('System', 'Refresh BetterBoard state', 'Detecting Arduino CLI, recipes, registries and USB boards…');
     try {
       const [cliInfo, recipeCatalog, deviceCatalog, docs] = await Promise.all([
         invoke<CliInfo>('arduino_cli_discovery'),
@@ -98,8 +151,11 @@ export default function App() {
       ]);
       setCli(cliInfo); setRecipes(recipeCatalog); setDevices(deviceCatalog); setBridgeDocs(docs);
       if (!recipeCatalog.some(r => r.id === recipeId) && recipeCatalog.length) setRecipeId(recipeCatalog[0].id);
-      setStatus(cliInfo.found ? 'Ready · toolchain and hardware session refreshed' : 'Arduino CLI not found');
-    } catch (e) { setStatus(String(e)); }
+      const detail = cliInfo.found ? `Ready · ${recipeCatalog.length} recipes · ${deviceCatalog.length} device profiles` : 'Arduino CLI not found';
+      setStatus(detail); logTask(task, hardwareStatus); finishTask(task, cliInfo.found ? 'done' : 'failed', detail);
+    } catch (e) {
+      setStatus(String(e)); logTask(task, String(e)); finishTask(task, 'failed', String(e));
+    }
   }
 
   useEffect(() => { void refresh(); }, []);
@@ -111,38 +167,39 @@ export default function App() {
 
   async function checkPreflight() {
     if (!recipe) return;
-    const task = addTask(`Preflight · ${recipe.title}`);
+    const task = addTask('Program', `Preflight · ${recipe.title}`, `Checking ${fqbn} core and ${recipe.required_libraries.length} required libraries…`);
     setBusy(true);
     try {
       const result = await invoke<PreflightResult>('recipe_preflight', { recipeId: recipe.id, fqbn });
       setPreflight(result);
       const detail = result.missing_libraries.length ? `Missing: ${result.missing_libraries.join(', ')}` : 'Core and required libraries look ready';
+      for (const warning of result.warnings) logTask(task, warning);
       setStatus(detail); finishTask(task, result.core_installed && !result.missing_libraries.length ? 'done' : 'failed', detail);
-    } catch (e) { setStatus(String(e)); finishTask(task, 'failed', String(e)); }
+    } catch (e) { setStatus(String(e)); logTask(task, String(e)); finishTask(task, 'failed', String(e)); }
     finally { setBusy(false); }
   }
 
   async function prepare() {
     if (!recipe) return '';
-    const task = addTask(`Prepare · ${recipe.title}`);
+    const task = addTask('Program', `Prepare · ${recipe.title}`, 'Writing canonical firmware into the BetterBoard temporary sketch workspace…');
     setBusy(true);
     try {
       const path = await invoke<string>('prepare_recipe', { recipeId: recipe.id });
-      setSketchDir(path); setStatus(`Firmware ready: ${path}`); finishTask(task, 'done', path); return path;
-    } catch (e) { setStatus(String(e)); finishTask(task, 'failed', String(e)); return ''; }
+      setSketchDir(path); setStatus(`Firmware ready: ${path}`); logTask(task, path); finishTask(task, 'done', 'Canonical firmware prepared'); return path;
+    } catch (e) { setStatus(String(e)); logTask(task, String(e)); finishTask(task, 'failed', String(e)); return ''; }
     finally { setBusy(false); }
   }
 
   async function compile() {
     if (!recipe) return;
     const path = sketchDir || await prepare(); if (!path) return;
-    const task = addTask(`Compile · ${recipe.title}`);
+    const task = addTask('Program', `Compile · ${recipe.title}`, `arduino-cli compile --fqbn ${fqbn}`);
     setBusy(true);
     try {
       const out = await invoke<string>('compile_sketch', { sketchDir: path, fqbn });
       const detail = out.split('\n').filter(Boolean).slice(-2).join(' · ') || 'Compile succeeded';
-      setStatus(detail); finishTask(task, 'done', detail);
-    } catch (e) { setStatus(`Compile failed: ${e}`); finishTask(task, 'failed', String(e)); }
+      logTask(task, out.trim() || 'Compile succeeded'); setStatus(detail); finishTask(task, 'done', detail);
+    } catch (e) { setStatus(`Compile failed: ${e}`); logTask(task, String(e)); finishTask(task, 'failed', String(e)); }
     finally { setBusy(false); }
   }
 
@@ -150,16 +207,18 @@ export default function App() {
     if (!recipe) return;
     if (!selectedPort) { setStatus('Select a serial port first.'); return; }
     const path = sketchDir || await prepare(); if (!path) return;
-    const task = addTask(`Upload · ${recipe.title}`);
+    const task = addTask('Program', `Upload · ${recipe.title}`, `Compile → upload to ${selectedPort}`);
     setBusy(true);
     try {
-      setStatus('Compiling…');
-      await invoke<string>('compile_sketch', { sketchDir: path, fqbn });
-      setStatus('Uploading…');
+      setStatus('Compiling…'); logTask(task, `Compiling ${path} for ${fqbn}…`);
+      const compileOut = await invoke<string>('compile_sketch', { sketchDir: path, fqbn });
+      logTask(task, compileOut.trim() || 'Compile succeeded');
+      setStatus('Uploading…'); logTask(task, `Uploading to ${selectedPort}…`);
       const out = await invoke<string>('upload_sketch', { sketchDir: path, fqbn, port: selectedPort });
+      logTask(task, out.trim() || 'Upload succeeded');
       const detail = out.split('\n').filter(Boolean).slice(-2).join(' · ') || 'Upload succeeded';
       setStatus(detail); finishTask(task, 'done', detail);
-    } catch (e) { setStatus(`Upload failed: ${e}`); finishTask(task, 'failed', String(e)); }
+    } catch (e) { setStatus(`Upload failed: ${e}`); logTask(task, String(e)); finishTask(task, 'failed', String(e)); }
     finally { setBusy(false); }
   }
 
@@ -180,7 +239,7 @@ export default function App() {
     <main>
       <header>
         <div><h1>From board setup to live evidence.</h1><p>Program once, monitor continuously, record only when the data is worth keeping.</p></div>
-        <button className="ghost" onClick={refresh}><RefreshCw size={16}/> Refresh</button>
+        <button className="ghost" onClick={() => void refresh()}><RefreshCw size={16}/> Refresh</button>
       </header>
 
       <section className="status-strip">
@@ -206,7 +265,7 @@ export default function App() {
             <div className="panel-title"><ShieldCheck size={18}/> Recipe preflight</div>
             <div className="recipe-head"><b>{recipe?.title || 'Loading recipes…'}</b><span>{recipe?.category}</span></div>
             <p className="muted">{recipe?.description}</p>
-            <button className="ghost" disabled={busy || !recipe} onClick={checkPreflight}><Wrench size={16}/> Check core & libraries</button>
+            <button className="ghost" disabled={busy || !recipe} onClick={() => void checkPreflight()}><Wrench size={16}/> Check core & libraries</button>
             {preflight && <div className="preflight">
               <div><span>Core</span><b className={preflight.core_installed ? 'ok' : 'warn'}>{preflight.core} · {preflight.core_installed ? 'ready' : 'missing'}</b></div>
               <div><span>Libraries</span><b className={!preflight.missing_libraries.length ? 'ok' : 'warn'}>{preflight.required_libraries.length ? (preflight.missing_libraries.length ? `Missing ${preflight.missing_libraries.join(', ')}` : 'ready') : 'none required'}</b></div>
@@ -220,9 +279,9 @@ export default function App() {
           <div className="selected-recipe-row"><div><span className="eyebrow">Selected recipe</span><h2>{recipe?.title}</h2><p>{recipe?.description}</p></div><button className="ghost" onClick={() => setTab('library')}><BookOpen size={16}/> Browse all</button></div>
           {recipe && <div className="schema-row"><span>{recipe.sketch_name}.ino</span><span>{recipe.baud} baud</span><span>{recipe.capture_mode}</span>{recipe.sample_rate_hz && <span>{recipe.sample_rate_hz} Hz</span>}</div>}
           <div className="action-row">
-            <button className="ghost" disabled={busy || !recipe} onClick={prepare}><Braces size={16}/> Prepare firmware</button>
-            <button className="ghost" disabled={busy || !recipe} onClick={compile}><Download size={16}/> Compile</button>
-            <button className="primary" disabled={busy || !recipe || !selectedPort} onClick={upload}><Upload size={16}/> Compile & Upload</button>
+            <button className="ghost" disabled={busy || !recipe} onClick={() => void prepare()}><Braces size={16}/> Prepare firmware</button>
+            <button className="ghost" disabled={busy || !recipe} onClick={() => void compile()}><Download size={16}/> Compile</button>
+            <button className="primary" disabled={busy || !recipe || !selectedPort} onClick={() => void upload()}><Upload size={16}/> Compile & Upload</button>
             {recipe?.capture_mode !== 'none' && <button className="primary secondary" disabled={busy || !selectedPort} onClick={() => setTab('data')}><Waves size={16}/> Open Monitor & Data</button>}
           </div>
         </section>
@@ -257,25 +316,25 @@ export default function App() {
         bridgeDocs={bridgeDocs}
         onStatus={setStatus}
         onMeasurement={setMeasurement}
+        onTaskStart={addTask}
+        onTaskLog={logTask}
+        onTaskFinish={finishTask}
       />}
 
-      {tab === 'developer' && <section className="developer-grid">
-        <div className="panel">
-          <div className="panel-title"><Code2 size={18}/> Canonical firmware source</div>
-          <div className="schema-row"><span>{recipe?.title}</span><span>{recipe?.sketch_name}.ino</span><span>{recipe?.baud} baud</span></div>
-          <pre className="code">{source || 'Select a recipe.'}</pre>
-        </div>
-        <div className="panel">
-          <div className="panel-title"><TerminalSquare size={18}/> Runtime facts</div>
-          <div className="facts"><span>Arduino CLI</span><b>{cli?.path || 'not found'}</b><span>Board profile</span><b>{fqbn}</b><span>Prepared sketch</span><b>{sketchDir || 'not prepared'}</b><span>Integrated devices</span><b>{devices.length}</b></div>
-          <div className="info-section"><b>Recipe notes</b>{recipe?.notes.map(v => <span key={v}>• {v}</span>)}</div>
-        </div>
-      </section>}
+      {tab === 'developer' && <DeveloperIDE
+        recipe={recipe}
+        canonicalSource={source}
+        cli={cli}
+        fqbn={fqbn}
+        selectedPort={selectedPort}
+        integratedDevices={devices.length}
+        onStatus={setStatus}
+        onTaskStart={addTask}
+        onTaskLog={logTask}
+        onTaskFinish={finishTask}
+      />}
 
-      <section className="task-center panel">
-        <div className="panel-title"><TerminalSquare size={17}/> Task Center</div>
-        {!tasks.length ? <span className="muted">Preflight, prepare, compile and upload operations will appear here. Live monitoring and recording stay inside Monitor & Data.</span> : <div className="task-list">{tasks.map(task => <div key={task.id}><span className={`task-icon ${task.state}`}>{task.state === 'running' ? '…' : task.state === 'done' ? '✓' : '!'}</span><b>{task.title}</b><small>{task.detail}</small></div>)}</div>}
-      </section>
+      <TaskCenterPanel tasks={tasks} onCancel={cancelTask} onClearFinished={clearFinishedTasks}/>
     </main>
   </div>;
 }
