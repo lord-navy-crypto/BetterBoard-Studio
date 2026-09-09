@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build"
+    "icon:generate": "tauri icon src-tauri/app-icon.svg",
+    "desktop:dev": "npm run icon:generate && tauri dev",
+    "desktop:build": "npm run icon:generate && tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "2.10.1",
