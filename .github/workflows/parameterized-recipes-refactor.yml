@@ -1,0 +1,66 @@
+name: Parameterized Recipe Product Refactor
+
+on:
+  push:
+    branches:
+      - ux/parameterized-recipes-user-library
+
+permissions:
+  contents: write
+
+jobs:
+  refactor-verify-commit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ux/parameterized-recipes-user-library
+          fetch-depth: 0
+
+      - name: Apply bounded product refactor
+        run: python3 scripts/apply_parameterized_recipes_user_library.py
+
+      - name: Diff sanity
+        run: git diff --check
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: TypeScript and Vite build
+        run: npm run build
+
+      - name: BetterBoard structural self-check
+        run: python3 scripts/self_check.py
+
+      - name: Functionality surface no-regression check
+        run: python3 scripts/functionality_surface_check.py
+
+      - name: Install Tauri Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libudev-dev \
+            patchelf
+
+      - name: Rust check
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Commit verified product changes
+        run: |
+          rm -f scripts/apply_parameterized_recipes_user_library.py
+          rm -f .github/workflows/parameterized-recipes-refactor.yml
+          git config user.name "BetterBoard CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Add parameterized recipes, user library, runtime log and OpenPenguin bridge"
+          git push origin HEAD:ux/parameterized-recipes-user-library
