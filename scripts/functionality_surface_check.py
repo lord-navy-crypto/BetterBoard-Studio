@@ -12,7 +12,6 @@ required_files = {
     'Developer IDE': SRC / 'DeveloperIDE.tsx',
     'Task Center': SRC / 'TaskCenter.tsx',
     'Observatory': SRC / 'Observatory.tsx',
-    'Learning': SRC / 'LearningHub.tsx',
     'Recipe Parameters': SRC / 'RecipeParameterPanel.tsx',
     'Runtime Log': SRC / 'RuntimeLog.tsx',
     'OpenPenguin Bridge': SRC / 'OpenPenguinBridge.tsx',
@@ -42,18 +41,16 @@ monitor = (SRC / 'MonitorDataStudio.tsx').read_text()
 developer = (SRC / 'DeveloperIDE.tsx').read_text()
 task_center = (SRC / 'TaskCenter.tsx').read_text()
 observatory = (SRC / 'Observatory.tsx').read_text()
-learning = (SRC / 'LearningHub.tsx').read_text()
 numerical_v2 = (SRC / 'NumericalBenchSuiteV2.tsx').read_text()
 magnet_v2 = (SRC / 'MagnetBenchSuiteV2.tsx').read_text()
 rust = RUST.read_text()
 
 # Global workspace/mission/hardware hierarchy must not collapse back into a flat two-tab shell.
 for token in [
-    "'studio' | 'observatory' | 'experiments' | 'learning'",
+    "'studio' | 'observatory' | 'experiments'",
     'build · upload · monitor · record',
     'runtime · evidence · system state',
     'acquire · analyze · compare',
-    'concepts · guided labs · equations',
     'bb-context-strip',
     'No board selected',
     'Acquisition',
@@ -61,38 +58,26 @@ for token in [
 ]:
     assert token in main, f'Global workspace/status layer lost {token}'
 
-# Observatory must be a real runtime surface backed by existing system/evidence/task sources.
+# Observatory is now the whole-system read-mostly observability surface.
 for token in [
-    'Live runtime observatory',
-    'arduino_cli_discovery',
-    'measurement_sessions',
-    'betterboard.task-center.v1',
-    'Hardware & runtime',
-    'Acquisition state',
-    'Background operations',
-    'Recent measurement evidence',
-    'RX rows observed',
+    'System Observatory', 'arduino_cli_discovery', 'measurement_sessions', 'measurement_session_load',
+    'recipe_catalog', 'device_catalog', 'openguin_probe', 'Latest data observation',
+    'Engineering Lab bridge readiness', 'Background operations', 'Recent measurement evidence',
+    'Recipe & device inventory', 'Copy latest data', 'Scientific boundaries',
 ]:
     assert token in observatory, f'Observatory lost {token}'
 
-# Learning is a concept-to-experiment bridge, not a detached tutorial page.
+# Learning was intentionally removed; general learning/Arduino guidance belongs in Recipe Library/Studio.
+assert not (SRC / 'LearningHub.tsx').exists(), 'Learning workspace should stay removed after IA refocus'
+assert "id: 'learning'" not in main, 'Learning regressed into top-level navigation'
+
+# Experiments is dedicated to Engineering Lab connection, not a duplicate Recipe Library.
 for token in [
-    'Understand the number before trusting the number.',
-    'Measurement error',
-    'Numerical error',
-    'Model error',
-    'Roundoff',
-    'Truncation',
-    'Differentiation noise',
-    'Repeatability',
-    'Residual',
-    'Verification',
-    'Validation',
-    'onOpenExperiment',
+    'Connect with Engineering Lab', 'BetterBoard → Engineering Lab handoff', 'Numerical Error Analysis',
+    'Oscillation & Numerical Integration', 'RADIA Magnet Studio', 'Load BetterBoard evidence',
+    'Copy handoff', 'Numerical evidence preparation', 'Magnet evidence preparation',
 ]:
-    assert token in learning, f'Learning workspace lost {token}'
-for token in ['initialDomain', 'setDomain(initialDomain)']:
-    assert token in hub, f'Learning-to-experiment handoff lost {token}'
+    assert token in hub, f'Engineering Lab Experiments lost {token}'
 
 # Streamlined defaults must remain.
 for token in ['NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'Expert workflows']:
@@ -268,15 +253,15 @@ for token in ['xLabel', 'yLabel', 'xTicks', 'yTicks', 'axisTitle', 'engineering-
     assert token in engineering_plot, f'Engineering plot lost {token}'
 for token in ["hidden={tab !== 'developer'}", "hidden={tab !== 'data'}", "hidden={tab !== 'circuit'}"]:
     assert token in app_surface, f'Studio persistence lost {token}'
-for token in ["hidden={domain !== 'numerical'}", "hidden={domain !== 'magnet'}"]:
-    assert token in hub, f'Experiment persistence lost {token}'
+for token in ["hidden={tool!=='numerical'}", "hidden={tool!=='magnet'}", 'StudioAdvanced', 'NumericalBenchAdvanced', 'MagnetBenchAdvanced']:
+    assert token in hub, f'Engineering Lab bridge/compatibility surface lost {token}'
 assert 'xLabel="time"' in monitor and 'yLabel={selectedColumn}' in monitor
 assert 'xLabel="position"' in magnet and 'yUnit="µT"' in magnet
 
 print('BetterBoard functionality surface check: PASS')
-print('- four-layer global workspace / mission / hardware status hierarchy protected')
-print('- Observatory is backed by real hardware, CLI, task and measurement-session sources')
-print('- Learning keeps concept → experiment links for numerical and validation work')
+print('- three-workspace global hierarchy protected: Studio / Observatory / Experiments')
+print('- Observatory covers hardware, toolchain, acquisition, data, evidence, inventory, AI and Engineering Lab readiness')
+print('- Learning top-level workspace intentionally removed; guidance remains in Studio/Recipe context')
 print('- Numerical V2 supports capture-once, import and re-analysis workflows')
 print('- Magnet V2 preserves repeated-position evidence and historical scan re-analysis')
 print('- streamlined V2 workflows preserved')

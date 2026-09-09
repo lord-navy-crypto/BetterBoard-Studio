@@ -15,7 +15,6 @@ MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuiteV2.tsx'
 EXPERIMENTS_HUB = ROOT / 'src' / 'ExperimentsHub.tsx'
 HARDWARE_SESSION = ROOT / 'src' / 'HardwareSession.tsx'
 OBSERVATORY = ROOT / 'src' / 'Observatory.tsx'
-LEARNING = ROOT / 'src' / 'LearningHub.tsx'
 RECIPE_PARAMETERS = ROOT / 'src' / 'RecipeParameterPanel.tsx'
 RUNTIME_LOG = ROOT / 'src' / 'RuntimeLog.tsx'
 OPENGUIN_BRIDGE = ROOT / 'src' / 'OpenPenguinBridge.tsx'
@@ -73,7 +72,7 @@ def main() -> int:
 
     for required in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB,
-        HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, COPY_BUTTON, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
+        HARDWARE_SESSION, OBSERVATORY, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, COPY_BUTTON, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
     ]:
         assert required.is_file(), required
 
@@ -84,7 +83,7 @@ def main() -> int:
     rust = LIB.read_text()
     frontend = '\n'.join(path.read_text() for path in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE,
-        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
+        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
     ])
     by_id = {r['id']: r for r in catalog}
 
@@ -191,7 +190,6 @@ def main() -> int:
     hub = EXPERIMENTS_HUB.read_text()
     hardware = HARDWARE_SESSION.read_text()
     observatory = OBSERVATORY.read_text()
-    learning = LEARNING.read_text()
     numerical = NUMERICAL_SUITE.read_text()
     magnet_ui = MAGNET_SUITE.read_text()
 
@@ -216,21 +214,21 @@ def main() -> int:
     assert 'Numerical & Measurement' in app_text
     assert 'Magnetism & Fields' in app_text
 
-    assert "type Workspace = 'studio' | 'observatory' | 'experiments' | 'learning'" in main_text
-    for label in ['Studio', 'Observatory', 'Experiments', 'Learning']:
+    assert "type Workspace = 'studio' | 'observatory' | 'experiments'" in main_text
+    for label in ['Studio', 'Observatory', 'Experiments']:
         assert f"label: '{label}'" in main_text
+    assert "label: 'Learning'" not in main_text
     assert 'bb-context-strip' in main_text
     assert 'bb-workspace-pane' in main_text
     assert "hidden={workspace !== 'studio'}" in main_text
     assert 'HardwareSessionProvider' in main_text
     assert 'useHardwareSession' in main_text
-    assert 'Live runtime observatory' in observatory
-    assert 'measurement_sessions' in observatory
-    assert 'betterboard.task-center.v1' in observatory
-    assert 'Understand the number before trusting the number.' in learning
-    assert 'onOpenExperiment' in learning
-    assert 'Numerical Analysis' in hub and 'Magnetism & Fields' in hub
-    assert 'initialDomain' in hub
+    for token in ['System Observatory','measurement_sessions','measurement_session_load','recipe_catalog','device_catalog','openguin_probe','Latest data observation','Engineering Lab bridge readiness','Recipe & device inventory']:
+        assert token in observatory, token
+    assert not (ROOT / 'src' / 'LearningHub.tsx').exists()
+    assert "id: 'learning'" not in main_text
+    for token in ['Connect with Engineering Lab','BetterBoard → Engineering Lab handoff','Numerical Error Analysis','Oscillation & Numerical Integration','RADIA Magnet Studio']:
+        assert token in hub, token
     assert 'Capture 7 s & Analyze' in numerical
     assert 'Capture Complete Campaign & Analyze' in numerical
     assert 'Downsampling convergence' in numerical
@@ -266,8 +264,8 @@ def main() -> int:
     assert "hidden={tab !== 'data'}" in app_text
     assert "hidden={tab !== 'developer'}" in app_text
     assert "hidden={tab !== 'circuit'}" in app_text
-    assert "hidden={domain !== 'numerical'}" in hub
-    assert "hidden={domain !== 'magnet'}" in hub
+    assert "hidden={tool!=='numerical'}" in hub
+    assert "hidden={tool!=='magnet'}" in hub
     assert 'EngineeringPlot' in monitor_text
     assert 'xLabel="time"' in monitor_text and 'xUnit="s"' in monitor_text
     assert 'EngineeringPlot' in magnet_ui
@@ -324,17 +322,17 @@ def main() -> int:
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
-    assert package['version'] == '0.2.0-alpha.7'
-    assert tauri['version'] == '0.2.0-alpha.7'
-    assert '0.2.0-alpha.7' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
+    assert package['version'] == '0.2.0-alpha.8'
+    assert tauri['version'] == '0.2.0-alpha.8'
+    assert '0.2.0-alpha.8' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
 
-    print('BetterBoard Studio v0.2.0-alpha.7 self-check: PASS')
+    print('BetterBoard Studio v0.2.0-alpha.8 self-check: PASS')
     print('- 15 canonical recipes registered, including four new numerical-error programs')
     print('- persistent bidirectional Serial Monitor handlers registered')
     print('- historical Measurement Sessions + replay registered')
     print('- Physical Lab Bridge merged into Monitor & Data')
     print('- unified Monitor & Data workspace registered')
-    print('- persistent Studio / Observatory / Experiments / Learning architecture registered')
+    print('- persistent Studio / Observatory / Experiments architecture registered')
     print('- global CLI / hardware / acquisition / task context strip registered')
     print('- shared Hardware Session provider registered')
     print('- grouped Recipe Library registered')
@@ -348,3 +346,11 @@ def main() -> int:
 
 if __name__ == '__main__':
     raise SystemExit(main())
+
+# Alpha 0.8 observatory/Engineering Lab contracts
+main=(ROOT/'src/main.tsx').read_text(); obs=(ROOT/'src/Observatory.tsx').read_text(); exp=(ROOT/'src/ExperimentsHub.tsx').read_text()
+assert "id: 'learning'" not in main
+for token in ['System Observatory','Latest data observation','Engineering Lab bridge readiness','OpenPenguin','Recipe & device inventory']:
+    assert token in obs, f'Observatory lost {token}'
+for token in ['Connect with Engineering Lab','BetterBoard → Engineering Lab handoff','Numerical evidence preparation','Magnet evidence preparation']:
+    assert token in exp, f'Engineering Lab Experiments lost {token}'

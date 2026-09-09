@@ -1,3 +1,9 @@
+## 0.2.0-alpha.8
+- Deepen Observatory into whole-system operational/data/evidence observability.
+- Remove low-value Learning workspace from top-level IA.
+- Refocus Experiments on BetterBoard ↔ Engineering Lab evidence handoff and model-connected bridge tools.
+- Add copy controls for latest observed data and Engineering Lab handoff paths.
+
 # Changelog
 
 ## 0.2.0-alpha.7

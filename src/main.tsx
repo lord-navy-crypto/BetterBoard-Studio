@@ -5,7 +5,6 @@ import { BookOpen, Bot, CircuitBoard, FlaskConical, RadioTower, X } from 'lucide
 import App from './App';
 import ExperimentsHub from './ExperimentsHub';
 import Observatory from './Observatory';
-import LearningHub from './LearningHub';
 import OpenPenguinBridge from './OpenPenguinBridge';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
 import type { BackgroundTask } from './TaskCenter';
@@ -16,8 +15,7 @@ import './workspace-shell.css';
 import './developer-task.css';
 import './copy-ai.css';
 
-type Workspace = 'studio' | 'observatory' | 'experiments' | 'learning';
-type ExperimentDomain = 'numerical' | 'magnet';
+type Workspace = 'studio' | 'observatory' | 'experiments';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 
 const TASK_MEMORY_KEY = 'betterboard.task-center.v1';
@@ -31,7 +29,6 @@ const WORKSPACES: Array<{
   { id: 'studio', label: 'Studio', subtitle: 'build · upload · monitor · record', icon: CircuitBoard },
   { id: 'observatory', label: 'Observatory', subtitle: 'runtime · evidence · system state', icon: RadioTower },
   { id: 'experiments', label: 'Experiments', subtitle: 'acquire · analyze · compare', icon: FlaskConical },
-  { id: 'learning', label: 'Learning', subtitle: 'concepts · guided labs · equations', icon: BookOpen },
 ];
 
 function readTaskMemory(): BackgroundTask[] {
@@ -46,7 +43,6 @@ function readTaskMemory(): BackgroundTask[] {
 
 function Root() {
   const [workspace, setWorkspace] = useState<Workspace>('studio');
-  const [experimentDomain, setExperimentDomain] = useState<ExperimentDomain>('numerical');
   const [cli, setCli] = useState<CliInfo | null>(null);
   const [tasks, setTasks] = useState<BackgroundTask[]>(readTaskMemory);
   const [aiOpen, setAiOpen] = useState(false);
@@ -71,10 +67,6 @@ function Root() {
     `Current status: ${latestRunning?.detail || hardwareStatus}`,
   ].join('\n'), [workspace, cli?.found, fqbn, selectedPort, activePort?.board_name, liveSerial, runningTasks.length, latestRunning?.detail, hardwareStatus]);
 
-  function openExperiment(domain: ExperimentDomain) {
-    setExperimentDomain(domain);
-    setWorkspace('experiments');
-  }
 
   return <div className="bb-root">
     <header className="bb-command-bar rich">
@@ -124,8 +116,7 @@ function Root() {
     <div className="bb-workspace-frame">
       <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><Observatory /></div>
-      <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub initialDomain={experimentDomain} /></div>
-      <div className="bb-workspace-pane" hidden={workspace !== 'learning'}><LearningHub onOpenExperiment={openExperiment} /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub /></div>
     </div>
   </div>;
 }
