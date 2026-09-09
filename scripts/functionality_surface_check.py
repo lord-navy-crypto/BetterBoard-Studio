@@ -97,6 +97,21 @@ for token in ['Capture 7 s & Analyze', 'Downsampling convergence', 'Capture Comp
 for token in ['Spatial scan', 'Measured ↔ model profile']:
     assert token in magnet_v2, f'Magnet V2 lost {token}'
 
+# Numerical V2 must be source-driven: capture once, analyze many times.
+for token in [
+    'Capture once, then re-analyze the same evidence',
+    'Import saved data.csv',
+    'Import saved campaign CSV',
+    'Re-analyze current source',
+    'Target sample rate (Hz)',
+    'analyzeBench02Source',
+    'analyzeBench03Source',
+    'Imported ${file.name}',
+    'Changing target rate changes the timing-jitter reference',
+    'previously saved BetterBoard `data.csv`',
+]:
+    assert token in numerical_v2, f'Numerical V2 source/re-analysis lost {token}'
+
 # Magnet V2 must preserve scientific repeatability and historical scan re-analysis.
 for token in [
     'Capture repeat',
@@ -204,6 +219,7 @@ print('BetterBoard functionality surface check: PASS')
 print('- four-layer global workspace / mission / hardware status hierarchy protected')
 print('- Observatory is backed by real hardware, CLI, task and measurement-session sources')
 print('- Learning keeps concept → experiment links for numerical and validation work')
+print('- Numerical V2 supports capture-once, import and re-analysis workflows')
 print('- Magnet V2 preserves repeated-position evidence and historical scan re-analysis')
 print('- streamlined V2 workflows preserved')
 print('- pre-visual Studio / Circuit / Bridge capabilities protected')
