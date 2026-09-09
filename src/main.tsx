@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { BookOpen, CircuitBoard, FlaskConical, RadioTower } from 'lucide-react';
@@ -6,8 +6,9 @@ import App from './App';
 import ExperimentsHub from './ExperimentsHub';
 import Observatory from './Observatory';
 import LearningHub from './LearningHub';
+import TaskCenterPanel from './TaskCenter';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
-import type { BackgroundTask } from './TaskCenter';
+import { TaskRuntimeProvider, useTaskRuntime } from './TaskRuntime';
 import './styles.css';
 import './visual-system.css';
 import './monitor-data.css';
@@ -17,8 +18,6 @@ import './developer-task.css';
 type Workspace = 'studio' | 'observatory' | 'experiments' | 'learning';
 type ExperimentDomain = 'numerical' | 'magnet';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
-
-const TASK_MEMORY_KEY = 'betterboard.task-center.v1';
 
 const WORKSPACES: Array<{
   id: Workspace;
@@ -32,30 +31,17 @@ const WORKSPACES: Array<{
   { id: 'learning', label: 'Learning', subtitle: 'concepts · guided labs · equations', icon: BookOpen },
 ];
 
-function readTaskMemory(): BackgroundTask[] {
-  if (typeof localStorage === 'undefined') return [];
-  try {
-    const parsed = JSON.parse(localStorage.getItem(TASK_MEMORY_KEY) || '[]') as BackgroundTask[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 function Root() {
   const [workspace, setWorkspace] = useState<Workspace>('studio');
   const [experimentDomain, setExperimentDomain] = useState<ExperimentDomain>('numerical');
   const [cli, setCli] = useState<CliInfo | null>(null);
-  const [tasks, setTasks] = useState<BackgroundTask[]>(readTaskMemory);
   const { selectedPort, activePort, hardwareStatus, fqbn } = useHardwareSession();
+  const { tasks, runningTasks, cancelTask, clearFinishedTasks } = useTaskRuntime();
 
   useEffect(() => {
     void invoke<CliInfo>('arduino_cli_discovery').then(setCli).catch(() => setCli({ found: false }));
-    const timer = window.setInterval(() => setTasks(readTaskMemory()), 1200);
-    return () => window.clearInterval(timer);
   }, []);
 
-  const runningTasks = useMemo(() => tasks.filter(task => task.state === 'running'), [tasks]);
   const latestRunning = runningTasks[0];
   const liveSerial = runningTasks.find(task => task.category === 'Monitor' && /live serial/i.test(task.title));
 
@@ -107,13 +93,19 @@ function Root() {
       <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub initialDomain={experimentDomain} /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'learning'}><LearningHub onOpenExperiment={openExperiment} /></div>
     </div>
+
+    <div className="bb-global-task-center" aria-label="Global BetterBoard Task Center">
+      <TaskCenterPanel tasks={tasks} onCancel={cancelTask} onClearFinished={clearFinishedTasks} defaultOpen={false}/>
+    </div>
   </div>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <HardwareSessionProvider>
-      <Root />
+      <TaskRuntimeProvider>
+        <Root />
+      </TaskRuntimeProvider>
     </HardwareSessionProvider>
   </React.StrictMode>,
 );
