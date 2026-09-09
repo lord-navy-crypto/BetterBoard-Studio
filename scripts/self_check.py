@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / 'src-tauri' / 'resources'
 LIB = ROOT / 'src-tauri' / 'src' / 'lib.rs'
 APP = ROOT / 'src' / 'App.tsx'
+MONITOR_DATA = ROOT / 'src' / 'MonitorDataStudio.tsx'
 NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuite.tsx'
 MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuite.tsx'
 
@@ -57,7 +58,12 @@ def main() -> int:
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
     rust = LIB.read_text()
-    frontend = APP.read_text() + '\n' + NUMERICAL_SUITE.read_text() + '\n' + MAGNET_SUITE.read_text()
+    frontend = (
+        APP.read_text()
+        + '\n' + MONITOR_DATA.read_text()
+        + '\n' + NUMERICAL_SUITE.read_text()
+        + '\n' + MAGNET_SUITE.read_text()
+    )
     by_id = {r['id']: r for r in catalog}
 
     bench1 = by_id['analog_a0']
@@ -99,7 +105,7 @@ def main() -> int:
         folder, filename = EXPECTED[rid]
         source = RES / 'firmware' / folder / filename
         assert source.is_file(), source
-        assert f'"{rid}"' in rust, rid
+        assert f'\"{rid}\"' in rust, rid
         assert recipe['sketch_name'] == folder
         if recipe['capture_mode'] == 'numeric':
             assert len(recipe['columns']) == len(recipe['units']) > 0
@@ -149,13 +155,25 @@ def main() -> int:
     invoke_names = {a or b for a, b in invoked}
     handler_match = re.search(r'tauri::generate_handler!\[(.*?)\]\)', rust, re.S)
     assert handler_match
-    handlers = {x.strip() for x in handler_match.group(1).split(',') if x.strip()}
+    # Commands may be registered as module::command. The frontend invokes the
+    # exported command name, so compare against the final Rust path segment.
+    handlers = {
+        x.strip().split('::')[-1]
+        for x in handler_match.group(1).split(',')
+        if x.strip()
+    }
     missing = invoke_names - handlers
     assert not missing, f'frontend invokes missing Rust handlers: {sorted(missing)}'
 
+    assert MONITOR_DATA.is_file()
+    assert 'serial_stream_start' in MONITOR_DATA.read_text()
+    assert 'serial_stream_stop' in MONITOR_DATA.read_text()
+    assert 'Monitor & Data' in APP.read_text()
+
     main = (ROOT / 'src' / 'main.tsx').read_text()
-    assert 'Numerical Bench 01–03' in main
-    assert 'Magnet Bench 01–03' in main
+    assert 'Numerical Lab' in main
+    assert 'Magnet Lab' in main
+    assert 'setup · program · monitor' in main
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
@@ -169,6 +187,8 @@ def main() -> int:
     print('- Magnet Bench 01 vector acquisition registered')
     print('- Magnet Bench 02 characterization/spatial analyzer registered')
     print('- Magnet Bench 03 RADIA/model validation analyzer registered')
+    print('- persistent live Serial Monitor handlers registered')
+    print('- unified Monitor & Data workspace registered')
     print('- inherited Physical Lab v0.4 firmware hashes preserved where intended')
     print('- full multichannel + Physical Lab v1 compatibility bridge present')
     print('- frontend invoke / Rust handler contract consistent')
