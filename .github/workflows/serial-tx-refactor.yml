@@ -1,4 +1,4 @@
-name: Serial TX refactor
+name: BetterBoard alpha.2 finalizer
 
 on:
   push:
@@ -11,8 +11,9 @@ permissions:
   contents: write
 
 jobs:
-  refactor:
+  finalize:
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,7 +35,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev
 
-      - name: Apply bounded Serial TX refactor
+      - name: Apply bounded alpha.2 finalization
         run: python3 scripts/refactor_serial_tx.py
 
       - name: Format Rust
@@ -48,7 +49,7 @@ jobs:
       - name: Verify Rust
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
-      - name: Commit verified refactor
+      - name: Commit verified alpha.2
         run: |
           if git diff --quiet; then
             echo "No changes produced"
@@ -56,6 +57,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src-tauri/src/lib.rs src/MonitorDataStudio.tsx src/monitor-data.css scripts/self_check.py
-          git commit -m "Add bidirectional live Serial Monitor [serial-tx-refactor]"
+          git add -A
+          git commit -m "Finalize BetterBoard Studio 0.2.0-alpha.2 [finalize-alpha2]"
           git push origin HEAD:ux/unified-monitor-data-workspace
