@@ -102,10 +102,10 @@ function Root() {
     </div>
 
     <div className="bb-workspace-frame">
-      {workspace === 'studio' && <App />}
-      {workspace === 'observatory' && <Observatory />}
-      {workspace === 'experiments' && <ExperimentsHub initialDomain={experimentDomain} />}
-      {workspace === 'learning' && <LearningHub onOpenExperiment={openExperiment} />}
+      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><Observatory /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub initialDomain={experimentDomain} /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'learning'}><LearningHub onOpenExperiment={openExperiment} /></div>
     </div>
   </div>;
 }
