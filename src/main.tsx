@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { CircuitBoard, Magnet, Sigma } from 'lucide-react';
+import { CircuitBoard, FlaskConical } from 'lucide-react';
 import App from './App';
-import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
-import MagnetBenchSuite from './MagnetBenchSuite';
+import ExperimentsHub from './ExperimentsHub';
 import './styles.css';
 import './visual-system.css';
 import './monitor-data.css';
 
-type Workspace = 'studio' | 'numerical' | 'magnet';
+type Workspace = 'studio' | 'experiments';
 
 const WORKSPACES: Array<{
   id: Workspace;
@@ -16,9 +15,8 @@ const WORKSPACES: Array<{
   subtitle: string;
   icon: typeof CircuitBoard;
 }> = [
-  { id: 'studio', label: 'Studio', subtitle: 'setup · program · monitor', icon: CircuitBoard },
-  { id: 'numerical', label: 'Numerical Lab', subtitle: 'acquire · analyze · results', icon: Sigma },
-  { id: 'magnet', label: 'Magnet Lab', subtitle: 'bench 01–03', icon: Magnet },
+  { id: 'studio', label: 'Studio', subtitle: 'build · upload · monitor · record', icon: CircuitBoard },
+  { id: 'experiments', label: 'Experiments', subtitle: 'numerical · magnetism · analysis', icon: FlaskConical },
 ];
 
 function Root() {
@@ -50,9 +48,7 @@ function Root() {
     </header>
 
     <div className="bb-workspace-frame">
-      {workspace === 'studio' && <App />}
-      {workspace === 'numerical' && <NumericalBenchSuiteV2 />}
-      {workspace === 'magnet' && <MagnetBenchSuite />}
+      {workspace === 'studio' ? <App /> : <ExperimentsHub />}
     </div>
   </div>;
 }
