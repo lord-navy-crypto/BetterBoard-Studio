@@ -14,6 +14,11 @@ IMPORT_NEW = "import { useMemo, useState, type CSSProperties } from 'react';"
 INVOKE_IMPORT = "import { invoke } from '@tauri-apps/api/core';"
 SESSION_IMPORT = "import { useHardwareSession } from './HardwareSession';"
 
+LOCAL_TYPES_PATTERN = re.compile(
+    r"type BoardPort = \{[^\n]+\};\n"
+    r"type BoardProfile = \{[^\n]+\};\n"
+)
+
 STATE_PATTERN = re.compile(
     r"  const \[ports, setPorts\] = useState<BoardPort\[\]>\(\[\]\);\n"
     r"  const \[profiles, setProfiles\] = useState<BoardProfile\[\]>\(\[\]\);\n"
@@ -21,8 +26,12 @@ STATE_PATTERN = re.compile(
     r"  const \[fqbn, setFqbn\] = useState\('arduino:avr:uno'\);\n"
 )
 
+# Both V2 labs place useEffect immediately after refresh(). Earlier helper
+# incorrectly required an extra blank line; keep the matcher bounded by the
+# exact one-line useEffect that follows the function.
 REFRESH_PATTERN = re.compile(
-    r"  async function refresh\(\) \{.*?\n  \}\n\n  useEffect\(\(\) => \{ refresh\(\); \}, \[\]\);\n",
+    r"  async function refresh\(\) \{.*?\n  \}\n"
+    r"  useEffect\(\(\) => \{ refresh\(\); \}, \[\]\);\n",
     re.S,
 )
 
@@ -49,6 +58,10 @@ for path in TARGETS:
         if INVOKE_IMPORT not in text:
             raise SystemExit(f'{path.name}: invoke import not found')
         text = text.replace(INVOKE_IMPORT, INVOKE_IMPORT + '\n' + SESSION_IMPORT, 1)
+
+    text, type_count = LOCAL_TYPES_PATTERN.subn('', text, count=1)
+    if type_count != 1:
+        raise SystemExit(f'{path.name}: expected one local BoardPort/BoardProfile type block, got {type_count}')
 
     text, state_count = STATE_PATTERN.subn(
         "  const { ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn, hardwareStatus, refreshHardware } = useHardwareSession();\n",
