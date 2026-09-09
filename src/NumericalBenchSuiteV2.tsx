@@ -135,9 +135,7 @@ function rms(values: number[]): number | null {
   const finite = values.filter(Number.isFinite);
   return finite.length ? Math.sqrt(mean(finite.map(value => value * value))) : null;
 }
-function f32(value: number): number {
-  return new Float32Array([value])[0];
-}
+function f32(value: number): number { return new Float32Array([value])[0]; }
 function trapz64(times: number[], values: number[]): number {
   let total = 0;
   for (let i = 1; i < times.length; i++) total += 0.5 * (values[i - 1] + values[i]) * (times[i] - times[i - 1]);
@@ -342,6 +340,7 @@ function fmt(value: number | null | undefined, digits = 5): string {
   return value.toFixed(digits);
 }
 function pct(value: number): string { return `${(value * 100).toFixed(1)}%`; }
+function textLines(text: string) { return text.split(/\r?\n/).filter(line => line.trim()); }
 
 function Metric({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return <div style={{ border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.025)', borderRadius: 12, padding: 12 }}>
@@ -360,8 +359,11 @@ export default function NumericalBenchSuiteV2() {
   const [bench3Measurement, setBench3Measurement] = useState<MeasurementResult | null>(null);
   const [bench02Lines, setBench02Lines] = useState<string[]>([]);
   const [bench02Result, setBench02Result] = useState<Bench02Result | null>(null);
+  const [bench02Source, setBench02Source] = useState('No source loaded');
+  const [bench02TargetRate, setBench02TargetRate] = useState('50');
   const [bench03Lines, setBench03Lines] = useState<string[]>([]);
   const [bench03Result, setBench03Result] = useState<Bench03Result | null>(null);
+  const [bench03Source, setBench03Source] = useState('No source loaded');
 
   const activeMode = useMemo(() => MODES.find(item => item.id === mode)!, [mode]);
 
@@ -370,9 +372,7 @@ export default function NumericalBenchSuiteV2() {
     try {
       await refreshHardware();
       setStatus('Shared hardware session refreshed.');
-    } catch (error) {
-      setStatus(String(error));
-    }
+    } catch (error) { setStatus(String(error)); }
   }
 
   async function uploadRecipe(recipeId: string) {
@@ -394,13 +394,21 @@ export default function NumericalBenchSuiteV2() {
     setBusy(true);
     try {
       setStatus('Recording Measurement Package…');
-      const result = await invoke<MeasurementResult>('capture_measurement', {
-        port: selectedPort, durationMs, maxLines: 10000, boardProfile: fqbn, recipeId,
-      });
+      const result = await invoke<MeasurementResult>('capture_measurement', { port: selectedPort, durationMs, maxLines: 10000, boardProfile: fqbn, recipeId });
       if (recipeId === 'analog_a0') setBench1Measurement(result); else setBench3Measurement(result);
       setStatus(`${result.samples} samples saved · ${result.directory}`);
     } catch (error) { setStatus(`Measurement failed: ${error}`); }
     finally { setBusy(false); }
+  }
+
+  function analyzeBench02Source(lines: string[], source: string) {
+    const targetRate = Number(bench02TargetRate);
+    if (!Number.isFinite(targetRate) || targetRate <= 0) throw new Error('Target sample rate must be a positive finite number.');
+    const result = analyzeBench02(lines, targetRate);
+    setBench02Lines(lines);
+    setBench02Result(result);
+    setBench02Source(source);
+    setStatus(`Bench 02 complete · ${result.sampleCount} accepted samples · ${result.rejectedRows} rejected · ${source}`);
   }
 
   async function captureAndAnalyzeBench02() {
@@ -409,12 +417,32 @@ export default function NumericalBenchSuiteV2() {
     try {
       setStatus('Capturing 7 s real ADC series for in-app analysis…');
       const capture = await invoke<CaptureResult>('serial_capture', { port: selectedPort, baud: 115200, durationMs: 7000, maxLines: 10000, numericOnly: true });
-      setBench02Lines(capture.lines);
-      const result = analyzeBench02(capture.lines, 50);
-      setBench02Result(result);
-      setStatus(`Bench 02 complete · ${result.sampleCount} accepted samples · ${result.rejectedRows} rejected`);
+      analyzeBench02Source(capture.lines, 'Live serial capture');
     } catch (error) { setStatus(`Bench 02 failed: ${error}`); }
     finally { setBusy(false); }
+  }
+
+  async function importBench02(file: File | null) {
+    if (!file) return;
+    try {
+      const lines = textLines(await file.text());
+      analyzeBench02Source(lines, `Imported ${file.name}`);
+    } catch (error) { setStatus(`Bench 02 import failed: ${error}`); }
+  }
+
+  function reanalyzeBench02() {
+    try {
+      if (!bench02Lines.length) throw new Error('Load or capture a Bench 02 source first.');
+      analyzeBench02Source(bench02Lines, `${bench02Source} · re-analyzed`);
+    } catch (error) { setStatus(`Bench 02 re-analysis failed: ${error}`); }
+  }
+
+  function analyzeBench03Source(lines: string[], source: string) {
+    const result = analyzeBench03(lines);
+    setBench03Lines(lines);
+    setBench03Result(result);
+    setBench03Source(source);
+    setStatus(`Bench 03 complete · ${result.rows.length} rows · ${result.parameterRows} scan + ${result.convergenceRows} convergence · ${source}`);
   }
 
   async function captureAndAnalyzeBench03() {
@@ -423,18 +451,29 @@ export default function NumericalBenchSuiteV2() {
     try {
       setStatus('Capturing complete embedded numerical campaign…');
       const capture = await invoke<CaptureResult>('serial_capture', { port: selectedPort, baud: 115200, durationMs: 7200, maxLines: 1000, numericOnly: true });
-      setBench03Lines(capture.lines);
-      const result = analyzeBench03(capture.lines);
-      setBench03Result(result);
-      setStatus(`Bench 03 complete · ${result.rows.length} rows · ${result.parameterRows} scan + ${result.convergenceRows} convergence`);
+      analyzeBench03Source(capture.lines, 'Live MCU campaign');
     } catch (error) { setStatus(`Bench 03 failed: ${error}`); }
     finally { setBusy(false); }
+  }
+
+  async function importBench03(file: File | null) {
+    if (!file) return;
+    try {
+      analyzeBench03Source(textLines(await file.text()), `Imported ${file.name}`);
+    } catch (error) { setStatus(`Bench 03 import failed: ${error}`); }
+  }
+
+  function reanalyzeBench03() {
+    try {
+      if (!bench03Lines.length) throw new Error('Load or capture a Bench 03 source first.');
+      analyzeBench03Source(bench03Lines, `${bench03Source} · re-analyzed`);
+    } catch (error) { setStatus(`Bench 03 re-analysis failed: ${error}`); }
   }
 
   return <div style={{ minHeight: '100vh', padding: '28px 34px 70px', color: '#edf5ff' }}>
     <div style={{ maxWidth: 1420, margin: '0 auto' }}>
       <header style={{ ...panel, marginBottom: 14, display: 'flex', justifyContent: 'space-between', gap: 20, alignItems: 'center' }}>
-        <div><div style={{ textTransform: 'uppercase', fontSize: 10, letterSpacing: '.14em', color: '#70dcff' }}>Numerical Analysis</div><h1 style={{ margin: '6px 0 4px' }}>Numerical Lab</h1><p style={{ ...muted, margin: 0 }}>Acquire → analyze → inspect complete results → optionally preserve an evidence package.</p></div>
+        <div><div style={{ textTransform: 'uppercase', fontSize: 10, letterSpacing: '.14em', color: '#70dcff' }}>Numerical Analysis</div><h1 style={{ margin: '6px 0 4px' }}>Numerical Lab</h1><p style={{ ...muted, margin: 0 }}>Source → analyze → inspect complete results. Capture once, then re-analyze the same evidence without touching the hardware.</p></div>
         <button className="ghost" onClick={refresh}><RefreshCw size={15}/> Refresh hardware</button>
       </header>
 
@@ -463,25 +502,39 @@ export default function NumericalBenchSuiteV2() {
         </div>}
 
         {mode === 'bench02' && <div style={{ marginTop: 18 }}>
-          <div className="bridge-flow" style={{ justifyContent: 'flex-start' }}><div>real ADC series</div><b>→</b><div>timing / quantization</div><b>→</b><div>downsample</div><b>→</b><div>differentiate + integrate</div><b>→</b><div>results</div></div>
-          <div className="action-row"><button className="ghost" disabled={busy || !selectedPort} onClick={() => uploadRecipe('analog_a0')}><Upload size={15}/> Upload acquisition firmware</button><button className="primary" disabled={busy || !selectedPort} onClick={captureAndAnalyzeBench02}><Play size={15}/> Capture 7 s & Analyze</button><button className="ghost" disabled={busy || !selectedPort} onClick={() => recordRecipe('analog_a0', 7000)}><Database size={15}/> Record evidence package</button></div>
-          {!bench02Result ? <div className="empty">No Bench 02 result yet. The analysis now runs inside the app; you do not need to copy a Python command.</div> : <>
+          <div className="bridge-flow" style={{ justifyContent: 'flex-start' }}><div>live capture / saved data.csv</div><b>→</b><div>timing / quantization</div><b>→</b><div>downsample</div><b>→</b><div>differentiate + integrate</div><b>→</b><div>results</div></div>
+          <div className="action-row">
+            <button className="ghost" disabled={busy || !selectedPort} onClick={() => uploadRecipe('analog_a0')}><Upload size={15}/> Upload acquisition firmware</button>
+            <button className="primary" disabled={busy || !selectedPort} onClick={captureAndAnalyzeBench02}><Play size={15}/> Capture 7 s & Analyze</button>
+            <label className="ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><Database size={15}/> Import saved data.csv<input style={{ display: 'none' }} type="file" accept=".csv,text/csv" onChange={event => void importBench02(event.target.files?.[0] ?? null)}/></label>
+            <button className="ghost" disabled={!bench02Lines.length} onClick={reanalyzeBench02}><RefreshCw size={14}/> Re-analyze current source</button>
+            <button className="ghost" disabled={busy || !selectedPort} onClick={() => recordRecipe('analog_a0', 7000)}><Save size={15}/> Record evidence package</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 10, alignItems: 'end', marginTop: 10 }}><label>Target sample rate (Hz)<input value={bench02TargetRate} onChange={event => setBench02TargetRate(event.target.value)}/></label><div style={{ ...muted, fontSize: 10 }}><b style={{ color: '#c7d8e8' }}>Source:</b> {bench02Source}. Changing target rate changes the timing-jitter reference; it does not resample the captured evidence.</div></div>
+          {!bench02Result ? <div className="empty">No Bench 02 result yet. Capture live data or import a previously saved BetterBoard `data.csv`; the same source can be analyzed repeatedly.</div> : <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 16 }}><Metric label="Accepted samples" value={String(bench02Result.sampleCount)} detail={`${bench02Result.rejectedRows} rejected`}/><Metric label="Observed rate" value={`${fmt(bench02Result.timing.observedRateHz,2)} Hz`} detail={`target ${bench02Result.timing.targetRateHz} Hz`}/><Metric label="RMS timing jitter" value={`${fmt(bench02Result.timing.jitterRmsS * 1000,3)} ms`}/><Metric label="Unique ADC codes" value={String(bench02Result.value.uniqueValues)} detail={`min step ${fmt(bench02Result.value.minimumObservedPositiveStep,2)}`}/></div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 8 }}><Metric label="ADC mean" value={fmt(bench02Result.value.mean,3)}/><Metric label="ADC std" value={fmt(bench02Result.value.std,3)}/><Metric label="Trapz float64" value={fmt(bench02Result.accumulation.float64,5)}/><Metric label="float32 − float64" value={fmt(bench02Result.accumulation.absoluteDifference,6)}/></div>
             <div style={{ marginTop: 16, overflow: 'auto' }}><h3 style={{ fontSize: 13 }}><BarChart3 size={15}/> Downsampling convergence</h3><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>factor</th><th>samples</th><th>effective Hz</th><th>integral</th><th>Δ integral vs finest</th><th>derivative RMSE vs finest</th></tr></thead><tbody>{bench02Result.convergence.map(row => <tr key={row.factor}><td>{row.factor}×</td><td>{row.samples}</td><td>{fmt(row.effectiveRateHz,2)}</td><td>{fmt(row.trapezoidIntegral,5)}</td><td>{fmt(row.integralDeltaVsFine,6)}</td><td>{fmt(row.derivativeRmseVsFine,5)}</td></tr>)}</tbody></table></div>
-            <details style={{ marginTop: 14 }}><summary>{bench02Lines.length} captured numeric rows</summary><pre className="terminal" style={{ height: 220 }}>{bench02Lines.join('\n')}</pre></details>
+            <details style={{ marginTop: 14 }}><summary>{bench02Lines.length} source rows · {bench02Source}</summary><pre className="terminal" style={{ height: 220 }}>{bench02Lines.join('\n')}</pre></details>
           </>}
-          <div className="boundary">The finest measured series is an empirical numerical baseline, not physical ground truth. These are sampling/discretization/accumulation differences, not absolute sensor error.</div>
+          <div className="boundary">The finest measured series is an empirical numerical baseline, not physical ground truth. These are sampling/discretization/accumulation differences, not absolute sensor error. Re-analysis intentionally reuses the same evidence so algorithm choices can be compared without changing the physical trial.</div>
         </div>}
 
         {mode === 'bench03' && <div style={{ marginTop: 18 }}>
-          <div className="bridge-flow" style={{ justifyContent: 'flex-start' }}><div>MCU Taylor recurrence</div><b>→</b><div>complete campaign</div><b>→</b><div>host float64 reference</div><b>→</b><div>accuracy + reliability</div></div>
-          <div className="action-row"><button className="ghost" disabled={busy || !selectedPort} onClick={() => uploadRecipe('numerical_embedded')}><Upload size={15}/> Compile & Upload</button><button className="primary" disabled={busy || !selectedPort} onClick={captureAndAnalyzeBench03}><Activity size={15}/> Capture Complete Campaign & Analyze</button><button className="ghost" disabled={busy || !selectedPort} onClick={() => recordRecipe('numerical_embedded', 7200)}><Database size={15}/> Record evidence package</button></div>
-          {!bench03Result ? <div className="empty">No Bench 03 result yet. This view captures every valid campaign row instead of truncating the display to the first 80.</div> : <>
+          <div className="bridge-flow" style={{ justifyContent: 'flex-start' }}><div>live MCU / saved campaign</div><b>→</b><div>Taylor recurrence</div><b>→</b><div>host float64 reference</div><b>→</b><div>accuracy + reliability</div></div>
+          <div className="action-row">
+            <button className="ghost" disabled={busy || !selectedPort} onClick={() => uploadRecipe('numerical_embedded')}><Upload size={15}/> Compile & Upload</button>
+            <button className="primary" disabled={busy || !selectedPort} onClick={captureAndAnalyzeBench03}><Activity size={15}/> Capture Complete Campaign & Analyze</button>
+            <label className="ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><Database size={15}/> Import saved campaign CSV<input style={{ display: 'none' }} type="file" accept=".csv,text/csv" onChange={event => void importBench03(event.target.files?.[0] ?? null)}/></label>
+            <button className="ghost" disabled={!bench03Lines.length} onClick={reanalyzeBench03}><RefreshCw size={14}/> Re-analyze current source</button>
+            <button className="ghost" disabled={busy || !selectedPort} onClick={() => recordRecipe('numerical_embedded', 7200)}><Save size={15}/> Record evidence package</button>
+          </div>
+          <div style={{ ...muted, fontSize: 10, marginTop: 10 }}><b style={{ color: '#c7d8e8' }}>Source:</b> {bench03Source}. A saved BetterBoard Bench 03 `data.csv` can be re-opened later and re-evaluated against the current host reference logic.</div>
+          {!bench03Result ? <div className="empty">No Bench 03 result yet. Capture the MCU campaign or import an existing 16-column campaign CSV. The complete source remains available for repeated analysis.</div> : <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 16 }}><Metric label="Complete rows" value={String(bench03Result.rows.length)} detail={`${bench03Result.parameterRows} scan + ${bench03Result.convergenceRows} convergence`}/><Metric label="MCU float / double" value={`${bench03Result.floatBytes.join('/')} / ${bench03Result.doubleBytes.join('/')}`} detail="bytes observed"/><Metric label="Raw reliability" value={pct(bench03Result.raw.reliabilityRate)} detail={`${bench03Result.raw.falseConvergenceCount} false convergence`}/><Metric label="Range-reduced reliability" value={pct(bench03Result.reduced.reliabilityRate)} detail={`${bench03Result.reduced.falseConvergenceCount} false convergence`}/></div>
             <div style={{ overflow: 'auto', marginTop: 16 }}><h3 style={{ fontSize: 13 }}><Waves size={15}/> Method comparison</h3><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>method</th><th>points</th><th>max abs error</th><th>median abs error</th><th>worst x</th><th>accuracy pass</th><th>reliability</th><th>false convergence</th><th>median runtime µs</th></tr></thead><tbody><tr><td>Raw Taylor</td><td>{bench03Result.raw.points}</td><td>{fmt(bench03Result.raw.maximumAbsoluteError,6)}</td><td>{fmt(bench03Result.raw.medianAbsoluteError,6)}</td><td>{fmt(bench03Result.raw.worstX,2)}</td><td>{pct(bench03Result.raw.accuracyPassRate)}</td><td>{pct(bench03Result.raw.reliabilityRate)}</td><td>{bench03Result.raw.falseConvergenceCount}</td><td>{fmt(bench03Result.raw.medianRuntimeUs,1)}</td></tr><tr><td>Range reduced</td><td>{bench03Result.reduced.points}</td><td>{fmt(bench03Result.reduced.maximumAbsoluteError,6)}</td><td>{fmt(bench03Result.reduced.medianAbsoluteError,6)}</td><td>{fmt(bench03Result.reduced.worstX,2)}</td><td>{pct(bench03Result.reduced.accuracyPassRate)}</td><td>{pct(bench03Result.reduced.reliabilityRate)}</td><td>{bench03Result.reduced.falseConvergenceCount}</td><td>{fmt(bench03Result.reduced.medianRuntimeUs,1)}</td></tr></tbody></table></div>
             <details style={{ marginTop: 14 }}><summary>All {bench03Result.rows.length} analyzed rows</summary><div style={{ maxHeight: 380, overflow: 'auto', marginTop: 8 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}><thead><tr><th>study</th><th>method</th><th>x</th><th>terms</th><th>approx</th><th>reference</th><th>abs error</th><th>ULP error</th><th>cancel</th><th>runtime µs</th><th>status</th></tr></thead><tbody>{bench03Result.rows.map((row, index) => <tr key={index}><td>{row.studyCode}</td><td>{row.methodCode === 0 ? 'raw' : 'reduced'}</td><td>{fmt(row.x,3)}</td><td>{row.termsUsed}</td><td>{fmt(row.approximation,6)}</td><td>{fmt(row.reference,6)}</td><td>{fmt(row.absoluteError,6)}</td><td>{fmt(row.ulpError,2)}</td><td>{fmt(row.cancellationRatio,3)}</td><td>{fmt(row.elapsedUs,0)}</td><td>{row.reliable ? <span style={{ color: '#55e2a7' }}><CheckCircle2 size={12}/> reliable</span> : <span style={{ color: '#ffc36d' }}><CircleAlert size={12}/> {row.status}</span>}</td></tr>)}</tbody></table></div></details>
-            <details style={{ marginTop: 10 }}><summary>Raw serial campaign ({bench03Lines.length} rows)</summary><pre className="terminal" style={{ height: 220 }}>{bench03Lines.join('\n')}</pre></details>
+            <details style={{ marginTop: 10 }}><summary>Raw source campaign ({bench03Lines.length} rows) · {bench03Source}</summary><pre className="terminal" style={{ height: 220 }}>{bench03Lines.join('\n')}</pre></details>
           </>}
           {bench3Measurement && <div className="measurement big" style={{ marginTop: 12 }}><b>{bench3Measurement.samples} saved evidence rows</b><span>{bench3Measurement.directory}</span></div>}
           <div className="boundary">Immediate in-app accuracy uses the host JavaScript float64 Math.sin reference. The saved evidence package remains suitable for the higher-precision Python oracle analyzer. The UI labels this distinction instead of pretending they are identical references.</div>
