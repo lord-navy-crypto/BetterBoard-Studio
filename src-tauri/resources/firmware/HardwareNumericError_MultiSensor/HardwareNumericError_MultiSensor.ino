@@ -17,6 +17,18 @@
 #ifndef BB_TIMER_QUANTUM_US
 #define BB_TIMER_QUANTUM_US 4UL
 #endif
+#ifndef BB_PHOTO_INPUT_MODE
+#define BB_PHOTO_INPUT_MODE INPUT_PULLUP
+#endif
+#ifndef BB_PHOTO_INTERRUPT_MODE
+#define BB_PHOTO_INTERRUPT_MODE FALLING
+#endif
+#ifndef BB_PIR_INPUT_MODE
+#define BB_PIR_INPUT_MODE INPUT
+#endif
+#ifndef BB_PIR_INTERRUPT_MODE
+#define BB_PIR_INTERRUPT_MODE CHANGE
+#endif
 
 const uint8_t POT_PIN = A0;
 const uint8_t PHOTO_PIN = 2;
@@ -33,7 +45,6 @@ volatile uint32_t photoEventTotal = 0;
 volatile uint32_t photoRejectedTotal = 0;
 volatile uint16_t photoEventsSinceSample = 0;
 volatile uint16_t photoRejectedSinceSample = 0;
-
 volatile uint32_t pirEdgeTotal = 0;
 volatile uint16_t pirEdgesSinceSample = 0;
 volatile uint32_t pirLatestEdgeUs = 0;
@@ -74,11 +85,11 @@ void onPirChange() {
 void setup() {
   Serial.begin(115200);
   pinMode(POT_PIN, INPUT);
-  pinMode(PHOTO_PIN, INPUT_PULLUP);
-  pinMode(PIR_PIN, INPUT);
+  pinMode(PHOTO_PIN, BB_PHOTO_INPUT_MODE);
+  pinMode(PIR_PIN, BB_PIR_INPUT_MODE);
   pinMode(LED_PIN, OUTPUT);
-  attachInterrupt(digitalPinToInterrupt(PHOTO_PIN), onPhotoEdge, FALLING);
-  attachInterrupt(digitalPinToInterrupt(PIR_PIN), onPirChange, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(PHOTO_PIN), onPhotoEdge, BB_PHOTO_INTERRUPT_MODE);
+  attachInterrupt(digitalPinToInterrupt(PIR_PIN), onPirChange, BB_PIR_INTERRUPT_MODE);
   scheduledUs = micros();
   Serial.println("sample_index,scheduled_us,actual_us,schedule_lateness_us,raw10,q8,recon8_counts,ema_counts,pwm8,pir_state,pir_latest_edge_us,pir_edges_since_sample,pir_edge_total,pir_coalesced,photo_period_us,photo_frequency_hz,photo_events_since_sample,photo_event_total,photo_coalesced,photo_rejected_since_sample,photo_rejected_total,timer_quantum_us");
 }
@@ -109,7 +120,6 @@ void loop() {
   const uint32_t pRejectedTotal = photoRejectedTotal;
   photoEventsSinceSample = 0;
   photoRejectedSinceSample = 0;
-
   const uint32_t pirTotal = pirEdgeTotal;
   const uint16_t pirSince = pirEdgesSinceSample;
   const uint32_t pirEdgeUs = pirLatestEdgeUs;

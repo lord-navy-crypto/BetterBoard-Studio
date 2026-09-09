@@ -1,15 +1,21 @@
 #include <Arduino.h>
 
 // BetterBoard Hardware Numeric Error Depth 2 — PIR polling latency
-// D3 supports CHANGE interrupt on UNO. The interrupt timestamp is the digital
-// edge evidence; polling observes the same digital state on a configurable
-// cadence. Their difference is PROGRAM polling latency, not PIR physical latency.
+// D3 supports CHANGE interrupt on UNO. Input mode / interrupt mode are compile-
+// time configurable because PIR modules differ. The interrupt timestamp is the
+// digital edge evidence; polling delay is PROGRAM latency, not physical PIR latency.
 
 #ifndef BB_POLL_INTERVAL_US
 #define BB_POLL_INTERVAL_US 2000UL
 #endif
 #ifndef BB_TIMER_QUANTUM_US
 #define BB_TIMER_QUANTUM_US 4UL
+#endif
+#ifndef BB_PIR_INPUT_MODE
+#define BB_PIR_INPUT_MODE INPUT
+#endif
+#ifndef BB_PIR_INTERRUPT_MODE
+#define BB_PIR_INTERRUPT_MODE CHANGE
 #endif
 
 const uint8_t PIR_PIN = 3;
@@ -19,7 +25,6 @@ const uint32_t TIMER_QUANTUM_US = (uint32_t)BB_TIMER_QUANTUM_US;
 volatile uint32_t latestIsrUs = 0;
 volatile uint32_t isrEdgeCount = 0;
 volatile uint8_t latestIsrState = LOW;
-
 uint32_t lastPollUs = 0;
 uint32_t lastSeenIsrCount = 0;
 uint32_t reportIndex = 0;
@@ -33,9 +38,9 @@ void onPirChange() {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(PIR_PIN, INPUT);
+  pinMode(PIR_PIN, BB_PIR_INPUT_MODE);
   lastPolledState = (uint8_t)digitalRead(PIR_PIN);
-  attachInterrupt(digitalPinToInterrupt(PIR_PIN), onPirChange, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(PIR_PIN), onPirChange, BB_PIR_INTERRUPT_MODE);
   lastPollUs = micros();
   Serial.println("report_index,poll_time_us,pir_state,isr_edge_count,edges_since_last_report,latest_isr_time_us,latest_isr_state,poll_transition,matched_latest_edge,poll_detection_delay_us,poll_interval_us,timer_quantum_us,coalesced_edge_risk");
 }
