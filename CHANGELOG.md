@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0-alpha.6
+
+- Added durable **Developer Draft Recovery** in local app storage. Unsaved source is debounced to a bounded draft and restored after app restart/crash instead of being lost. Explicit Save/Reset remains authoritative and clears the draft.
+- Added project-management operations in Sketchbook: create project, rename project (including its required main `.ino`), create source/header files, rename non-main files, and delete non-main files. All operations remain restricted to Arduino/BetterBoard sketchbook roots.
+- Added current-file **Go to Definition / F12** for common C/C++ declarations and `#define` symbols, plus Arduino API hover documentation in Monaco.
+- Added a real **Format** action backed by `clang-format`; if no formatter executable is available BetterBoard reports that boundary instead of applying a lossy home-grown formatter.
+- Preserved Alpha 0.5 persistent panes and engineering axes while extending the IDE no-regression contracts for the new Phase 2 capabilities.
+
 ## 0.2.0-alpha.5
 
 - Added a shared **EngineeringPlot** surface with real horizontal/vertical axes, ticks, grid lines, engineering units, and axis titles.

@@ -23,6 +23,7 @@ ENGINEERING_PLOT = ROOT / 'src' / 'EngineeringPlot.tsx'
 SMART_EDITOR = ROOT / 'src' / 'SmartArduinoEditor.tsx'
 ECOSYSTEM_MANAGER = ROOT / 'src' / 'ArduinoEcosystemManager.tsx'
 SKETCHBOOK_EXPLORER = ROOT / 'src' / 'SketchbookExplorer.tsx'
+DEVELOPER_DRAFT_STORE = ROOT / 'src' / 'DeveloperDraftStore.ts'
 IDE_MANAGER_RUST = ROOT / 'src-tauri' / 'src' / 'ide_manager.rs'
 MAIN = ROOT / 'src' / 'main.tsx'
 
@@ -71,7 +72,7 @@ def main() -> int:
 
     for required in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB,
-        HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, IDE_MANAGER_RUST, MAIN,
+        HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
     ]:
         assert required.is_file(), required
 
@@ -82,7 +83,7 @@ def main() -> int:
     rust = LIB.read_text()
     frontend = '\n'.join(path.read_text() for path in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE,
-        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, IDE_MANAGER_RUST, MAIN,
+        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, LEARNING, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
     ])
     by_id = {r['id']: r for r in catalog}
 
@@ -289,14 +290,29 @@ def main() -> int:
         assert token in developer_text, token
     for token in ['ide_manager::arduino_core_list', 'ide_manager::arduino_library_list', 'ide_manager::developer_project_files']:
         assert token in rust, token
+    # Arduino IDE parity Phase 2: durable drafts, project CRUD, formatter, and source navigation.
+    assert DEVELOPER_DRAFT_STORE.is_file()
+    draft_store = DEVELOPER_DRAFT_STORE.read_text()
+    for token in ['betterboard.developer.draft.v1', 'loadDeveloperDraft', 'saveDeveloperDraft', 'clearDeveloperDraft']:
+        assert token in draft_store, token
+    for token in ['registerDefinitionProvider', 'registerHoverProvider', 'stickyScroll']:
+        assert token in smart, token
+    for token in ['Draft Recovery', 'autosaved draft', 'developer_format_source', 'Format']:
+        assert token in developer_text, token
+    for token in ['New project', 'New file', 'developer_project_create', 'developer_project_rename', 'developer_project_file_delete']:
+        assert token in sketchbook, token
+    for token in ['developer_project_create', 'developer_project_rename', 'developer_project_file_create', 'developer_project_file_rename', 'developer_project_file_delete', 'developer_format_source', 'clang-format']:
+        assert token in ide_rust, token
+    for token in ['ide_manager::developer_project_create', 'ide_manager::developer_project_rename', 'ide_manager::developer_project_file_create', 'ide_manager::developer_project_file_rename', 'ide_manager::developer_project_file_delete', 'ide_manager::developer_format_source']:
+        assert token in rust, token
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
-    assert package['version'] == '0.2.0-alpha.5'
-    assert tauri['version'] == '0.2.0-alpha.5'
-    assert '0.2.0-alpha.5' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
+    assert package['version'] == '0.2.0-alpha.6'
+    assert tauri['version'] == '0.2.0-alpha.6'
+    assert '0.2.0-alpha.6' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
 
-    print('BetterBoard Studio v0.2.0-alpha.5 self-check: PASS')
+    print('BetterBoard Studio v0.2.0-alpha.6 self-check: PASS')
     print('- 15 canonical recipes registered, including four new numerical-error programs')
     print('- persistent bidirectional Serial Monitor handlers registered')
     print('- historical Measurement Sessions + replay registered')

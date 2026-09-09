@@ -258,7 +258,7 @@ export default function App() {
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark">B</div><div><b>BetterBoard</b><span>Studio · Alpha 0.5</span></div></div>
+      <div className="brand"><div className="brand-mark">B</div><div><b>BetterBoard</b><span>Studio · Alpha 0.6</span></div></div>
       {nav.map(([id, Icon, label]) => <button key={id} className={`nav ${tab === id ? 'nav-active' : ''}`} onClick={() => setTab(id)}><Icon size={17}/>{label}</button>)}
       <div className="sidebar-spacer"/>
       <div className="small-card"><span>Core workflow</span><b>Connect → program → monitor → record → analyze</b></div>

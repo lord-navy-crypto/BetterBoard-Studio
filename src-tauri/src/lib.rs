@@ -15,7 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const APP_VERSION: &str = "0.2.0-alpha.5";
+const APP_VERSION: &str = "0.2.0-alpha.6";
 const RECIPE_CATALOG_JSON: &str = include_str!("../resources/recipes/catalog.json");
 const BOARD_CATALOG_JSON: &str = include_str!("../resources/boards/boards.json");
 const DEVICE_CATALOG_JSON: &str = include_str!("../resources/devices/devices.json");
@@ -1138,6 +1138,12 @@ pub fn run() {
             ide_manager::developer_sketchbook_list,
             ide_manager::developer_project_files,
             ide_manager::developer_project_file_save,
+            ide_manager::developer_project_create,
+            ide_manager::developer_project_rename,
+            ide_manager::developer_project_file_create,
+            ide_manager::developer_project_file_rename,
+            ide_manager::developer_project_file_delete,
+            ide_manager::developer_format_source,
             openguin_bridge::openguin_probe,
             openguin_bridge::openguin_generate,
             serial_stream::serial_stream_start,
