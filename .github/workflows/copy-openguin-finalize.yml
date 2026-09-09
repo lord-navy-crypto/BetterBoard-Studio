@@ -22,7 +22,10 @@ jobs:
           node-version: 22
           cache: npm
       - name: Apply Alpha 0.7 copy and OpenPenguin patch
-        run: python3 scripts/copy_openguin_phase.py
+        run: |
+          python3 scripts/copy_openguin_phase.py
+          sed -i 's/Connect \/ reload OpenPenguin/Connect OpenPenguin \/ reload models/' src/OpenPenguinBridge.tsx
+          sed -i 's/Connect \/ reload OpenPenguin/Connect OpenPenguin \/ reload models/' scripts/self_check.py
       - name: Install frontend dependencies
         run: npm ci
       - name: TypeScript and Vite build
