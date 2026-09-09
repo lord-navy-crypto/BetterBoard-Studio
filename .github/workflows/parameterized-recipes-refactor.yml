@@ -34,7 +34,18 @@ jobs:
         run: npm install
 
       - name: TypeScript and Vite build
-        run: npm run build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee typescript-build.log
+
+      - name: Upload TypeScript diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parameterized-recipes-typescript-diagnostics
+          path: typescript-build.log
+          retention-days: 2
 
       - name: BetterBoard structural self-check
         run: python3 scripts/self_check.py
@@ -59,6 +70,7 @@ jobs:
         run: |
           rm -f scripts/apply_parameterized_recipes_user_library.py
           rm -f .github/workflows/parameterized-recipes-refactor.yml
+          rm -f typescript-build.log
           git config user.name "BetterBoard CI"
           git config user.email "actions@users.noreply.github.com"
           git add -A
