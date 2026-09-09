@@ -1,0 +1,55 @@
+name: Finalize Observatory and Engineering Lab refocus
+
+on:
+  push:
+    branches: [ux/observatory-engineeringlab]
+    paths:
+      - '.github/workflows/observatory-engineeringlab-finalize.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/observatory-engineeringlab
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply Alpha 0.8 Observatory/Engineering Lab refocus
+        run: |
+          python3 scripts/observatory_engineeringlab_phase.py
+          rm -f src/LearningHub.tsx
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('package-lock.json')
+          p.write_text(p.read_text().replace('0.2.0-alpha.7','0.2.0-alpha.8'))
+          PY
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: TypeScript and Vite build
+        run: npm run build
+      - name: BetterBoard structural self-check
+        run: python3 scripts/self_check.py
+      - name: Functionality surface no-regression check
+        run: python3 scripts/functionality_surface_check.py
+      - name: Install Tauri Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libudev-dev patchelf
+      - name: Rust check
+        working-directory: src-tauri
+        run: cargo check
+      - name: Commit verified Alpha 0.8 product files
+        run: |
+          git config user.name 'BetterBoard CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src src-tauri package.json package-lock.json CHANGELOG.md scripts/self_check.py
+          git add -u src/LearningHub.tsx
+          git commit -m 'Deepen Observatory and refocus Experiments on Engineering Lab'
+          git push origin HEAD:ux/observatory-engineeringlab
