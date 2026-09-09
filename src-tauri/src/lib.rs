@@ -1,3 +1,5 @@
+mod serial_stream;
+
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -644,6 +646,7 @@ fn capture_measurement(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(serial_stream::SerialStreamState::default())
         .invoke_handler(tauri::generate_handler![
             arduino_cli_discovery,
             board_list,
@@ -658,6 +661,8 @@ pub fn run() {
             recipe_preflight,
             serial_capture,
             capture_measurement,
+            serial_stream::serial_stream_start,
+            serial_stream::serial_stream_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running BetterBoard Studio");
