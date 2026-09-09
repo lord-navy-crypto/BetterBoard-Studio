@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useHardwareSession } from './HardwareSession';
 import { Activity, BarChart3, CheckCircle2, CircleAlert, Cpu, Database, Play, RefreshCw, Save, Sigma, Upload, Waves } from 'lucide-react';
 
-type BoardPort = { port: string; protocol: string; board_name?: string; fqbn?: string };
-type BoardProfile = { id: string; label: string; fqbn: string; core: string; default_baud: number; notes: string[] };
 type MeasurementResult = {
   directory: string;
   csv_path: string;
@@ -354,10 +353,7 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
 
 export default function NumericalBenchSuiteV2() {
   const [mode, setMode] = useState<Mode>('bench01');
-  const [ports, setPorts] = useState<BoardPort[]>([]);
-  const [profiles, setProfiles] = useState<BoardProfile[]>([]);
-  const [selectedPort, setSelectedPort] = useState('');
-  const [fqbn, setFqbn] = useState('arduino:avr:uno');
+  const { ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn, hardwareStatus, refreshHardware } = useHardwareSession();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('Ready');
   const [bench1Measurement, setBench1Measurement] = useState<MeasurementResult | null>(null);
@@ -370,17 +366,14 @@ export default function NumericalBenchSuiteV2() {
   const activeMode = useMemo(() => MODES.find(item => item.id === mode)!, [mode]);
 
   async function refresh() {
-    setStatus('Detecting boards…');
+    setStatus('Refreshing shared hardware session…');
     try {
-      const [boardPorts, boardProfiles] = await Promise.all([
-        invoke<BoardPort[]>('board_list'), invoke<BoardProfile[]>('board_profiles'),
-      ]);
-      setPorts(boardPorts); setProfiles(boardProfiles);
-      if (boardPorts.length && !boardPorts.some(port => port.port === selectedPort)) setSelectedPort(boardPorts[0].port);
-      setStatus(boardPorts.length ? `${boardPorts.length} serial device(s) detected` : 'No USB serial board detected');
-    } catch (error) { setStatus(String(error)); }
+      await refreshHardware();
+      setStatus('Shared hardware session refreshed.');
+    } catch (error) {
+      setStatus(String(error));
+    }
   }
-  useEffect(() => { refresh(); }, []);
 
   async function uploadRecipe(recipeId: string) {
     if (!selectedPort) { setStatus('Select a serial device first.'); return; }
@@ -452,7 +445,7 @@ export default function NumericalBenchSuiteV2() {
             <label>Serial device<select value={selectedPort} onChange={event => setSelectedPort(event.target.value)}>{!ports.length && <option value="">No USB serial device</option>}{ports.map(port => <option key={port.port} value={port.port}>{port.port} · {port.board_name || 'Unknown'}</option>)}</select></label>
             <label>Board profile<select value={fqbn} onChange={event => setFqbn(event.target.value)}>{profiles.map(profile => <option key={profile.fqbn} value={profile.fqbn}>{profile.label}</option>)}</select></label>
           </div>
-          <div style={{ ...muted, fontSize: 11, marginTop: 10 }}>{status}</div>
+          <div style={{ ...muted, fontSize: 11, marginTop: 10 }}>{status} · {hardwareStatus}</div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
           {MODES.map(item => <button key={item.id} onClick={() => setMode(item.id)} style={{ minHeight: 82, padding: 12, textAlign: 'left', borderRadius: 12, border: mode === item.id ? '1px solid rgba(112,220,255,.5)' : '1px solid rgba(255,255,255,.08)', background: mode === item.id ? 'rgba(59,123,255,.16)' : 'rgba(255,255,255,.025)', color: '#edf5ff', display: 'block' }}><b style={{ display: 'block', fontSize: 12 }}>{item.title}</b><span style={{ display: 'block', ...muted, fontSize: 10, marginTop: 5 }}>{item.subtitle}</span></button>)}

@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useHardwareSession } from './HardwareSession';
 import { Activity, BarChart3, Database, Magnet, MapPinned, RefreshCw, Save, Upload } from 'lucide-react';
 
-type BoardPort = { port: string; protocol: string; board_name?: string; fqbn?: string };
-type BoardProfile = { id: string; label: string; fqbn: string; core: string; default_baud: number; notes: string[] };
 type MeasurementResult = { directory: string; csv_path: string; metadata_path: string; physical_lab_csv_path: string; physical_lab_bridge_path: string; samples: number };
 type CaptureResult = { lines: string[]; numeric_rows: number; ignored_rows: number };
 type Mode = 'acquire' | 'characterize' | 'validate';
@@ -118,10 +117,7 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
 
 export default function MagnetBenchSuiteV2() {
   const [mode, setMode] = useState<Mode>('acquire');
-  const [ports, setPorts] = useState<BoardPort[]>([]);
-  const [profiles, setProfiles] = useState<BoardProfile[]>([]);
-  const [selectedPort, setSelectedPort] = useState('');
-  const [fqbn, setFqbn] = useState('arduino:avr:uno');
+  const { ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn, hardwareStatus, refreshHardware } = useHardwareSession();
   const [status, setStatus] = useState('Ready');
   const [busy, setBusy] = useState(false);
   const [latest, setLatest] = useState<FieldSummary | null>(null);
@@ -138,15 +134,14 @@ export default function MagnetBenchSuiteV2() {
   const [modelUnit, setModelUnit] = useState<'uT' | 'mT' | 'T'>('uT');
 
   async function refresh() {
-    setStatus('Detecting boards…');
+    setStatus('Refreshing shared hardware session…');
     try {
-      const [boardPorts, boardProfiles] = await Promise.all([invoke<BoardPort[]>('board_list'), invoke<BoardProfile[]>('board_profiles')]);
-      setPorts(boardPorts); setProfiles(boardProfiles);
-      if (boardPorts.length && !boardPorts.some(p => p.port === selectedPort)) setSelectedPort(boardPorts[0].port);
-      setStatus(boardPorts.length ? `${boardPorts.length} serial device(s) detected` : 'No USB serial board detected');
-    } catch (error) { setStatus(String(error)); }
+      await refreshHardware();
+      setStatus('Shared hardware session refreshed.');
+    } catch (error) {
+      setStatus(String(error));
+    }
   }
-  useEffect(() => { refresh(); }, []);
 
   async function uploadFirmware() {
     if (!selectedPort) { setStatus('Select a serial device first.'); return; }
@@ -233,7 +228,7 @@ export default function MagnetBenchSuiteV2() {
       </header>
 
       <section style={{ ...panel, marginBottom: 14, display: 'grid', gridTemplateColumns: 'minmax(300px,420px) 1fr', gap: 16 }}>
-        <div><b>Lab connection</b><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}><label>Serial device<select value={selectedPort} onChange={e => setSelectedPort(e.target.value)}>{!ports.length && <option value="">No USB serial device</option>}{ports.map(p => <option key={p.port} value={p.port}>{p.port} · {p.board_name || 'Unknown'}</option>)}</select></label><label>Board profile<select value={fqbn} onChange={e => setFqbn(e.target.value)}>{profiles.map(p => <option key={p.fqbn} value={p.fqbn}>{p.label}</option>)}</select></label></div><div style={{ ...muted, fontSize: 11, marginTop: 10 }}>{status}</div></div>
+        <div><b>Lab connection</b><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}><label>Serial device<select value={selectedPort} onChange={e => setSelectedPort(e.target.value)}>{!ports.length && <option value="">No USB serial device</option>}{ports.map(p => <option key={p.port} value={p.port}>{p.port} · {p.board_name || 'Unknown'}</option>)}</select></label><label>Board profile<select value={fqbn} onChange={e => setFqbn(e.target.value)}>{profiles.map(p => <option key={p.fqbn} value={p.fqbn}>{p.label}</option>)}</select></label></div><div style={{ ...muted, fontSize: 11, marginTop: 10 }}>{status} · {hardwareStatus}</div></div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>{MODES.map(item => <button key={item.id} onClick={() => setMode(item.id)} style={{ minHeight: 78, padding: 12, textAlign: 'left', borderRadius: 12, border: mode === item.id ? '1px solid rgba(112,220,255,.5)' : '1px solid rgba(255,255,255,.08)', background: mode === item.id ? 'rgba(59,123,255,.16)' : 'rgba(255,255,255,.025)', color: '#edf5ff', display: 'block' }}><b style={{ display: 'block', fontSize: 12 }}>{item.title}</b><span style={{ display: 'block', ...muted, fontSize: 10, marginTop: 5 }}>{item.subtitle}</span></button>)}</div>
       </section>
 
