@@ -59,6 +59,7 @@ export default function ExperimentsHub() {
         <div className="eyebrow">Engineering Lab experiments</div>
         <h1>Experiments contains campaigns, not preparation tools.</h1>
         <p>Reusable capture, evidence preparation, bridge/export and expert analyzers belong in Studio. This workspace is only for experiments built around a concrete Engineering Lab scientific question.</p>
+        <p className="muted">Connect with Engineering Lab through Studio's <b>BetterBoard → Engineering Lab handoff</b>. Preparation surfaces such as <b>Numerical Error Analysis</b>, <b>RADIA Magnet Studio</b> compatibility and other <b>Expert workflows</b> remain in Studio rather than being duplicated here.</p>
       </div>
     </section>
 
