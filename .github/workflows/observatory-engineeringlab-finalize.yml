@@ -25,6 +25,7 @@ jobs:
         run: |
           python3 scripts/observatory_engineeringlab_phase.py
           python3 scripts/observatory_contract_fix.py
+          python3 scripts/observatory_version_fix.py
           rm -f src/LearningHub.tsx
           python3 - <<'PY'
           from pathlib import Path
