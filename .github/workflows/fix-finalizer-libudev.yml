@@ -1,0 +1,37 @@
+name: Fix persistent panes finalizer dependency
+
+on:
+  push:
+    branches: [ux/persistent-panes-engineering-axes]
+    paths:
+      - '.github/workflows/fix-finalizer-libudev.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/persistent-panes-engineering-axes
+          fetch-depth: 0
+      - name: Add libudev development dependency and clean helper
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/persistent-panes-axes-finalize.yml')
+          text = path.read_text()
+          old = 'libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf'
+          new = 'libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libudev-dev patchelf'
+          assert old in text
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm .github/workflows/fix-finalizer-libudev.yml
+          git config user.name 'BetterBoard CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix finalizer Linux libudev dependency'
+          git push origin HEAD:ux/persistent-panes-engineering-axes
