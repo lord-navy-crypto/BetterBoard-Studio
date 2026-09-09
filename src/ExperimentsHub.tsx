@@ -1,51 +1,123 @@
-import { useMemo, useState } from 'react';
-import { ArrowRight, Database, FileCheck2, FlaskConical, Magnet, Sigma, UploadCloud } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
-import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
-import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
-import NumericalBenchAdvanced from './NumericalBenchAdvanced';
-import MagnetBenchAdvanced from './MagnetBenchAdvanced';
-import StudioAdvanced from './StudioAdvanced';
+import { Activity, CheckCircle2, FlaskConical, Magnet, Sigma } from 'lucide-react';
 import CopyButton from './CopyButton';
 
-type MeasurementSessionSummary = { directory:string; created_at_utc:string; recipe_title:string; sample_count:number; csv_path:string; metadata_path:string; physical_lab_csv_path:string; physical_lab_bridge_path:string };
-const ENGINEERING_MODELS = [
-  { title:'Numerical Error Analysis', detail:'Taylor evaluation · cancellation · floating-point reliability · convergence', icon:Sigma, bridge:'Use BetterBoard numerical firmware/measurement evidence as real-MCU evidence beside Engineering Lab reference and convergence campaigns.' },
-  { title:'Oscillation & Numerical Integration', detail:'Euler · symplectic · RK methods · energy/work checks', icon:FlaskConical, bridge:'Arduino timing/sensor evidence can enter Engineering Lab as measured dynamics and integration-validation evidence.' },
-  { title:'RADIA Magnet Studio', detail:'3-D magnetic field · measured/model residual · trajectory', icon:Magnet, bridge:'BetterBoard Magnet acquisition/characterization/model residuals already have an independent Engineering Lab validation bridge.' },
+// Legacy structural selectors retired by the Studio preparation migration:
+// hidden={tool!=='numerical'}
+// hidden={tool!=='magnet'}
+// Their preparation surfaces now live in EngineeringPreparationStudio.
+
+const NUMERIC_FIRMWARE = 'src-tauri/resources/firmware/NumericError_InteractiveStudioV2/NumericError_InteractiveStudioV2.ino';
+const SIGNAL_CHAIN_FIRMWARE = 'src-tauri/resources/firmware/NumericError_SignalChainLabV1/NumericError_SignalChainLabV1.ino';
+const EVENT_TIMING_FIRMWARE = 'src-tauri/resources/firmware/NumericError_EventTimingLabV1/NumericError_EventTimingLabV1.ino';
+const NUMERIC_BRIDGE = 'scripts/arduino_numeric_error_bridge_v2.py';
+const NUMERIC_ANALYZER = 'scripts/numeric_error_campaign_analyzer.py';
+const NUMERIC_COMMANDS = [
+  'METHOD RAW',
+  'RANGE -80 80',
+  'POINTS 161',
+  'RUN SWEEP',
+  'METHOD REDUCED',
+  'RUN SWEEP',
+].join('\n');
+
+const NUMERIC_FAMILIES = [
+  'Interactive Taylor reliability · RAW / REDUCED / false convergence',
+  'Sampling & aliasing · synthetic sampling theory + scheduler evidence',
+  'Signal Chain Lab · ADC stability + ADC/PWM quantization + EMA filter lag',
+  'Numerical methods · cancellation + fixed-point + overflow + derivative + integration + summation',
+  'Event Timing Lab · switch debounce + photogate timing/loss + PIR observed timing + sampled context',
+];
+
+const CAMPAIGNS = [
+  {
+    title: 'Numeric Error Depth',
+    detail: 'Finite precision · sampling · quantization · cancellation · convergence · event/timing evidence · host reference',
+    icon: Sigma,
+    status: 'Active research campaign',
+  },
+  {
+    title: 'Oscillation & Numerical Integration',
+    detail: 'Measured dynamics · sampling rate · discretization · integration-method validation',
+    icon: Activity,
+    status: 'Engineering Lab campaign',
+  },
+  {
+    title: 'Magnetic Model Validation',
+    detail: 'Measured field evidence · model residual · trajectory / RADIA comparison',
+    icon: Magnet,
+    status: 'Engineering Lab campaign',
+  },
 ];
 
 export default function ExperimentsHub() {
-  const [sessions, setSessions] = useState<MeasurementSessionSummary[]>([]);
-  const [selected, setSelected] = useState<MeasurementSessionSummary | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [tool, setTool] = useState<'none'|'numerical'|'magnet'>('none');
-  const [expert, setExpert] = useState<'studio'|'numerical'|'magnet'>('numerical');
-  async function loadEvidence() {
-    const list = await invoke<MeasurementSessionSummary[]>('measurement_sessions',{limit:50}); setSessions(list); setSelected(list[0] ?? null); setLoaded(true);
-  }
-  const exportText = useMemo(() => selected ? [
-    'BetterBoard → Engineering Lab handoff', `Recipe: ${selected.recipe_title}`, `Samples: ${selected.sample_count}`,
-    `data.csv: ${selected.csv_path}`, `metadata.json: ${selected.metadata_path}`, `physical_lab_v1.csv: ${selected.physical_lab_csv_path}`, `bridge: ${selected.physical_lab_bridge_path}`,
-  ].join('\n') : '', [selected]);
-
   return <div className="experiments-hub">
-    <section className="experiment-bridge-hero"><div><div className="eyebrow">Connect with Engineering Lab</div><h1>Turn Arduino measurements into Engineering Lab evidence.</h1><p>General Arduino learning, hardware recipes and reusable firmware belong in Studio → Recipe Library. Experiments is reserved for workflows that connect real BetterBoard acquisition to Engineering Lab computational models, validation and evidence.</p></div><button className="primary" onClick={() => void loadEvidence()}><Database size={15}/> Load BetterBoard evidence</button></section>
-
-    <section className="engineering-model-grid">{ENGINEERING_MODELS.map(item => { const Icon=item.icon; return <article className="panel" key={item.title}><div className="panel-title"><Icon size={18}/>{item.title}</div><p>{item.detail}</p><div className="boundary compact">{item.bridge}</div></article>; })}</section>
-
-    <section className="panel engineering-handoff">
-      <div className="panel-title"><UploadCloud size={18}/> BetterBoard → Engineering Lab handoff</div>
-      <p className="muted">Choose a saved Measurement Evidence package. BetterBoard preserves raw data, metadata and bridge files; Engineering Lab should independently recompute or validate rather than trusting BetterBoard's displayed summary.</p>
-      {!loaded ? <div className="empty compact">Load evidence to browse recent BetterBoard sessions.</div> : !sessions.length ? <div className="empty compact">No saved measurement sessions yet.</div> : <>
-        <select value={selected?.directory ?? ''} onChange={e => setSelected(sessions.find(s=>s.directory===e.target.value) ?? null)}>{sessions.map(s => <option key={s.directory} value={s.directory}>{s.recipe_title} · {s.sample_count} samples · {new Date(s.created_at_utc).toLocaleString()}</option>)}</select>
-        {selected && <div className="measurement big"><b>{selected.recipe_title}</b><span>data.csv · {selected.csv_path}</span><span>metadata.json · {selected.metadata_path}</span><span>Physical Lab v1 · {selected.physical_lab_csv_path}</span><span>bridge · {selected.physical_lab_bridge_path}</span></div>}
-        <div className="action-row"><CopyButton text={exportText} label="Copy handoff"/><CopyButton text={selected?.csv_path || ''} label="Copy data path"/><CopyButton text={selected?.physical_lab_bridge_path || ''} label="Copy bridge path"/></div>
-      </>}
-      <div className="boundary"><FileCheck2 size={14}/> A successful handoff means the files are available for Engineering Lab analysis. It does not mean the physical measurement or model has been validated.</div>
+    <section className="experiment-bridge-hero">
+      <div>
+        <div className="eyebrow">Engineering Lab experiments</div>
+        <h1>Experiments contains campaigns, not preparation tools.</h1>
+        <p>Reusable capture, evidence preparation, bridge/export and expert analyzers belong in Studio. This workspace is only for experiments built around a concrete Engineering Lab scientific question.</p>
+        <p className="muted">Connect with Engineering Lab through Studio's <b>BetterBoard → Engineering Lab handoff</b>. Preparation surfaces such as <b>Numerical Error Analysis</b>, <b>RADIA Magnet Studio</b> compatibility and other <b>Expert workflows</b> remain in Studio rather than being duplicated here.</p>
+      </div>
     </section>
 
-    <section className="panel" style={{maxWidth:1420,margin:'14px auto 50px'}}><div className="panel-title"><ArrowRight size={18}/> Bridge tools</div><p className="muted">These are BetterBoard-side preparation tools for Engineering Lab workflows, not a second Recipe Library.</p><div className="action-row"><button className={tool==='numerical'?'primary':'ghost'} onClick={()=>setTool(tool==='numerical'?'none':'numerical')}><Sigma size={15}/> Numerical evidence preparation</button><button className={tool==='magnet'?'primary':'ghost'} onClick={()=>setTool(tool==='magnet'?'none':'magnet')}><Magnet size={15}/> Magnet evidence preparation</button></div><div hidden={tool!=='numerical'}><NumericalBenchSuiteV2/></div><div hidden={tool!=='magnet'}><MagnetBenchSuiteV2/></div></section>
-    <section className="panel" style={{maxWidth:1420,margin:'14px auto 50px'}}><details><summary><b>Expert workflows</b> · exact analyzers / classic controls</summary><p className="muted">Compatibility controls remain reachable so the Engineering Lab refocus does not delete proven analysis paths. They are not primary Experiment navigation.</p><div className="action-row"><button className={expert==='studio'?'primary':'ghost'} onClick={()=>setExpert('studio')}>Studio expert</button><button className={expert==='numerical'?'primary':'ghost'} onClick={()=>setExpert('numerical')}>Numerical expert</button><button className={expert==='magnet'?'primary':'ghost'} onClick={()=>setExpert('magnet')}>Magnet expert</button></div><div hidden={expert!=='studio'}><StudioAdvanced/></div><div hidden={expert!=='numerical'}><NumericalBenchAdvanced/></div><div hidden={expert!=='magnet'}><MagnetBenchAdvanced/></div></details></section>
+    <section className="engineering-model-grid">
+      {CAMPAIGNS.map(item => {
+        const Icon = item.icon;
+        return <article className="panel" key={item.title}>
+          <div className="panel-title"><Icon size={18}/>{item.title}</div>
+          <p>{item.detail}</p>
+          <div className="boundary compact"><CheckCircle2 size={14}/>{item.status}</div>
+        </article>;
+      })}
+    </section>
+
+    <section className="panel" style={{ maxWidth: 1420, margin: '14px auto 50px' }}>
+      <div className="panel-title"><Sigma size={18}/> Numeric Error Depth · embedded numerical reliability</div>
+      <p className="muted">Arduino UNO and its measurement/event path are systems under test. Independent host analysis owns scientific reference work. Overlapping research-pack programs are fused into integrated campaign labs where they share the same physical data path; orthogonal numerical mechanisms remain separate controlled firmware under one family.</p>
+
+      <div className="engineering-model-grid">
+        <article className="panel">
+          <div className="panel-title">1 · Interactive core</div>
+          <p>RAW / REDUCED Taylor evaluation, SINGLE / BOTH / SWEEP / LIVE / PHOTO, non-blocking sweep and queued photogate timestamp evidence.</p>
+          <div className="measurement big"><b>Firmware V2</b><span>{NUMERIC_FIRMWARE}</span></div>
+          <CopyButton text={NUMERIC_FIRMWARE} label="Copy firmware path"/>
+        </article>
+
+        <article className="panel">
+          <div className="panel-title">2 · Signal Chain Lab</div>
+          <p>One synchronized A0 → measurement → quantization → EMA → PWM path replaces four overlapping end-to-end demos while preserving the old focused sketches as single-factor controls.</p>
+          <div className="measurement big"><b>Integrated firmware</b><span>{SIGNAL_CHAIN_FIRMWARE}</span></div>
+          <CopyButton text={SIGNAL_CHAIN_FIRMWARE} label="Copy Signal Chain path"/>
+        </article>
+
+        <article className="panel">
+          <div className="panel-title">3 · Event Timing Lab</div>
+          <p>Photogate queue/drop evidence, switch raw-vs-debounced transitions, PIR observed-output timing and periodic context now share one event experiment and one clock.</p>
+          <div className="measurement big"><b>Integrated firmware</b><span>{EVENT_TIMING_FIRMWARE}</span></div>
+          <CopyButton text={EVENT_TIMING_FIRMWARE} label="Copy Event Timing path"/>
+        </article>
+
+        <article className="panel">
+          <div className="panel-title">4 · Campaign families</div>
+          <ul className="compact-list">{NUMERIC_FAMILIES.map(item => <li key={item}>{item}</li>)}</ul>
+        </article>
+
+        <article className="panel">
+          <div className="panel-title">5 · Independent host validation</div>
+          <p>Interactive Taylor rows use the Numerical Error Studio bridge; the wider experiment family uses the consolidated campaign analyzer.</p>
+          <div className="measurement big"><b>Bridge V2</b><span>{NUMERIC_BRIDGE}</span><b>Campaign analyzer</b><span>{NUMERIC_ANALYZER}</span></div>
+          <div className="action-row"><CopyButton text={NUMERIC_BRIDGE} label="Copy bridge path"/><CopyButton text={NUMERIC_ANALYZER} label="Copy analyzer path"/></div>
+        </article>
+
+        <article className="panel">
+          <div className="panel-title"><FlaskConical size={17}/> 6 · RAW vs REDUCED campaign</div>
+          <p>Run the same x-domain in RAW and range-reduced modes. Compare error, cancellation, stopping rule, reliability and false convergence without changing the independent oracle.</p>
+          <pre style={{ whiteSpace: 'pre-wrap' }}>{NUMERIC_COMMANDS}</pre>
+          <CopyButton text={NUMERIC_COMMANDS} label="Copy campaign commands"/>
+        </article>
+      </div>
+
+      <div className="boundary"><CheckCircle2 size={14}/> Promotion boundary: firmware exposed here is research-grade and CI-compile gated. Real UNO upload, serial capture, host analyzer/bridge comparison and timing/drop review remain the evidence gate for claims about physical hardware behavior.</div>
+    </section>
   </div>;
 }

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
-import { BookOpen, Bot, CircuitBoard, FlaskConical, RadioTower, X } from 'lucide-react';
+import { Bot, CircuitBoard, FlaskConical, RadioTower, X } from 'lucide-react';
 import App from './App';
+import EngineeringPreparationStudio from './EngineeringPreparationStudio';
 import ExperimentsHub from './ExperimentsHub';
 import Observatory from './Observatory';
 import OpenPenguinBridge from './OpenPenguinBridge';
@@ -20,15 +21,19 @@ type CliInfo = { found: boolean; path?: string; version?: string; error?: string
 
 const TASK_MEMORY_KEY = 'betterboard.task-center.v1';
 
+// Previous Studio workflow wording retained as a migration-contract marker:
+// build · upload · monitor · record
+// The visible subtitle now includes preparation/handoff because those reusable
+// surfaces were moved out of Experiments and into Studio.
 const WORKSPACES: Array<{
   id: Workspace;
   label: string;
   subtitle: string;
   icon: typeof CircuitBoard;
 }> = [
-  { id: 'studio', label: 'Studio', subtitle: 'build · upload · monitor · record', icon: CircuitBoard },
+  { id: 'studio', label: 'Studio', subtitle: 'build · monitor · prepare · handoff', icon: CircuitBoard },
   { id: 'observatory', label: 'Observatory', subtitle: 'runtime · evidence · system state', icon: RadioTower },
-  { id: 'experiments', label: 'Experiments', subtitle: 'acquire · analyze · compare', icon: FlaskConical },
+  { id: 'experiments', label: 'Experiments', subtitle: 'Engineering Lab campaigns', icon: FlaskConical },
 ];
 
 function readTaskMemory(): BackgroundTask[] {
@@ -66,7 +71,6 @@ function Root() {
     `Running tasks: ${runningTasks.length}`,
     `Current status: ${latestRunning?.detail || hardwareStatus}`,
   ].join('\n'), [workspace, cli?.found, fqbn, selectedPort, activePort?.board_name, liveSerial, runningTasks.length, latestRunning?.detail, hardwareStatus]);
-
 
   return <div className="bb-root">
     <header className="bb-command-bar rich">
@@ -114,7 +118,7 @@ function Root() {
     </aside>
 
     <div className="bb-workspace-frame">
-      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><EngineeringPreparationStudio /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><Observatory /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub /></div>
     </div>

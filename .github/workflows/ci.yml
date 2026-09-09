@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - 'ux/**'
+      - 'numeric-error-*'
 
 jobs:
   verify:
@@ -35,6 +36,9 @@ jobs:
       - name: Numerical depth self-check
         run: python3 scripts/numerical_depth_self_check.py
 
+      - name: Numeric Error campaign analyzer self-check
+        run: python3 scripts/numeric_error_campaign_self_check.py
+
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
 
@@ -49,6 +53,27 @@ jobs:
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericalCancellation
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericalAccumulation
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/EmbeddedNumericalReliability
+
+      - name: Compile Numeric Error Depth firmware for UNO
+        run: |
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_Aliasing
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_Cancellation
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_DebounceComparison
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_FixedPointVsFloat
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_OverflowSaturation
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_InteractiveStudioV2
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_ADCStabilityV2
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_FilterLagV2
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_QuantizationV2
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_PWMQuantizationV2
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_DerivativeV2
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_IntegrationV2
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_SummationV3
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_PIRTimingV2
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_PhotogateTimingV3
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_MultiSensorEventLabV3
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_SignalChainLabV1
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_EventTimingLabV1
 
       - name: Install Tauri Linux build dependencies
         run: |
