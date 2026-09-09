@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const APP_VERSION: &str = "0.2.0-alpha.1";
+const APP_VERSION: &str = "0.2.0-alpha.2";
 const RECIPE_CATALOG_JSON: &str = include_str!("../resources/recipes/catalog.json");
 const BOARD_CATALOG_JSON: &str = include_str!("../resources/boards/boards.json");
 const DEVICE_CATALOG_JSON: &str = include_str!("../resources/devices/devices.json");
@@ -133,6 +133,32 @@ struct MeasurementMetadata {
     firmware_sha256: String,
     physical_lab_targets: Vec<String>,
     scientific_boundary: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct MeasurementSessionSummary {
+    directory: String,
+    created_at_utc: String,
+    recipe_id: String,
+    recipe_title: String,
+    acquisition_mode: String,
+    board_profile: String,
+    port: String,
+    sample_count: usize,
+    csv_path: String,
+    metadata_path: String,
+    physical_lab_csv_path: String,
+    physical_lab_bridge_path: String,
+}
+
+#[derive(Debug, Serialize)]
+struct MeasurementReplay {
+    session: MeasurementSessionSummary,
+    columns: Vec<String>,
+    units: Vec<String>,
+    primary_column: Option<String>,
+    sample_rate_hz: Option<f64>,
+    rows: Vec<CapturedRow>,
 }
 
 #[derive(Debug, Serialize)]
@@ -575,6 +601,128 @@ fn measurement_base_dir() -> PathBuf {
         .join("measurements")
 }
 
+fn measurement_summary_from_dir(dir: &Path) -> Result<MeasurementSessionSummary, String> {
+    let metadata_path = dir.join("metadata.json");
+    let metadata_text = fs::read_to_string(&metadata_path)
+        .map_err(|e| format!("Could not read {}: {e}", metadata_path.display()))?;
+    let metadata: MeasurementMetadata = serde_json::from_str(&metadata_text).map_err(|e| {
+        format!(
+            "Invalid measurement metadata in {}: {e}",
+            metadata_path.display()
+        )
+    })?;
+
+    Ok(MeasurementSessionSummary {
+        directory: dir.display().to_string(),
+        created_at_utc: metadata.created_at_utc,
+        recipe_id: metadata.recipe_id,
+        recipe_title: metadata.recipe_title,
+        acquisition_mode: metadata.acquisition_mode,
+        board_profile: metadata.board_profile,
+        port: metadata.port,
+        sample_count: metadata.sample_count,
+        csv_path: dir.join("data.csv").display().to_string(),
+        metadata_path: metadata_path.display().to_string(),
+        physical_lab_csv_path: dir.join("physical_lab_v1.csv").display().to_string(),
+        physical_lab_bridge_path: dir.join("physical_lab_bridge.json").display().to_string(),
+    })
+}
+
+fn validated_measurement_dir(directory: &str) -> Result<PathBuf, String> {
+    let base = measurement_base_dir();
+    fs::create_dir_all(&base).map_err(|e| e.to_string())?;
+    let base = fs::canonicalize(&base).map_err(|e| e.to_string())?;
+    let requested = fs::canonicalize(directory)
+        .map_err(|e| format!("Measurement session does not exist: {e}"))?;
+    if !requested.starts_with(&base) || !requested.is_dir() {
+        return Err("Replay is restricted to BetterBoard measurement session directories.".into());
+    }
+    Ok(requested)
+}
+
+#[tauri::command]
+fn measurement_sessions(limit: usize) -> Result<Vec<MeasurementSessionSummary>, String> {
+    if limit == 0 || limit > 200 {
+        return Err("limit must be within 1..200".into());
+    }
+    let base = measurement_base_dir();
+    if !base.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut sessions = fs::read_dir(&base)
+        .map_err(|e| format!("Could not read measurement history: {e}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .filter_map(|path| measurement_summary_from_dir(&path).ok())
+        .collect::<Vec<_>>();
+    sessions.sort_by(|a, b| b.created_at_utc.cmp(&a.created_at_utc));
+    sessions.truncate(limit);
+    Ok(sessions)
+}
+
+#[tauri::command]
+fn measurement_session_load(directory: String) -> Result<MeasurementReplay, String> {
+    let dir = validated_measurement_dir(&directory)?;
+    let session = measurement_summary_from_dir(&dir)?;
+    let metadata_text = fs::read_to_string(dir.join("metadata.json")).map_err(|e| e.to_string())?;
+    let metadata: MeasurementMetadata =
+        serde_json::from_str(&metadata_text).map_err(|e| e.to_string())?;
+
+    let timestamp_text = fs::read_to_string(dir.join("physical_lab_v1.csv")).unwrap_or_default();
+    let timestamps = timestamp_text
+        .lines()
+        .skip(1)
+        .filter_map(|line| line.split(',').next()?.trim().parse::<i64>().ok())
+        .collect::<Vec<_>>();
+
+    let data_text = fs::read_to_string(dir.join("data.csv"))
+        .map_err(|e| format!("Could not read replay dataset: {e}"))?;
+    let mut lines = data_text.lines();
+    let header = lines.next().unwrap_or_default();
+    if header.split(',').map(str::trim).collect::<Vec<_>>() != metadata.columns {
+        return Err("Replay dataset header does not match its metadata schema.".into());
+    }
+
+    let fallback_start = chrono::DateTime::parse_from_rfc3339(&metadata.created_at_utc)
+        .map(|value| value.timestamp_millis())
+        .unwrap_or(0);
+    let mut rows = Vec::new();
+    for (index, line) in lines.enumerate() {
+        if rows.len() >= 100_000 {
+            break;
+        }
+        let value = line.trim();
+        if value.is_empty() {
+            continue;
+        }
+        let numeric = value
+            .split(',')
+            .all(|part| part.trim().parse::<f64>().is_ok());
+        if !numeric || value.split(',').count() != metadata.columns.len() {
+            continue;
+        }
+        rows.push(CapturedRow {
+            host_timestamp_ms: timestamps
+                .get(index)
+                .copied()
+                .unwrap_or(fallback_start + index as i64),
+            line: value.to_string(),
+            numeric: true,
+        });
+    }
+
+    Ok(MeasurementReplay {
+        session,
+        columns: metadata.columns,
+        units: metadata.units,
+        primary_column: metadata.primary_column,
+        sample_rate_hz: metadata.sample_rate_hz,
+        rows,
+    })
+}
+
 fn valid_measurement_rows(recipe: &RecipeSpec, rows: Vec<CapturedRow>) -> Vec<CapturedRow> {
     rows.into_iter()
         .filter(|row| {
@@ -758,7 +906,10 @@ pub fn run() {
             serial_capture,
             capture_measurement,
             save_measurement_buffer,
+            measurement_sessions,
+            measurement_session_load,
             serial_stream::serial_stream_start,
+            serial_stream::serial_stream_write,
             serial_stream::serial_stream_stop,
         ])
         .run(tauri::generate_context!())

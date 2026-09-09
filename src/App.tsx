@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Activity, BookOpen, Bot, Boxes, Braces, Cable, CircleAlert, CircuitBoard, Code2,
-  Cpu, Download, FileText, Gauge, Link2, Magnet, Play, RefreshCw, RotateCw,
+  Cpu, Download, Gauge, Magnet, Play, RefreshCw, RotateCw,
   Search, ShieldCheck, TerminalSquare, TimerReset, Upload, Waves, Wrench,
 } from 'lucide-react';
 import CircuitLab from './CircuitLab';
@@ -23,7 +23,7 @@ type MeasurementResult = {
   physical_lab_bridge_path: string; samples: number;
 };
 type BridgeDocs = { hardware_map: string; serial_protocol: string; honeycomb_guide: string };
-type Tab = 'hardware' | 'circuit' | 'library' | 'data' | 'bridge' | 'developer';
+type Tab = 'hardware' | 'circuit' | 'library' | 'data' | 'developer';
 type Task = { id: number; title: string; state: 'running' | 'done' | 'failed'; detail: string };
 
 const iconFor = (id: string) => {
@@ -165,7 +165,7 @@ export default function App() {
 
   const nav = [
     ['hardware', Cpu, 'Hardware & Program'], ['circuit', CircuitBoard, 'Circuit Lab'], ['library', Boxes, 'Recipe Library'], ['data', Waves, 'Monitor & Data'],
-    ['bridge', Link2, 'Physical Lab Bridge'], ['developer', Code2, 'Developer'],
+    ['developer', Code2, 'Developer'],
   ] as const;
 
   return <div className="app-shell">
@@ -253,23 +253,11 @@ export default function App() {
         recipe={recipe}
         selectedPort={selectedPort}
         fqbn={fqbn}
+        latestMeasurement={measurement}
+        bridgeDocs={bridgeDocs}
         onStatus={setStatus}
         onMeasurement={setMeasurement}
       />}
-
-      {tab === 'bridge' && <>
-        <section className="bridge-hero panel">
-          <div><div className="eyebrow">Measurement Bridge 0.2</div><h2>BetterBoard measures. Physical Lab interprets.</h2><p>Keep the hardware software general-purpose while exporting evidence that Physical Lab can register, compare with models, and use in Digital Twin workflows.</p></div><Link2 size={38}/>
-        </section>
-        <section className="bridge-flow">
-          <div>Sensor / device</div><b>→</b><div>Arduino-compatible board</div><b>→</b><div>BetterBoard</div><b>→</b><div>CSV + metadata</div><b>→</b><div>Physical Lab</div>
-        </section>
-        <section className="data-grid">
-          <div className="panel"><div className="panel-title"><FileText size={18}/> Latest package</div>{measurement ? <div className="measurement big"><b>{measurement.samples} samples</b><span>Full: {measurement.csv_path}</span><span>Metadata: {measurement.metadata_path}</span><span>Physical Lab v1: {measurement.physical_lab_csv_path}</span><span>Bridge: {measurement.physical_lab_bridge_path}</span></div> : <div className="empty">No measurement package in this session yet.</div>}</div>
-          <div className="panel"><div className="panel-title"><ShieldCheck size={18}/> Scientific boundary</div><p className="muted">A serial file is evidence of acquisition, not automatic proof of calibration, sensor accuracy, traceability, uncertainty, alignment, or model validity. Those remain explicit Physical Lab responsibilities.</p></div>
-        </section>
-        <section className="panel"><div className="panel-title"><BookOpen size={18}/> Imported Physical Lab hardware map</div><pre className="docs-preview">{bridgeDocs?.hardware_map || 'Loading…'}</pre></section>
-      </>}
 
       {tab === 'developer' && <section className="developer-grid">
         <div className="panel">

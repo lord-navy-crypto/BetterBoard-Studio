@@ -65,7 +65,9 @@ pub fn serial_stream_start(
         || port.starts_with("/dev/tty.")
         || cfg!(not(target_os = "macos")))
     {
-        return Err("On macOS BetterBoard accepts serial devices under /dev/cu.* or /dev/tty.*.".into());
+        return Err(
+            "On macOS BetterBoard accepts serial devices under /dev/cu.* or /dev/tty.*.".into(),
+        );
     }
     if state.running.swap(true, Ordering::SeqCst) {
         return Err("A BetterBoard live serial session is already running.".into());

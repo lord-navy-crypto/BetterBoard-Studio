@@ -177,8 +177,21 @@ def main() -> int:
     magnet_ui = MAGNET_SUITE.read_text()
 
     assert 'serial_stream_start' in monitor_text
+    assert 'serial_stream_write' in monitor_text
     assert 'serial_stream_stop' in monitor_text
+    assert 'measurement_sessions' in monitor_text
+    assert 'measurement_session_load' in monitor_text
+    assert 'No line ending' in monitor_text
+    assert "direction === 'tx'" in monitor_text
+    assert 'Measurement sessions' in monitor_text
+    assert 'Physical Lab export' in monitor_text
+    assert 'fn measurement_sessions(' in rust
+    assert 'fn measurement_session_load(' in rust
+    assert 'serial_stream::serial_stream_write' in rust
     assert 'Monitor & Data' in app_text
+    assert "| 'bridge'" not in app_text
+    assert "['bridge'," not in app_text
+    assert "{tab === 'bridge'" not in app_text
     assert 'Shared hardware session' in app_text
     assert 'Verify & Diagnose' in app_text
     assert 'Numerical & Measurement' in app_text
@@ -201,13 +214,15 @@ def main() -> int:
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
-    assert package['version'] == '0.2.0-alpha.1'
-    assert tauri['version'] == '0.2.0-alpha.1'
-    assert '0.2.0-alpha.1' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
+    assert package['version'] == '0.2.0-alpha.2'
+    assert tauri['version'] == '0.2.0-alpha.2'
+    assert '0.2.0-alpha.2' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
 
-    print('BetterBoard Studio v0.2 self-check: PASS')
+    print('BetterBoard Studio v0.2.0-alpha.2 self-check: PASS')
     print('- 11 canonical recipes registered')
-    print('- persistent live Serial Monitor handlers registered')
+    print('- persistent bidirectional Serial Monitor handlers registered')
+    print('- historical Measurement Sessions + replay registered')
+    print('- Physical Lab Bridge merged into Monitor & Data')
     print('- unified Monitor & Data workspace registered')
     print('- Studio / Experiments top-level information architecture registered')
     print('- shared Hardware Session provider registered')
