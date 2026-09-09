@@ -8,6 +8,7 @@ import './styles.css';
 import './visual-system.css';
 import './monitor-data.css';
 import './workspace-shell.css';
+import './developer-task.css';
 
 type Workspace = 'studio' | 'experiments';
 
