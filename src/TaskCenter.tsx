@@ -21,6 +21,7 @@ type Props = {
   tasks: BackgroundTask[];
   onCancel: (id: number) => void | Promise<void>;
   onClearFinished: () => void;
+  defaultOpen?: boolean;
 };
 
 const CATEGORIES: Array<'All' | TaskCategory> = ['All', 'Program', 'Monitor', 'Evidence', 'Analysis', 'Export', 'System'];
@@ -32,8 +33,8 @@ function stateGlyph(state: TaskState) {
   return '!';
 }
 
-export default function TaskCenterPanel({ tasks, onCancel, onClearFinished }: Props) {
-  const [open, setOpen] = useState(true);
+export default function TaskCenterPanel({ tasks, onCancel, onClearFinished, defaultOpen = true }: Props) {
+  const [open, setOpen] = useState(defaultOpen);
   const [category, setCategory] = useState<'All' | TaskCategory>('All');
   const visible = useMemo(() => category === 'All' ? tasks : tasks.filter(task => task.category === category), [tasks, category]);
   const running = tasks.filter(task => task.state === 'running').length;
