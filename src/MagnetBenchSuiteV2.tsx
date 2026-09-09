@@ -6,18 +6,40 @@ import { Activity, BarChart3, Database, Magnet, MapPinned, RefreshCw, Save, Uplo
 type MeasurementResult = { directory: string; csv_path: string; metadata_path: string; physical_lab_csv_path: string; physical_lab_bridge_path: string; samples: number };
 type CaptureResult = { lines: string[]; numeric_rows: number; ignored_rows: number };
 type Mode = 'acquire' | 'characterize' | 'validate';
+type Axis = 'bx' | 'by' | 'bz' | 'bmag';
 type FieldSummary = {
   samples: number;
   mean: { bx: number; by: number; bz: number; bmag: number };
   std: { bx: number; by: number; bz: number; bmag: number };
 };
 type ScanPoint = {
+  id: string;
+  repeat: number;
+  capturedAt: number;
+  source: 'live' | 'import';
   positionMm: number;
   samples: number;
   bx: number;
   by: number;
   bz: number;
   bmag: number;
+};
+type AggregatedScanPoint = {
+  positionMm: number;
+  captures: number;
+  samples: number;
+  bx: number;
+  by: number;
+  bz: number;
+  bmag: number;
+};
+type RepeatabilityRow = {
+  positionMm: number;
+  captures: number;
+  meanBmag: number;
+  betweenCaptureStdBmag: number;
+  minBmag: number;
+  maxBmag: number;
 };
 type ModelPoint = { position: number; valueUt: number };
 type Validation = {
@@ -37,12 +59,17 @@ const panel: CSSProperties = { background: 'rgba(11,23,34,.86)', border: '1px so
 const muted: CSSProperties = { color: '#8395aa', lineHeight: 1.55 };
 const MODES = [
   { id: 'acquire' as const, title: 'Bench 01 — Vector Acquisition', subtitle: 'Bx / By / Bz / |B| from the real sensor' },
-  { id: 'characterize' as const, title: 'Bench 02 — Characterization', subtitle: 'ambient baseline → corrected field → spatial scan' },
-  { id: 'validate' as const, title: 'Bench 03 — Model Validation', subtitle: 'measured profile ↔ model CSV → residual evidence' },
+  { id: 'characterize' as const, title: 'Bench 02 — Characterization', subtitle: 'ambient baseline → repeated captures → spatial profile' },
+  { id: 'validate' as const, title: 'Bench 03 — Model Validation', subtitle: 'measured or imported scan ↔ model CSV → residual evidence' },
 ];
 
 function mean(values: number[]) { return values.reduce((a, b) => a + b, 0) / values.length; }
 function std(values: number[]) { const m = mean(values); return Math.sqrt(values.reduce((sum, value) => sum + (value - m) ** 2, 0) / values.length); }
+function sampleStd(values: number[]) {
+  if (values.length < 2) return 0;
+  const m = mean(values);
+  return Math.sqrt(values.reduce((sum, value) => sum + (value - m) ** 2, 0) / (values.length - 1));
+}
 function fmt(value: number | null | undefined, digits = 4) {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
   const abs = Math.abs(value);
@@ -60,6 +87,35 @@ function corrected(summary: FieldSummary, baseline: FieldSummary | null) {
   const by = summary.mean.by - (baseline?.mean.by ?? 0);
   const bz = summary.mean.bz - (baseline?.mean.bz ?? 0);
   return { bx, by, bz, bmag: Math.sqrt(bx * bx + by * by + bz * bz) };
+}
+function groupScan(scan: ScanPoint[]) {
+  const grouped = new Map<number, ScanPoint[]>();
+  for (const point of scan) grouped.set(point.positionMm, [...(grouped.get(point.positionMm) ?? []), point]);
+  return grouped;
+}
+function aggregateScan(scan: ScanPoint[]): AggregatedScanPoint[] {
+  return [...groupScan(scan).entries()].map(([positionMm, rows]) => ({
+    positionMm,
+    captures: rows.length,
+    samples: rows.reduce((sum, row) => sum + row.samples, 0),
+    bx: mean(rows.map(row => row.bx)),
+    by: mean(rows.map(row => row.by)),
+    bz: mean(rows.map(row => row.bz)),
+    bmag: mean(rows.map(row => row.bmag)),
+  })).sort((a, b) => a.positionMm - b.positionMm);
+}
+function repeatabilityRows(scan: ScanPoint[]): RepeatabilityRow[] {
+  return [...groupScan(scan).entries()].filter(([, rows]) => rows.length >= 2).map(([positionMm, rows]) => {
+    const values = rows.map(row => row.bmag);
+    return {
+      positionMm,
+      captures: rows.length,
+      meanBmag: mean(values),
+      betweenCaptureStdBmag: sampleStd(values),
+      minBmag: Math.min(...values),
+      maxBmag: Math.max(...values),
+    };
+  }).sort((a, b) => a.positionMm - b.positionMm);
 }
 function trapz(points: Array<{ x: number; y: number }>) {
   const sorted = [...points].sort((a, b) => a.x - b.x);
@@ -81,7 +137,7 @@ function interpolate(points: ModelPoint[], x: number): number | null {
   }
   return null;
 }
-function validate(scan: ScanPoint[], axis: 'bx' | 'by' | 'bz' | 'bmag', model: ModelPoint[]): Validation | null {
+function validate(scan: AggregatedScanPoint[], axis: Axis, model: ModelPoint[]): Validation | null {
   const pairs = scan.map(point => {
     const modelValue = interpolate(model, point.positionMm);
     return modelValue === null ? null : { position: point.positionMm, measured: point[axis], model: modelValue, residual: point[axis] - modelValue };
@@ -114,6 +170,24 @@ function polyline(values: Array<{ x: number; y: number }>, allY: number[]) {
 function Metric({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return <div style={{ border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.025)', borderRadius: 12, padding: 12 }}><span style={{ display: 'block', color: '#8395aa', fontSize: 10 }}>{label}</span><b style={{ display: 'block', fontSize: 20, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{value}</b>{detail && <small style={{ color: '#8395aa' }}>{detail}</small>}</div>;
 }
+function parseCsv(text: string) {
+  const lines = text.split(/\r?\n/).filter(line => line.trim());
+  if (lines.length < 2) throw new Error('CSV needs a header and at least one data row.');
+  const headers = lines[0].split(',').map(value => value.trim());
+  const rows = lines.slice(1).map(line => {
+    const values = line.split(',');
+    return Object.fromEntries(headers.map((header, index) => [header, (values[index] ?? '').trim()]));
+  });
+  return { headers, rows };
+}
+function numberFrom(row: Record<string, string>, names: string[]): number | null {
+  for (const name of names) {
+    if (!(name in row)) continue;
+    const value = Number(row[name]);
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
+}
 
 export default function MagnetBenchSuiteV2() {
   const [mode, setMode] = useState<Mode>('acquire');
@@ -126,7 +200,7 @@ export default function MagnetBenchSuiteV2() {
   const [measurement, setMeasurement] = useState<MeasurementResult | null>(null);
   const [positionMm, setPositionMm] = useState('0');
   const [scan, setScan] = useState<ScanPoint[]>([]);
-  const [axis, setAxis] = useState<'bx' | 'by' | 'bz' | 'bmag'>('bz');
+  const [axis, setAxis] = useState<Axis>('bz');
   const [modelRows, setModelRows] = useState<Record<string, string>[]>([]);
   const [modelHeaders, setModelHeaders] = useState<string[]>([]);
   const [positionColumn, setPositionColumn] = useState('');
@@ -177,8 +251,21 @@ export default function MagnetBenchSuiteV2() {
     try {
       const result = await captureField(`scan point ${position} mm`);
       const c = corrected(result, baseline);
-      setScan(current => [...current.filter(p => p.positionMm !== position), { positionMm: position, samples: result.samples, ...c }].sort((a, b) => a.positionMm - b.positionMm));
-      setStatus(`Scan point ${position} mm captured · corrected Bz ${fmt(c.bz)} µT`);
+      setScan(current => {
+        const repeat = current.filter(point => point.positionMm === position).length + 1;
+        const point: ScanPoint = {
+          id: `live-${Date.now()}-${position}-${repeat}`,
+          repeat,
+          capturedAt: Date.now(),
+          source: 'live',
+          positionMm: position,
+          samples: result.samples,
+          ...c,
+        };
+        return [...current, point].sort((a, b) => a.positionMm - b.positionMm || a.repeat - b.repeat);
+      });
+      const repeat = scan.filter(point => point.positionMm === position).length + 1;
+      setStatus(`Scan point ${position} mm · Rep ${repeat} captured · corrected Bz ${fmt(c.bz)} µT`);
     } catch (error) { setStatus(String(error)); } finally { setBusy(false); }
   }
   async function recordEvidence() {
@@ -190,40 +277,74 @@ export default function MagnetBenchSuiteV2() {
     } catch (error) { setStatus(`Measurement failed: ${error}`); } finally { setBusy(false); }
   }
 
-  async function loadModel(file: File | null) {
+  async function loadMeasuredScan(file: File | null) {
     if (!file) return;
-    const text = await file.text();
-    const lines = text.split(/\r?\n/).filter(line => line.trim());
-    if (lines.length < 2) { setStatus('Model CSV needs a header and at least one data row.'); return; }
-    const headers = lines[0].split(',').map(v => v.trim());
-    const rows = lines.slice(1).map(line => {
-      const values = line.split(',');
-      return Object.fromEntries(headers.map((header, i) => [header, (values[i] ?? '').trim()]));
-    });
-    setModelHeaders(headers); setModelRows(rows);
-    const positionGuess = headers.find(h => /position|(^|_)z($|_)|(^|_)x($|_)/i.test(h)) ?? headers[0];
-    const valueGuess = headers.find(h => h !== positionGuess && /model|field|bz|by|bx|bmag/i.test(h)) ?? headers.find(h => h !== positionGuess) ?? '';
-    setPositionColumn(positionGuess); setValueColumn(valueGuess);
-    setStatus(`Loaded model CSV · ${rows.length} rows · choose columns if needed`);
+    try {
+      const { rows } = parseCsv(await file.text());
+      const repeats = new Map<number, number>();
+      const imported: ScanPoint[] = [];
+      rows.forEach((row, index) => {
+        const position = numberFrom(row, ['position_mm', 'positionMm', 'position', 'x_mm', 'z_mm']);
+        const bx = numberFrom(row, ['corrected_Bx_uT', 'corrected_bx_uT', 'bx', 'Bx_uT', 'mean_Bx_uT']);
+        const by = numberFrom(row, ['corrected_By_uT', 'corrected_by_uT', 'by', 'By_uT', 'mean_By_uT']);
+        const bz = numberFrom(row, ['corrected_Bz_uT', 'corrected_bz_uT', 'bz', 'Bz_uT', 'mean_Bz_uT']);
+        if (position === null || bx === null || by === null || bz === null) return;
+        const bmag = numberFrom(row, ['corrected_Bmag_uT', 'corrected_bmag_uT', 'bmag', 'Bmag_uT', 'mean_Bmag_uT']) ?? Math.sqrt(bx * bx + by * by + bz * bz);
+        const repeat = (repeats.get(position) ?? 0) + 1;
+        repeats.set(position, repeat);
+        imported.push({
+          id: `import-${index}-${position}-${repeat}`,
+          repeat,
+          capturedAt: Date.now(),
+          source: 'import',
+          positionMm: position,
+          samples: numberFrom(row, ['samples', 'sample_count']) ?? 0,
+          bx, by, bz, bmag,
+        });
+      });
+      if (!imported.length) throw new Error('No compatible measured scan rows found. Expected position_mm plus corrected_Bx_uT / corrected_By_uT / corrected_Bz_uT or compatible aliases.');
+      setScan(imported.sort((a, b) => a.positionMm - b.positionMm || a.repeat - b.repeat));
+      const distinct = new Set(imported.map(point => point.positionMm)).size;
+      setStatus(`Imported measured scan · ${imported.length} captures · ${distinct} distinct positions`);
+      setMode('validate');
+    } catch (error) {
+      setStatus(`Measured scan import failed: ${error}`);
+    }
   }
 
+  async function loadModel(file: File | null) {
+    if (!file) return;
+    try {
+      const { headers, rows } = parseCsv(await file.text());
+      setModelHeaders(headers); setModelRows(rows);
+      const positionGuess = headers.find(h => /position|(^|_)z($|_)|(^|_)x($|_)/i.test(h)) ?? headers[0];
+      const valueGuess = headers.find(h => h !== positionGuess && /model|field|bz|by|bx|bmag/i.test(h)) ?? headers.find(h => h !== positionGuess) ?? '';
+      setPositionColumn(positionGuess); setValueColumn(valueGuess);
+      setStatus(`Loaded model CSV · ${rows.length} rows · choose columns if needed`);
+    } catch (error) {
+      setStatus(`Model CSV failed: ${error}`);
+    }
+  }
+
+  const aggregatedScan = useMemo(() => aggregateScan(scan), [scan]);
+  const repeatability = useMemo(() => repeatabilityRows(scan), [scan]);
   const modelPoints = useMemo<ModelPoint[]>(() => {
     const scale = modelUnit === 'T' ? 1e6 : modelUnit === 'mT' ? 1e3 : 1;
     return modelRows.map(row => ({ position: Number(row[positionColumn]), valueUt: Number(row[valueColumn]) * scale }))
       .filter(point => Number.isFinite(point.position) && Number.isFinite(point.valueUt))
       .sort((a, b) => a.position - b.position);
   }, [modelRows, positionColumn, valueColumn, modelUnit]);
-  const validation = useMemo(() => validate(scan, axis, modelPoints), [scan, axis, modelPoints]);
+  const validation = useMemo(() => validate(aggregatedScan, axis, modelPoints), [aggregatedScan, axis, modelPoints]);
   const correctedMagnet = magnetCapture ? corrected(magnetCapture, baseline) : null;
-  const measuredSeries = scan.map(p => ({ x: p.positionMm, y: p[axis] }));
-  const modelSeries = validation?.pairs.map(p => ({ x: p.position, y: p.model })) ?? [];
-  const allY = [...measuredSeries.map(p => p.y), ...modelSeries.map(p => p.y)];
+  const measuredSeries = aggregatedScan.map(point => ({ x: point.positionMm, y: point[axis] }));
+  const modelSeries = validation?.pairs.map(point => ({ x: point.position, y: point.model })) ?? [];
+  const allY = [...measuredSeries.map(point => point.y), ...modelSeries.map(point => point.y)];
   const activeMode = MODES.find(item => item.id === mode)!;
 
   return <div style={{ minHeight: '100vh', padding: '28px 34px 70px', color: '#edf5ff' }}>
     <div style={{ maxWidth: 1420, margin: '0 auto' }}>
       <header style={{ ...panel, marginBottom: 14, display: 'flex', justifyContent: 'space-between', gap: 20, alignItems: 'center' }}>
-        <div><div className="eyebrow">Magnetism & Fields</div><h1 style={{ margin: '6px 0 4px' }}>Magnet Lab</h1><p style={{ ...muted, margin: 0 }}>Acquire → subtract background → build a spatial profile → compare directly with a model.</p></div>
+        <div><div className="eyebrow">Magnetism & Fields</div><h1 style={{ margin: '6px 0 4px' }}>Magnet Lab</h1><p style={{ ...muted, margin: 0 }}>Acquire → subtract background → preserve repeats → build a spatial profile → compare directly with a model.</p></div>
         <button className="ghost" onClick={refresh}><RefreshCw size={15}/> Refresh hardware</button>
       </header>
 
@@ -244,24 +365,37 @@ export default function MagnetBenchSuiteV2() {
         </div>}
 
         {mode === 'characterize' && <div style={{ marginTop: 18 }}>
-          <div className="bridge-flow" style={{ justifyContent: 'flex-start' }}><div>ambient baseline</div><b>+</b><div>magnet capture</div><b>→</b><div>vector subtraction</div><b>→</b><div>scan profile</div></div>
+          <div className="bridge-flow" style={{ justifyContent: 'flex-start' }}><div>ambient baseline</div><b>+</b><div>repeated magnet captures</div><b>→</b><div>vector subtraction</div><b>→</b><div>scan + repeatability</div></div>
           <div className="action-row"><button className="ghost" disabled={busy || !selectedPort} onClick={captureBaseline}>Capture ambient baseline</button><button className="primary" disabled={busy || !selectedPort} onClick={captureMagnet}>Capture fixed-position magnet</button></div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 14 }}><Metric label="Baseline Bz" value={baseline ? `${fmt(baseline.mean.bz)} µT` : '—'} detail={baseline ? `${baseline.samples} samples` : 'capture first'}/><Metric label="Corrected Bx" value={correctedMagnet ? `${fmt(correctedMagnet.bx)} µT` : '—'}/><Metric label="Corrected By" value={correctedMagnet ? `${fmt(correctedMagnet.by)} µT` : '—'}/><Metric label="Corrected Bz / |B|" value={correctedMagnet ? `${fmt(correctedMagnet.bz)} / ${fmt(correctedMagnet.bmag)} µT` : '—'}/></div>
-          <div style={{ marginTop: 18, borderTop: '1px solid rgba(255,255,255,.07)', paddingTop: 16 }}><h3 style={{ fontSize: 13 }}><MapPinned size={15}/> Spatial scan</h3><div className="action-row"><label style={{ maxWidth: 180 }}>Position (mm)<input value={positionMm} onChange={e => setPositionMm(e.target.value)}/></label><button className="primary" disabled={busy || !selectedPort} onClick={addScanPoint}>Capture / replace point</button><button className="ghost" disabled={!scan.length} onClick={() => setScan([])}>Clear scan</button></div>{scan.length ? <div style={{ overflow: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>position mm</th><th>samples</th><th>corrected Bx µT</th><th>By µT</th><th>Bz µT</th><th>|B| µT</th></tr></thead><tbody>{scan.map(point => <tr key={point.positionMm}><td>{fmt(point.positionMm,2)}</td><td>{point.samples}</td><td>{fmt(point.bx)}</td><td>{fmt(point.by)}</td><td>{fmt(point.bz)}</td><td>{fmt(point.bmag)}</td></tr>)}</tbody></table></div> : <div className="empty">Capture a baseline, enter controlled positions, then capture points. Repeating a position replaces that point rather than silently duplicating it.</div>}</div>
-          <div className="boundary">Background subtraction is meaningful only when sensor orientation and environment remain comparable. Position/orientation control is part of the experiment.</div>
+
+          <div style={{ marginTop: 18, borderTop: '1px solid rgba(255,255,255,.07)', paddingTop: 16 }}>
+            <h3 style={{ fontSize: 13 }}><MapPinned size={15}/> Spatial scan & repeatability</h3>
+            <div className="action-row"><label style={{ maxWidth: 180 }}>Position (mm)<input value={positionMm} onChange={e => setPositionMm(e.target.value)}/></label><button className="primary" disabled={busy || !selectedPort} onClick={addScanPoint}>Capture repeat</button><label className="ghost" style={{ display: 'inline-flex', gap: 7, alignItems: 'center', cursor: 'pointer' }}><Upload size={14}/> Import measured scan CSV<input style={{ display: 'none' }} type="file" accept=".csv,text/csv" onChange={e => void loadMeasuredScan(e.target.files?.[0] ?? null)}/></label><button className="ghost" disabled={!scan.length} onClick={() => setScan([])}>Clear scan</button></div>
+            {scan.length ? <div style={{ overflow: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>position mm</th><th>rep</th><th>source</th><th>samples</th><th>corrected Bx µT</th><th>By µT</th><th>Bz µT</th><th>|B| µT</th></tr></thead><tbody>{scan.map(point => <tr key={point.id}><td>{fmt(point.positionMm,2)}</td><td>{point.repeat}</td><td>{point.source}</td><td>{point.samples}</td><td>{fmt(point.bx)}</td><td>{fmt(point.by)}</td><td>{fmt(point.bz)}</td><td>{fmt(point.bmag)}</td></tr>)}</tbody></table></div> : <div className="empty">Capture a baseline, enter a controlled position, and add repeated captures. Repeating a position is preserved as Rep 1 / Rep 2 / Rep 3 rather than replacing evidence.</div>}
+
+            {repeatability.length > 0 && <div style={{ marginTop: 14 }}><h3 style={{ fontSize: 12 }}>Between-capture repeatability</h3><div style={{ overflow: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>position mm</th><th>captures</th><th>mean corrected |B| µT</th><th>between-capture σ µT</th><th>range µT</th></tr></thead><tbody>{repeatability.map(row => <tr key={row.positionMm}><td>{fmt(row.positionMm,2)}</td><td>{row.captures}</td><td>{fmt(row.meanBmag)}</td><td>{fmt(row.betweenCaptureStdBmag)}</td><td>{fmt(row.maxBmag - row.minBmag)}</td></tr>)}</tbody></table></div><p style={{ ...muted, fontSize: 10 }}>Within-capture variation describes samples inside one acquisition. Between-capture repeatability compares independent captures at the same controlled position; they are different evidence.</p></div>}
+          </div>
+          <div className="boundary">Background subtraction and repeatability are meaningful only when sensor orientation, fixture geometry and environment remain comparable. Position/orientation control is part of the experiment.</div>
         </div>}
 
         {mode === 'validate' && <div style={{ marginTop: 18 }}>
-          <div className="bridge-flow" style={{ justifyContent: 'flex-start' }}><div>measured scan</div><b>↔</b><div>model CSV</div><b>→</b><div>interpolate</div><b>→</b><div>residual / fit / integral</div></div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr .9fr .9fr .6fr', gap: 10, alignItems: 'end', marginTop: 14 }}><label>Model CSV<input type="file" accept=".csv,text/csv" onChange={e => void loadModel(e.target.files?.[0] ?? null)}/></label><label>Position column<select value={positionColumn} onChange={e => setPositionColumn(e.target.value)}>{modelHeaders.map(h => <option key={h}>{h}</option>)}</select></label><label>Model field column<select value={valueColumn} onChange={e => setValueColumn(e.target.value)}>{modelHeaders.map(h => <option key={h}>{h}</option>)}</select></label><label>Unit<select value={modelUnit} onChange={e => setModelUnit(e.target.value as 'uT'|'mT'|'T')}><option value="uT">µT</option><option value="mT">mT</option><option value="T">T</option></select></label></div>
-          <div className="action-row"><label style={{ maxWidth: 220 }}>Measured channel<select value={axis} onChange={e => setAxis(e.target.value as typeof axis)}><option value="bx">corrected Bx</option><option value="by">corrected By</option><option value="bz">corrected Bz</option><option value="bmag">corrected |B|</option></select></label></div>
-          {!validation ? <div className="empty">Need at least two measured scan points inside the model position range plus a readable model CSV.</div> : <>
+          <div className="bridge-flow" style={{ justifyContent: 'flex-start' }}><div>measured scan / history</div><b>↔</b><div>model CSV</div><b>→</b><div>aggregate repeats</div><b>→</b><div>residual / fit / integral</div></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.05fr 1.05fr .8fr .8fr .55fr', gap: 10, alignItems: 'end', marginTop: 14 }}>
+            <label>Measured scan CSV<input type="file" accept=".csv,text/csv" onChange={e => void loadMeasuredScan(e.target.files?.[0] ?? null)}/></label>
+            <label>Model CSV<input type="file" accept=".csv,text/csv" onChange={e => void loadModel(e.target.files?.[0] ?? null)}/></label>
+            <label>Position column<select value={positionColumn} onChange={e => setPositionColumn(e.target.value)}>{modelHeaders.map(h => <option key={h}>{h}</option>)}</select></label>
+            <label>Model field column<select value={valueColumn} onChange={e => setValueColumn(e.target.value)}>{modelHeaders.map(h => <option key={h}>{h}</option>)}</select></label>
+            <label>Unit<select value={modelUnit} onChange={e => setModelUnit(e.target.value as 'uT'|'mT'|'T')}><option value="uT">µT</option><option value="mT">mT</option><option value="T">T</option></select></label>
+          </div>
+          <div className="action-row"><label style={{ maxWidth: 220 }}>Measured channel<select value={axis} onChange={e => setAxis(e.target.value as Axis)}><option value="bx">corrected Bx</option><option value="by">corrected By</option><option value="bz">corrected Bz</option><option value="bmag">corrected |B|</option></select></label><span style={{ ...muted, fontSize: 10 }}>{scan.length} captures · {aggregatedScan.length} distinct positions · validation uses the repeat mean at each position</span></div>
+          {!validation ? <div className="empty">Need at least two distinct measured positions inside the model position range plus a readable model CSV. You can use the current scan or import an existing Magnet Bench 02 `magnet02_scan.csv`.</div> : <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 14 }}><Metric label="RMSE" value={`${fmt(validation.rmse)} µT`}/><Metric label="MAE" value={`${fmt(validation.mae)} µT`}/><Metric label="Bias" value={`${fmt(validation.bias)} µT`}/><Metric label="R²" value={fmt(validation.r2,5)}/></div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 8 }}><Metric label="Max |residual|" value={`${fmt(validation.maxAbsResidual)} µT`}/><Metric label="Affine scale" value={fmt(validation.scale,6)}/><Metric label="Affine offset" value={`${fmt(validation.offset)} µT`}/><Metric label="Field integral Δ" value={`${fmt(validation.measuredIntegral - validation.modelIntegral)} µT·mm`}/></div>
-            {allY.length > 1 && <div style={{ marginTop: 16 }}><h3 style={{ fontSize: 13 }}><BarChart3 size={15}/> Measured ↔ model profile</h3><svg className="plot" viewBox="0 0 100 44" preserveAspectRatio="none"><polyline points={polyline(measuredSeries, allY)} fill="none" vectorEffect="non-scaling-stroke"/><polyline points={polyline(modelSeries, allY)} fill="none" vectorEffect="non-scaling-stroke" style={{ strokeDasharray: '2 1', opacity: .58 }}/></svg><div style={{ display: 'flex', gap: 16, fontSize: 10, color: '#8395aa' }}><span>solid · measured</span><span>dashed · model</span></div></div>}
-            <div style={{ overflow: 'auto', marginTop: 14 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>position mm</th><th>measured µT</th><th>model µT</th><th>residual µT</th></tr></thead><tbody>{validation.pairs.map(p => <tr key={p.position}><td>{fmt(p.position,2)}</td><td>{fmt(p.measured)}</td><td>{fmt(p.model)}</td><td>{fmt(p.residual)}</td></tr>)}</tbody></table></div>
+            {allY.length > 1 && <div style={{ marginTop: 16 }}><h3 style={{ fontSize: 13 }}><BarChart3 size={15}/> Measured ↔ model profile</h3><svg className="plot" viewBox="0 0 100 44" preserveAspectRatio="none"><polyline points={polyline(measuredSeries, allY)} fill="none" vectorEffect="non-scaling-stroke"/><polyline points={polyline(modelSeries, allY)} fill="none" vectorEffect="non-scaling-stroke" style={{ strokeDasharray: '2 1', opacity: .58 }}/></svg><div style={{ display: 'flex', gap: 16, fontSize: 10, color: '#8395aa' }}><span>solid · measured position mean</span><span>dashed · model</span></div></div>}
+            <div style={{ overflow: 'auto', marginTop: 14 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>position mm</th><th>measured mean µT</th><th>model µT</th><th>residual µT</th></tr></thead><tbody>{validation.pairs.map(p => <tr key={p.position}><td>{fmt(p.position,2)}</td><td>{fmt(p.measured)}</td><td>{fmt(p.model)}</td><td>{fmt(p.residual)}</td></tr>)}</tbody></table></div>
           </>}
-          <div className="boundary">The model is linearly interpolated at measured positions. These metrics test agreement for the supplied geometry, coordinate convention, units, baseline and selected channel; they do not prove global model validity.</div>
+          <div className="boundary">The model is linearly interpolated at distinct measured positions. Repeated captures are preserved and averaged for the profile while their between-capture spread remains visible as separate repeatability evidence. These metrics test agreement for the supplied geometry, coordinate convention, units, baseline and selected channel; they do not prove global model validity.</div>
         </div>}
       </section>
     </div>
