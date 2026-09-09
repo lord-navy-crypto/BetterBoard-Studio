@@ -72,6 +72,8 @@ jobs:
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_PIRTimingV2
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_PhotogateTimingV3
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_MultiSensorEventLabV3
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_SignalChainLabV1
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_EventTimingLabV1
 
       - name: Install Tauri Linux build dependencies
         run: |
