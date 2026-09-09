@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
-  Activity, BookOpen, Bot, Boxes, Braces, Cable, CheckCircle2, CircleAlert, CircuitBoard, Code2,
-  Cpu, Database, Download, FileText, Gauge, Link2, Magnet, Play, RefreshCw, RotateCw,
+  Activity, BookOpen, Bot, Boxes, Braces, Cable, CircleAlert, CircuitBoard, Code2,
+  Cpu, Download, FileText, Gauge, Link2, Magnet, Play, RefreshCw, RotateCw,
   Search, ShieldCheck, TerminalSquare, TimerReset, Upload, Waves, Wrench,
 } from 'lucide-react';
 import CircuitLab from './CircuitLab';
+import MonitorDataStudio from './MonitorDataStudio';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 type BoardPort = { port: string; protocol: string; board_name?: string; fqbn?: string };
@@ -18,8 +19,6 @@ type RecipeSpec = {
 };
 type DeviceSpec = { id: string; name: string; interface: string; quantities: string[]; units: string[]; libraries: string[]; status: string };
 type PreflightResult = { cli_ready: boolean; core: string; core_installed: boolean; required_libraries: string[]; missing_libraries: string[]; warnings: string[] };
-type CapturedRow = { host_timestamp_ms: number; line: string; numeric: boolean };
-type CaptureResult = { lines: string[]; rows: CapturedRow[]; numeric_rows: number; ignored_rows: number };
 type MeasurementResult = {
   directory: string; csv_path: string; metadata_path: string; physical_lab_csv_path: string;
   physical_lab_bridge_path: string; samples: number;
@@ -56,23 +55,11 @@ export default function App() {
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
   const [status, setStatus] = useState('Ready');
   const [busy, setBusy] = useState(false);
-  const [serial, setSerial] = useState<string[]>([]);
   const [measurement, setMeasurement] = useState<MeasurementResult | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
 
   const recipe = useMemo(() => recipes.find(r => r.id === recipeId), [recipes, recipeId]);
   const activePort = useMemo(() => ports.find(p => p.port === selectedPort), [ports, selectedPort]);
-  const numericSeries = useMemo(
-    () => serial.map(line => Number(line.split(',').at(-1))).filter(Number.isFinite),
-    [serial],
-  );
-  const lastParts = useMemo(() => serial.at(-1)?.split(',') ?? [], [serial]);
-  const spark = useMemo(() => {
-    if (numericSeries.length < 2) return '';
-    const values = numericSeries.slice(-120);
-    const min = Math.min(...values), max = Math.max(...values), span = Math.max(max - min, 1e-9);
-    return values.map((v, i) => `${(i / Math.max(values.length - 1, 1)) * 100},${36 - ((v - min) / span) * 32}`).join(' ');
-  }, [numericSeries]);
 
   function addTask(title: string, detail = 'Starting…') {
     const id = Date.now() + Math.floor(Math.random() * 1000);
@@ -110,7 +97,7 @@ export default function App() {
 
   useEffect(() => { refresh(); }, []);
   useEffect(() => {
-    setSketchDir(''); setSerial([]); setMeasurement(null); setPreflight(null);
+    setSketchDir(''); setMeasurement(null); setPreflight(null);
     if (!recipeId) return;
     invoke<string>('recipe_source', { recipeId }).then(setSource).catch(e => setSource(String(e)));
   }, [recipeId]);
@@ -169,45 +156,8 @@ export default function App() {
     finally { setBusy(false); }
   }
 
-  async function capture() {
-    if (!recipe || recipe.capture_mode === 'none') return;
-    if (!selectedPort) { setStatus('Select a serial port first.'); return; }
-    const task = addTask(`Capture · ${recipe.title}`);
-    setBusy(true);
-    try {
-      setStatus(recipe.capture_mode === 'text' ? 'Capturing diagnostic text…' : 'Capturing numeric data…');
-      const result = await invoke<CaptureResult>('serial_capture', {
-        port: selectedPort, baud: recipe.baud, durationMs: recipe.capture_mode === 'text' ? 4500 : 3000,
-        maxLines: 1500, numericOnly: recipe.capture_mode === 'numeric',
-      });
-      setSerial(result.lines);
-      const detail = recipe.capture_mode === 'numeric'
-        ? `${result.numeric_rows} numeric rows · ${result.ignored_rows} ignored`
-        : `${result.lines.length} diagnostic lines`;
-      setStatus(detail); finishTask(task, 'done', detail); setTab('data');
-    } catch (e) { setStatus(`Capture failed: ${e}`); finishTask(task, 'failed', String(e)); }
-    finally { setBusy(false); }
-  }
-
-  async function recordMeasurement() {
-    if (!recipe || recipe.capture_mode !== 'numeric') return;
-    if (!selectedPort) { setStatus('Select a serial port first.'); return; }
-    const task = addTask(`Measurement · ${recipe.title}`);
-    setBusy(true);
-    try {
-      setStatus('Recording full multichannel package + Physical Lab compatibility export…');
-      const result = await invoke<MeasurementResult>('capture_measurement', {
-        port: selectedPort, durationMs: 5000, maxLines: 5000, boardProfile: fqbn, recipeId: recipe.id,
-      });
-      setMeasurement(result);
-      const detail = `${result.samples} samples saved`;
-      setStatus(detail); finishTask(task, 'done', detail); setTab('bridge');
-    } catch (e) { setStatus(`Measurement failed: ${e}`); finishTask(task, 'failed', String(e)); }
-    finally { setBusy(false); }
-  }
-
   const nav = [
-    ['hardware', Cpu, 'Hardware'], ['circuit', CircuitBoard, 'Circuit Lab'], ['library', Boxes, 'Recipe Library'], ['data', Waves, 'Data Studio'],
+    ['hardware', Cpu, 'Hardware & Program'], ['circuit', CircuitBoard, 'Circuit Lab'], ['library', Boxes, 'Recipe Library'], ['data', Waves, 'Monitor & Data'],
     ['bridge', Link2, 'Physical Lab Bridge'], ['developer', Code2, 'Developer'],
   ] as const;
 
@@ -216,13 +166,13 @@ export default function App() {
       <div className="brand"><div className="brand-mark">B</div><div><b>BetterBoard</b><span>Studio · Alpha 0.2</span></div></div>
       {nav.map(([id, Icon, label]) => <button key={id} className={`nav ${tab === id ? 'nav-active' : ''}`} onClick={() => setTab(id)}><Icon size={17}/>{label}</button>)}
       <div className="sidebar-spacer"/>
-      <div className="small-card"><span>Core principle</span><b>Goal → hardware → firmware → measurement</b></div>
+      <div className="small-card"><span>Core workflow</span><b>Connect → program → monitor → record → analyze</b></div>
       <div className="legal">Independent project<br/>Compatible with Arduino tooling<br/>Not affiliated with Arduino</div>
     </aside>
 
     <main>
       <header>
-        <div><h1>Physical computing, without the setup maze.</h1><p>One hardware layer for BetterBoard and Physical Lab.</p></div>
+        <div><h1>From board setup to live evidence.</h1><p>Program once, monitor continuously, record only when the data is worth keeping.</p></div>
         <button className="ghost" onClick={refresh}><RefreshCw size={16}/> Refresh</button>
       </header>
 
@@ -259,14 +209,14 @@ export default function App() {
         </section>
 
         <section className="panel">
-          <div className="panel-title"><Play size={18}/> Goal-first workflow</div>
+          <div className="panel-title"><Play size={18}/> Program</div>
           <div className="selected-recipe-row"><div><span className="eyebrow">Selected recipe</span><h2>{recipe?.title}</h2><p>{recipe?.description}</p></div><button className="ghost" onClick={() => setTab('library')}><BookOpen size={16}/> Browse all</button></div>
           {recipe && <div className="schema-row"><span>{recipe.sketch_name}.ino</span><span>{recipe.baud} baud</span><span>{recipe.capture_mode}</span>{recipe.sample_rate_hz && <span>{recipe.sample_rate_hz} Hz</span>}</div>}
           <div className="action-row">
             <button className="ghost" disabled={busy || !recipe} onClick={prepare}><Braces size={16}/> Prepare firmware</button>
             <button className="ghost" disabled={busy || !recipe} onClick={compile}><Download size={16}/> Compile</button>
             <button className="primary" disabled={busy || !recipe || !selectedPort} onClick={upload}><Upload size={16}/> Compile & Upload</button>
-            {recipe?.capture_mode !== 'none' && <button className="primary secondary" disabled={busy || !selectedPort} onClick={capture}><Activity size={16}/> {recipe?.capture_mode === 'text' ? 'Run diagnostics' : 'Capture 3 s'}</button>}
+            {recipe?.capture_mode !== 'none' && <button className="primary secondary" disabled={busy || !selectedPort} onClick={() => setTab('data')}><Waves size={16}/> Open Monitor & Data</button>}
           </div>
         </section>
       </>}
@@ -291,22 +241,13 @@ export default function App() {
         </div>
       </section>}
 
-      {tab === 'data' && <section className="data-grid">
-        <div className="panel">
-          <div className="panel-title"><Activity size={18}/> Capture snapshot</div>
-          {!serial.length ? <div className="empty">No capture yet. Upload a measurement/diagnostic recipe and run Capture.</div> : recipe?.capture_mode === 'text' ? <pre className="terminal">{serial.join('\n')}</pre> : <>
-            <div className="metric">{numericSeries.at(-1)?.toFixed(4) ?? '—'} <small>{recipe?.units.at(-1)}</small></div>
-            <svg className="plot" viewBox="0 0 100 40" preserveAspectRatio="none"><polyline points={spark} fill="none" vectorEffect="non-scaling-stroke"/></svg>
-            <div className="channels">{recipe?.columns.map((column, i) => <div key={column}><span>{column}</span><b>{lastParts[i] ?? '—'}</b><small>{recipe.units[i]}</small></div>)}</div>
-          </>}
-        </div>
-        <div className="panel">
-          <div className="panel-title"><Database size={18}/> Measurement package</div>
-          <p className="muted">BetterBoard records the full multichannel CSV and also creates a Physical Lab v1 compatibility CSV using the final firmware field as the primary observable.</p>
-          <button className="primary" disabled={busy || !selectedPort || recipe?.capture_mode !== 'numeric'} onClick={recordMeasurement}>Record 5 s package</button>
-          {measurement && <div className="measurement"><b>{measurement.samples} samples</b><span>{measurement.csv_path}</span><span>{measurement.metadata_path}</span></div>}
-        </div>
-      </section>}
+      {tab === 'data' && <MonitorDataStudio
+        recipe={recipe}
+        selectedPort={selectedPort}
+        fqbn={fqbn}
+        onStatus={setStatus}
+        onMeasurement={setMeasurement}
+      />}
 
       {tab === 'bridge' && <>
         <section className="bridge-hero panel">
@@ -337,7 +278,7 @@ export default function App() {
 
       <section className="task-center panel">
         <div className="panel-title"><TerminalSquare size={17}/> Task Center</div>
-        {!tasks.length ? <span className="muted">Compile, upload, preflight, capture and export operations will appear here.</span> : <div className="task-list">{tasks.map(task => <div key={task.id}><span className={`task-icon ${task.state}`}>{task.state === 'running' ? '…' : task.state === 'done' ? '✓' : '!'}</span><b>{task.title}</b><small>{task.detail}</small></div>)}</div>}
+        {!tasks.length ? <span className="muted">Preflight, prepare, compile and upload operations will appear here. Live monitoring and recording stay inside Monitor & Data.</span> : <div className="task-list">{tasks.map(task => <div key={task.id}><span className={`task-icon ${task.state}`}>{task.state === 'running' ? '…' : task.state === 'done' ? '✓' : '!'}</span><b>{task.title}</b><small>{task.detail}</small></div>)}</div>}
       </section>
     </main>
   </div>;
