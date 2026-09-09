@@ -1,0 +1,93 @@
+.bb-ai-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid rgba(112, 220, 255, .18);
+  border-radius: 10px;
+  background: rgba(14, 24, 34, .72);
+  color: inherit;
+}
+
+.bb-ai-launch:hover,
+.bb-ai-launch.active {
+  border-color: rgba(112, 220, 255, .52);
+  background: rgba(26, 49, 64, .86);
+}
+
+.bb-ai-launch span {
+  display: grid;
+  text-align: left;
+  line-height: 1.05;
+}
+
+.bb-ai-launch small {
+  margin-top: 3px;
+  color: var(--muted, #8395aa);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.bb-ai-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, .28);
+  backdrop-filter: blur(1px);
+}
+
+.bb-ai-drawer {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 71;
+  width: min(470px, calc(100vw - 24px));
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(112, 220, 255, .22);
+  border-radius: 14px;
+  background: rgba(8, 15, 23, .97);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .45);
+}
+
+.bb-ai-drawer-head {
+  position: sticky;
+  top: -12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -12px -12px 10px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+  background: rgba(8, 15, 23, .98);
+}
+
+.bb-ai-drawer-head > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-title-with-action > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.copy-data-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
