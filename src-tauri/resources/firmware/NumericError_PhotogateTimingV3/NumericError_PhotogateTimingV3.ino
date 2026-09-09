@@ -2,14 +2,15 @@
 
 // BetterBoard Numeric Error Depth — Photogate Timing V3
 // Consolidates legacy PhotogateTiming V1/V2. Accepted events are queued with
-// timestamps; close-edge rejection does not move the accepted baseline; queue
-// overflow is explicit evidence rather than silent loss.
+// timestamps and their own event indices; close-edge rejection does not move
+// the accepted baseline; queue overflow is explicit evidence rather than silent loss.
 
 const uint8_t SENSOR_PIN = 2;
 const uint32_t BAUD = 115200;
 const uint32_t MIN_ACCEPTED_SPACING_US = 2000UL;
 const uint8_t QUEUE_SIZE = 16;
 
+volatile uint32_t eventIndexQueue[QUEUE_SIZE];
 volatile uint32_t eventUsQueue[QUEUE_SIZE];
 volatile uint32_t periodUsQueue[QUEUE_SIZE];
 volatile uint16_t rejectedQueue[QUEUE_SIZE];
@@ -33,12 +34,14 @@ void onEdge() {
   const uint32_t period = lastAcceptedUs == 0 ? 0 : now - lastAcceptedUs;
   lastAcceptedUs = now;
   acceptedTotal++;
+  const uint32_t eventIndex = acceptedTotal;
   const uint8_t next = (uint8_t)((head + 1U) % QUEUE_SIZE);
   if (next == tail) {
     droppedAcceptedEvents++;
     rejectedSinceAccepted = 0;
     return;
   }
+  eventIndexQueue[head] = eventIndex;
   eventUsQueue[head] = now;
   periodUsQueue[head] = period;
   rejectedQueue[head] = rejectedSinceAccepted;
@@ -56,18 +59,18 @@ void setup() {
 void loop() {
   noInterrupts();
   if (tail == head) { interrupts(); return; }
+  const uint32_t eventIndex = eventIndexQueue[tail];
   const uint32_t eventUs = eventUsQueue[tail];
   const uint32_t periodUs = periodUsQueue[tail];
   const uint16_t rejected = rejectedQueue[tail];
   tail = (uint8_t)((tail + 1U) % QUEUE_SIZE);
-  const uint32_t index = acceptedTotal;
   const uint32_t rejectedAll = rejectedTotal;
   const uint32_t dropped = droppedAcceptedEvents;
   interrupts();
 
   const uint32_t emittedUs = micros();
   const float frequency = periodUs > 0 ? 1000000.0f/(float)periodUs : 0.0f;
-  Serial.print(index); Serial.print(','); Serial.print(eventUs); Serial.print(',');
+  Serial.print(eventIndex); Serial.print(','); Serial.print(eventUs); Serial.print(',');
   Serial.print(periodUs); Serial.print(','); Serial.print(frequency,7); Serial.print(',');
   Serial.print(rejected); Serial.print(','); Serial.print(rejectedAll); Serial.print(',');
   Serial.print(dropped); Serial.print(','); Serial.println(emittedUs - eventUs);
