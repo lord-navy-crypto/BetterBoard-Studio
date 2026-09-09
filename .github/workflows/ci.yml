@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - 'ux/**'
+      - 'numeric-error-*'
 
 jobs:
   verify:
