@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Magnet, Sigma } from 'lucide-react';
+import { Magnet, Settings2, Sigma } from 'lucide-react';
 import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
 import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
+import NumericalBenchAdvanced from './NumericalBenchAdvanced';
+import MagnetBenchAdvanced from './MagnetBenchAdvanced';
 
-type Domain = 'numerical' | 'magnet';
+type Domain = 'numerical' | 'magnet' | 'advanced';
+type AdvancedDomain = 'numerical' | 'magnet';
 
 const DOMAINS = [
   {
@@ -18,10 +21,17 @@ const DOMAINS = [
     subtitle: 'vector acquisition · characterization · model validation',
     icon: Magnet,
   },
+  {
+    id: 'advanced' as const,
+    title: 'Advanced Tools',
+    subtitle: 'classic full-control benches · manual analyzers · package workflows',
+    icon: Settings2,
+  },
 ];
 
 export default function ExperimentsHub() {
   const [domain, setDomain] = useState<Domain>('numerical');
+  const [advancedDomain, setAdvancedDomain] = useState<AdvancedDomain>('numerical');
 
   return <div className="experiments-hub">
     <section style={{ maxWidth: 1420, margin: '0 auto', padding: '22px 34px 0' }}>
@@ -30,9 +40,9 @@ export default function ExperimentsHub() {
           <div>
             <div className="eyebrow">Experiment Library</div>
             <b style={{ display: 'block', marginTop: 4 }}>Choose a domain</b>
-            <small className="muted">One experiment area; domain-specific benches live inside it instead of becoming separate mini IDEs.</small>
+            <small className="muted">The default labs stay streamlined. Nothing is removed: manual and legacy full-control workflows live under Advanced Tools.</small>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8 }}>
             {DOMAINS.map(item => {
               const Icon = item.icon;
               const active = item.id === domain;
@@ -61,6 +71,25 @@ export default function ExperimentsHub() {
       </div>
     </section>
 
-    {domain === 'numerical' ? <NumericalBenchSuiteV2 /> : <MagnetBenchSuiteV2 />}
+    {domain === 'numerical' && <NumericalBenchSuiteV2 />}
+    {domain === 'magnet' && <MagnetBenchSuiteV2 />}
+    {domain === 'advanced' && <>
+      <section style={{ maxWidth: 1420, margin: '14px auto 0', padding: '0 34px' }}>
+        <div className="panel" style={{ padding: 14 }}>
+          <div className="eyebrow">Full-control compatibility layer</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', marginTop: 6 }}>
+            <div>
+              <b>Advanced experiment workspaces</b>
+              <small className="muted" style={{ display: 'block', marginTop: 3 }}>These preserve the original manual analyzer commands, explicit package paths, preview controls, repeated-capture workflows, and model-validation inputs.</small>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className={advancedDomain === 'numerical' ? 'primary' : 'ghost'} onClick={() => setAdvancedDomain('numerical')}><Sigma size={15}/> Numerical Advanced</button>
+              <button className={advancedDomain === 'magnet' ? 'primary' : 'ghost'} onClick={() => setAdvancedDomain('magnet')}><Magnet size={15}/> Magnet Advanced</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      {advancedDomain === 'numerical' ? <NumericalBenchAdvanced /> : <MagnetBenchAdvanced />}
+    </>}
   </div>;
 }
