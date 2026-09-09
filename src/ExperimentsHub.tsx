@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Magnet, Settings2, Sigma } from 'lucide-react';
+import { CircuitBoard, Magnet, Settings2, Sigma } from 'lucide-react';
 import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
 import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
 import NumericalBenchAdvanced from './NumericalBenchAdvanced';
 import MagnetBenchAdvanced from './MagnetBenchAdvanced';
+import StudioAdvanced from './StudioAdvanced';
 
 type Domain = 'numerical' | 'magnet' | 'advanced';
-type AdvancedDomain = 'numerical' | 'magnet';
+type AdvancedDomain = 'studio' | 'numerical' | 'magnet';
 
 const DOMAINS = [
   {
@@ -31,7 +32,7 @@ const DOMAINS = [
 
 export default function ExperimentsHub() {
   const [domain, setDomain] = useState<Domain>('numerical');
-  const [advancedDomain, setAdvancedDomain] = useState<AdvancedDomain>('numerical');
+  const [advancedDomain, setAdvancedDomain] = useState<AdvancedDomain>('studio');
 
   return <div className="experiments-hub">
     <section style={{ maxWidth: 1420, margin: '0 auto', padding: '22px 34px 0' }}>
@@ -79,17 +80,20 @@ export default function ExperimentsHub() {
           <div className="eyebrow">Full-control compatibility layer</div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', marginTop: 6 }}>
             <div>
-              <b>Advanced experiment workspaces</b>
-              <small className="muted" style={{ display: 'block', marginTop: 3 }}>These preserve the original manual analyzer commands, explicit package paths, preview controls, repeated-capture workflows, and model-validation inputs.</small>
+              <b>Advanced workspaces</b>
+              <small className="muted" style={{ display: 'block', marginTop: 3 }}>These preserve the original direct capture controls, standalone Physical Lab Bridge, manual analyzer commands, explicit package paths, repeated-capture workflows, and legacy model-validation inputs.</small>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button className={advancedDomain === 'studio' ? 'primary' : 'ghost'} onClick={() => setAdvancedDomain('studio')}><CircuitBoard size={15}/> Studio Advanced</button>
               <button className={advancedDomain === 'numerical' ? 'primary' : 'ghost'} onClick={() => setAdvancedDomain('numerical')}><Sigma size={15}/> Numerical Advanced</button>
               <button className={advancedDomain === 'magnet' ? 'primary' : 'ghost'} onClick={() => setAdvancedDomain('magnet')}><Magnet size={15}/> Magnet Advanced</button>
             </div>
           </div>
         </div>
       </section>
-      {advancedDomain === 'numerical' ? <NumericalBenchAdvanced /> : <MagnetBenchAdvanced />}
+      {advancedDomain === 'studio' && <StudioAdvanced />}
+      {advancedDomain === 'numerical' && <NumericalBenchAdvanced />}
+      {advancedDomain === 'magnet' && <MagnetBenchAdvanced />}
     </>}
   </div>;
 }
