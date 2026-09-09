@@ -35,6 +35,9 @@ jobs:
       - name: Numerical depth self-check
         run: python3 scripts/numerical_depth_self_check.py
 
+      - name: Hardware numeric-error self-check
+        run: python3 scripts/hardware_numeric_error_self_check.py
+
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
 
@@ -49,6 +52,13 @@ jobs:
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericalCancellation
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericalAccumulation
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/EmbeddedNumericalReliability
+
+      - name: Compile hardware numeric-error firmware for UNO
+        run: |
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/HardwareNumericError_Potentiometer
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/HardwareNumericError_Photogate
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/HardwareNumericError_PIR
+          arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/HardwareNumericError_MultiSensor
 
       - name: Install Tauri Linux build dependencies
         run: |
