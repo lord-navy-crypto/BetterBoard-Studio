@@ -1,6 +1,6 @@
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::{fs, path::{Path, PathBuf}, process::Command};
+use std::{fs, io::Write, path::{Path, PathBuf}, process::{Command, Stdio}};
 
 fn find_cli() -> Result<PathBuf, String> {
     if let Ok(custom) = std::env::var("ARDUINO_CLI") {
@@ -139,9 +139,41 @@ fn sketch_roots() -> Vec<PathBuf> {
     ]
 }
 
+fn betterboard_sketch_root() -> PathBuf {
+    sketch_roots().into_iter().nth(1).unwrap_or_else(|| std::env::temp_dir().join("BetterBoard").join("sketches"))
+}
+
 fn safe_sketch_dir(path: &Path) -> bool {
     let Ok(path) = fs::canonicalize(path) else { return false; };
     sketch_roots().into_iter().filter_map(|root| fs::canonicalize(root).ok()).any(|root| path.starts_with(root))
+}
+
+fn safe_project_name(value: &str) -> Result<String, String> {
+    let value = bounded_text(value, "Project name", 80)?;
+    if !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err("Project names may contain only letters, numbers, and underscores".into());
+    }
+    Ok(value)
+}
+
+fn safe_project_file_name(value: &str) -> Result<String, String> {
+    let file_name = bounded_text(value, "File name", 120)?;
+    if file_name.contains('/') || file_name.contains('\\') || file_name.contains("..") {
+        return Err("File name must not contain path traversal".into());
+    }
+    let ext = Path::new(&file_name).extension().and_then(|v| v.to_str()).unwrap_or_default();
+    if !matches!(ext, "ino" | "h" | "hpp" | "c" | "cpp") {
+        return Err("Project files must be .ino, .h, .hpp, .c, or .cpp".into());
+    }
+    Ok(file_name)
+}
+
+fn project_file(directory: &str, file_name: &str) -> Result<(PathBuf, PathBuf, String), String> {
+    let dir = PathBuf::from(directory);
+    if !safe_sketch_dir(&dir) { return Err("Project access is restricted to Arduino or BetterBoard sketchbook roots".into()); }
+    let file_name = safe_project_file_name(file_name)?;
+    let path = dir.join(&file_name);
+    Ok((dir, path, file_name))
 }
 
 #[tauri::command]
@@ -205,17 +237,123 @@ pub fn developer_project_files(directory: String) -> Result<Vec<ProjectFile>, St
 #[tauri::command]
 pub fn developer_project_file_save(directory: String, file_name: String, source: String) -> Result<String, String> {
     if source.len() > 2_000_000 { return Err("Project file exceeds the 2 MB editor limit".into()); }
-    let dir = PathBuf::from(directory);
-    if !safe_sketch_dir(&dir) { return Err("Project access is restricted to Arduino or BetterBoard sketchbook roots".into()); }
-    let file_name = bounded_text(&file_name, "File name", 120)?;
-    if file_name.contains('/') || file_name.contains('\\') || file_name.contains("..") {
-        return Err("File name must not contain path traversal".into());
-    }
-    let ext = Path::new(&file_name).extension().and_then(|v| v.to_str()).unwrap_or_default();
-    if !matches!(ext, "ino" | "h" | "hpp" | "c" | "cpp") {
-        return Err("Project files must be .ino, .h, .hpp, .c, or .cpp".into());
-    }
-    let path = dir.join(file_name);
+    let (_, path, _) = project_file(&directory, &file_name)?;
     fs::write(&path, source).map_err(|e| e.to_string())?;
     Ok(path.display().to_string())
+}
+
+#[tauri::command]
+pub fn developer_project_create(name: String) -> Result<SketchbookEntry, String> {
+    let name = safe_project_name(&name)?;
+    let root = betterboard_sketch_root();
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    let dir = root.join(&name);
+    if dir.exists() { return Err(format!("Project already exists: {name}")); }
+    fs::create_dir(&dir).map_err(|e| e.to_string())?;
+    let main = dir.join(format!("{name}.ino"));
+    let source = "void setup() {\n  // runs once\n}\n\nvoid loop() {\n  // runs repeatedly\n}\n".to_string();
+    fs::write(&main, &source).map_err(|e| e.to_string())?;
+    Ok(SketchbookEntry {
+        name,
+        directory: dir.display().to_string(),
+        main_file: main.display().to_string(),
+        source,
+    })
+}
+
+#[tauri::command]
+pub fn developer_project_rename(directory: String, new_name: String) -> Result<SketchbookEntry, String> {
+    let new_name = safe_project_name(&new_name)?;
+    let dir = fs::canonicalize(&directory).map_err(|e| e.to_string())?;
+    if !safe_sketch_dir(&dir) { return Err("Project access is restricted to Arduino or BetterBoard sketchbook roots".into()); }
+    let parent = dir.parent().ok_or_else(|| "Project has no parent directory".to_string())?;
+    let allowed_parent = sketch_roots().into_iter().filter_map(|root| fs::canonicalize(root).ok()).any(|root| root == parent);
+    if !allowed_parent { return Err("Only top-level sketchbook projects can be renamed".into()); }
+    let old_name = dir.file_name().and_then(|v| v.to_str()).ok_or_else(|| "Project name is invalid".to_string())?.to_string();
+    let target = parent.join(&new_name);
+    if target.exists() { return Err(format!("Project already exists: {new_name}")); }
+    fs::rename(&dir, &target).map_err(|e| e.to_string())?;
+    let old_main = target.join(format!("{old_name}.ino"));
+    let new_main = target.join(format!("{new_name}.ino"));
+    if old_main.is_file() { fs::rename(&old_main, &new_main).map_err(|e| e.to_string())?; }
+    let main = if new_main.is_file() { new_main } else {
+        fs::read_dir(&target).map_err(|e| e.to_string())?.filter_map(Result::ok)
+            .map(|entry| entry.path()).find(|path| path.extension().and_then(|v| v.to_str()) == Some("ino"))
+            .ok_or_else(|| "Renamed project has no .ino file".to_string())?
+    };
+    let source = fs::read_to_string(&main).map_err(|e| e.to_string())?;
+    Ok(SketchbookEntry {
+        name: new_name,
+        directory: target.display().to_string(),
+        main_file: main.display().to_string(),
+        source,
+    })
+}
+
+#[tauri::command]
+pub fn developer_project_file_create(directory: String, file_name: String) -> Result<ProjectFile, String> {
+    let (_, path, file_name) = project_file(&directory, &file_name)?;
+    if path.exists() { return Err(format!("Project file already exists: {file_name}")); }
+    fs::write(&path, "").map_err(|e| e.to_string())?;
+    Ok(ProjectFile { name: file_name, path: path.display().to_string(), source: String::new() })
+}
+
+#[tauri::command]
+pub fn developer_project_file_rename(directory: String, file_name: String, new_name: String) -> Result<ProjectFile, String> {
+    let (dir, path, file_name) = project_file(&directory, &file_name)?;
+    if !path.is_file() { return Err(format!("Project file not found: {file_name}")); }
+    let folder_name = dir.file_name().and_then(|v| v.to_str()).unwrap_or_default();
+    if file_name == format!("{folder_name}.ino") { return Err("Rename the project to rename its required main .ino file".into()); }
+    let new_name = safe_project_file_name(&new_name)?;
+    let target = dir.join(&new_name);
+    if target.exists() { return Err(format!("Project file already exists: {new_name}")); }
+    fs::rename(&path, &target).map_err(|e| e.to_string())?;
+    let source = fs::read_to_string(&target).map_err(|e| e.to_string())?;
+    Ok(ProjectFile { name: new_name, path: target.display().to_string(), source })
+}
+
+#[tauri::command]
+pub fn developer_project_file_delete(directory: String, file_name: String) -> Result<bool, String> {
+    let (dir, path, file_name) = project_file(&directory, &file_name)?;
+    if !path.is_file() { return Ok(false); }
+    let folder_name = dir.file_name().and_then(|v| v.to_str()).unwrap_or_default();
+    if file_name == format!("{folder_name}.ino") { return Err("The required main .ino file cannot be deleted".into()); }
+    fs::remove_file(path).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+fn find_clang_format() -> Result<PathBuf, String> {
+    if let Ok(custom) = std::env::var("BETTERBOARD_CLANG_FORMAT") {
+        let path = PathBuf::from(custom);
+        if path.is_file() { return Ok(path); }
+    }
+    for candidate in ["/opt/homebrew/bin/clang-format", "/usr/local/bin/clang-format", "/usr/bin/clang-format"] {
+        let path = PathBuf::from(candidate);
+        if path.is_file() { return Ok(path); }
+    }
+    let out = Command::new("/usr/bin/env").args(["sh", "-lc", "command -v clang-format"])
+        .output().map_err(|e| e.to_string())?;
+    if out.status.success() {
+        let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !value.is_empty() { return Ok(PathBuf::from(value)); }
+    }
+    Err("clang-format was not found. Install clang-format or set BETTERBOARD_CLANG_FORMAT to its executable path.".into())
+}
+
+#[tauri::command]
+pub fn developer_format_source(source: String) -> Result<String, String> {
+    if source.len() > 2_000_000 { return Err("Source exceeds the 2 MB editor limit".into()); }
+    let mut child = Command::new(find_clang_format()?)
+        .args(["--assume-filename=sketch.ino", "--style={BasedOnStyle: LLVM, IndentWidth: 2, ColumnLimit: 100}"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn().map_err(|e| e.to_string())?;
+    child.stdin.as_mut().ok_or_else(|| "Could not open clang-format stdin".to_string())?
+        .write_all(source.as_bytes()).map_err(|e| e.to_string())?;
+    let output = child.wait_with_output().map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    String::from_utf8(output.stdout).map_err(|e| e.to_string())
 }
