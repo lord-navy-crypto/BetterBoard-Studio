@@ -48,16 +48,30 @@ void loop() {
 `;
 
 function safeDefaultName(name?: string) {
-  const candidate = (name || 'BetterBoardSketch').replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+/, '');
-  return candidate || 'BetterBoardSketch';
+  let candidate = (name || 'BetterBoardSketch').trim().replace(/[^A-Za-z0-9_]/g, '_').slice(0, 64);
+  if (!candidate) candidate = 'BetterBoardSketch';
+  if (!/^[A-Za-z_]/.test(candidate)) candidate = `Sketch_${candidate}`;
+  return candidate;
 }
 
-function compileDiagnostics(text: string): Diagnostic[] {
+function compileDiagnostics(text: string, activeFileName: string): Diagnostic[] {
   const rows: Diagnostic[] = [];
-  const regex = /:(\d+):(\d+):\s+(error|warning):\s+(.+)/gi;
+  const active = activeFileName.trim().toLowerCase();
+  const regex = /^(.+?):(\d+):(\d+):\s+(error|warning):\s+(.+)$/gim;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(text))) {
-    rows.push({ line: Number(match[1]), column: Number(match[2]), severity: match[3].toLowerCase() === 'warning' ? 'warning' : 'error', message: match[4].trim() });
+    const sourcePath = match[1].trim().replace(/\\/g, '/');
+    const sourceFile = sourcePath.split('/').filter(Boolean).pop()?.toLowerCase() ?? '';
+    // Arduino CLI compiles the entire sketch/project directory. Only attach a
+    // Monaco marker when the compiler diagnostic belongs to the file currently
+    // open in the editor; diagnostics for sibling files remain in Run output.
+    if (active && sourceFile !== active) continue;
+    rows.push({
+      line: Number(match[2]),
+      column: Number(match[3]),
+      severity: match[4].toLowerCase() === 'warning' ? 'warning' : 'error',
+      message: match[5].trim(),
+    });
   }
   return rows.slice(0, 200);
 }
@@ -132,6 +146,7 @@ export default function DeveloperIDE({
   }, [dirty, source, sketchName, projectDir, projectFileName, savedDir, templateId, recipe?.id]);
 
   const sourceFacts = useMemo(() => ({ lines: source.split(/\r?\n/).length, chars: source.length }), [source]);
+  const diagnosticFileName = projectFileName || `${safeDefaultName(sketchName)}.ino`;
 
   function markAuthoritativeSave() {
     recoveredDraftRef.current = false;
@@ -148,8 +163,10 @@ export default function DeveloperIDE({
       if (projectDir && projectFileName) {
         savedPath = await invoke<string>('developer_project_file_save', { directory: projectDir, fileName: projectFileName, source });
       } else {
-        compileDir = await invoke<string>('developer_sketch_save', { sketchName, source });
+        const canonicalSketchName = safeDefaultName(sketchName);
+        compileDir = await invoke<string>('developer_sketch_save', { sketchName: canonicalSketchName, source });
         savedPath = compileDir;
+        setSketchName(canonicalSketchName);
       }
       setSavedDir(compileDir); markAuthoritativeSave();
       const detail = `Saved · ${savedPath}`;
@@ -172,10 +189,10 @@ export default function DeveloperIDE({
       onTaskLog(task, `Compile target: ${fqbn}`);
       const result = await invoke<string>('compile_sketch', { sketchDir: dir, fqbn });
       const text = result.trim() || 'Compile succeeded.';
-      setOutput(text); setDiagnostics(compileDiagnostics(text)); onTaskLog(task, text);
+      setOutput(text); setDiagnostics(compileDiagnostics(text, diagnosticFileName)); onTaskLog(task, text);
       onTaskFinish(task, 'done', 'Verify succeeded'); onStatus('Developer verify succeeded.');
     } catch (error) {
-      const text = String(error); setOutput(text); setDiagnostics(compileDiagnostics(text)); onTaskLog(task, text);
+      const text = String(error); setOutput(text); setDiagnostics(compileDiagnostics(text, diagnosticFileName)); onTaskLog(task, text);
       onTaskFinish(task, 'failed', 'Verify failed'); onStatus(`Developer verify failed: ${text}`);
     } finally { setBusy(false); }
   }
@@ -189,14 +206,14 @@ export default function DeveloperIDE({
       const dir = await saveCurrent(false); if (!dir) throw new Error('Save failed before upload');
       onTaskLog(task, `Compile target: ${fqbn}`);
       const compileResult = await invoke<string>('compile_sketch', { sketchDir: dir, fqbn });
-      setDiagnostics(compileDiagnostics(compileResult)); onTaskLog(task, compileResult.trim() || 'Compile succeeded.');
+      setDiagnostics(compileDiagnostics(compileResult, diagnosticFileName)); onTaskLog(task, compileResult.trim() || 'Compile succeeded.');
       onTaskLog(task, `Uploading to ${selectedPort}…`);
       const uploadResult = await invoke<string>('upload_sketch', { sketchDir: dir, fqbn, port: selectedPort });
       const combined = [compileResult.trim(), uploadResult.trim()].filter(Boolean).join('\n\n');
       setOutput(combined || 'Compile & upload succeeded.'); onTaskLog(task, uploadResult.trim() || 'Upload succeeded.');
       onTaskFinish(task, 'done', `Uploaded to ${selectedPort}`); onStatus(`Developer sketch uploaded to ${selectedPort}.`);
     } catch (error) {
-      const text = String(error); setOutput(text); setDiagnostics(compileDiagnostics(text)); onTaskLog(task, text);
+      const text = String(error); setOutput(text); setDiagnostics(compileDiagnostics(text, diagnosticFileName)); onTaskLog(task, text);
       onTaskFinish(task, 'failed', 'Run / Upload failed'); onStatus(`Developer run failed: ${text}`);
     } finally { setBusy(false); }
   }
@@ -297,7 +314,7 @@ export default function DeveloperIDE({
           <span className={dirty ? 'dirty' : ''}>{dirty ? '● unsaved · autosaved draft' : 'saved / recipe state'}</span>
           {recoveredAt > 0 && <span className="project-chip">Recovered · {new Date(recoveredAt).toLocaleString()}</span>}
           <span>{sourceFacts.lines} lines · {sourceFacts.chars} chars</span>
-          {diagnostics.length > 0 && <span className="diagnostic-count">{diagnostics.length} diagnostic(s)</span>}
+          {diagnostics.length > 0 && <span className="diagnostic-count">{diagnostics.length} current-file diagnostic(s)</span>}
         </div>
         <div className="smart-editor-host"><SmartArduinoEditor value={source} readOnly={busy} diagnostics={diagnostics} onChange={value => { setSource(value); setDirty(true); }} /></div>
       </div>
@@ -313,7 +330,7 @@ export default function DeveloperIDE({
           </div>
           <div className="info-section"><b>Starting recipe notes</b>{recipe?.notes?.length ? recipe.notes.map(note => <span key={note}>• {note}</span>) : <span>• Free sketch mode is not constrained to a recipe.</span>}</div>
         </div>
-        <OpenPenguinBridge context={`Recipe selection: ${recipe?.title || 'free sketch'}\nBoard: ${fqbn}\nPort: ${selectedPort || 'none'}\nProject: ${projectDir || 'BetterBoard sketch'}\nFile: ${projectFileName || `${sketchName}.ino`}\nEditor state: ${dirty ? 'unsaved draft preserved' : 'saved / canonical'}\n\nSketch:\n${source}`} />
+        <OpenPenguinBridge context={`Recipe selection: ${recipe?.title || 'free sketch'}\nBoard: ${fqbn}\nPort: ${selectedPort || 'none'}\nProject: ${projectDir || 'BetterBoard sketch'}\nFile: ${projectFileName || `${safeDefaultName(sketchName)}.ino`}\nEditor state: ${dirty ? 'unsaved draft preserved' : 'saved / canonical'}\n\nSketch:\n${source}`} />
       </div>
     </div>}
 
