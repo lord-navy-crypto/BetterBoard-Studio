@@ -45,6 +45,9 @@ jobs:
       - name: Developer diagnostic attribution self-check
         run: python3 scripts/developer_diagnostic_self_check.py
 
+      - name: Developer filesystem consistency self-check
+        run: python3 scripts/developer_filesystem_self_check.py
+
       - name: Numerical depth self-check
         run: python3 scripts/numerical_depth_self_check.py
 
