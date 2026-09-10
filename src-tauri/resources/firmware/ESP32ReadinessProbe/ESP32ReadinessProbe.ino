@@ -1,6 +1,10 @@
 #include <Arduino.h>
 #include <math.h>
 #include <float.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
 #if !defined(ARDUINO_ARCH_ESP32)
 #error "ESP32ReadinessProbe requires an ESP32-family board/core."
@@ -142,17 +146,17 @@ void emitBench(uint32_t iterations) {
   volatile float sumF = 0.0f;
   volatile double sumD = 0.0;
 
-  uint32_t startF = micros();
+  const uint32_t startF = micros();
   for (uint32_t i = 0; i < iterations; ++i) {
     sumF += 0.0001f;
   }
-  uint32_t elapsedF = micros() - startF;
+  const uint32_t elapsedF = micros() - startF;
 
-  uint32_t startD = micros();
+  const uint32_t startD = micros();
   for (uint32_t i = 0; i < iterations; ++i) {
     sumD += 0.0001;
   }
-  uint32_t elapsedD = micros() - startD;
+  const uint32_t elapsedD = micros() - startD;
 
   Serial.print(runId); Serial.print(',');
   Serial.print(iterations); Serial.print(',');
@@ -165,7 +169,7 @@ void emitBench(uint32_t iterations) {
 bool parseUInt(const char* s, uint32_t& out) {
   if (!s || !*s) return false;
   char* end = nullptr;
-  unsigned long value = strtoul(s, &end, 10);
+  const unsigned long value = strtoul(s, &end, 10);
   if (!end || *end != '\0') return false;
   out = (uint32_t)value;
   return true;
@@ -220,7 +224,7 @@ void setup() {
 
 void loop() {
   while (Serial.available() > 0) {
-    char c = (char)Serial.read();
+    const char c = (char)Serial.read();
     if (c == '\r') continue;
     if (c == '\n') {
       commandBuffer[commandLength] = '\0';
