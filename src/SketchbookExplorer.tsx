@@ -104,8 +104,10 @@ export default function SketchbookExplorer({ onOpenSource, onStatus, hasUnsavedE
         setSelectedDir(renamed.directory); setFiles(projectFiles);
       }
       onStatus(`Renamed project · ${entry.name} → ${renamed.name}`);
-    } catch (error) { onStatus(`Rename project failed: ${error}`); }
-    finally { setBusy(false); }
+    } catch (error) {
+      await refresh();
+      onStatus(`Rename project failed: ${error}. Sketchbook was refreshed to reflect the actual filesystem state.`);
+    } finally { setBusy(false); }
   }
 
   async function createFile() {
@@ -141,9 +143,18 @@ export default function SketchbookExplorer({ onOpenSource, onStatus, hasUnsavedE
     if (!window.confirm(`Delete ${file.name}? The required main .ino file is protected and cannot be deleted.`)) return;
     setBusy(true);
     try {
-      await invoke<boolean>('developer_project_file_delete', { directory: selectedDir, fileName: file.name });
-      await refreshFiles();
-      onStatus(`Deleted project file · ${file.name}`);
+      const deleted = await invoke<boolean>('developer_project_file_delete', { directory: selectedDir, fileName: file.name });
+      if (!deleted) {
+        onStatus(`Delete skipped · ${file.name} no longer exists.`);
+        await refreshFiles();
+        return;
+      }
+      const projectFiles = await fetchProjectFiles(selectedDir);
+      setFiles(projectFiles);
+      const projectName = selectedDir.split(/[\\/]/).filter(Boolean).pop() ?? '';
+      const main = projectFiles.find(item => item.name === `${projectName}.ino`) || projectFiles.find(item => item.name.endsWith('.ino'));
+      if (main) onOpenSource(main.source, main.name, selectedDir);
+      onStatus(`Deleted project file · ${file.name}${main ? ` · editor returned to ${main.name}` : ''}`);
     } catch (error) { onStatus(`Delete file failed: ${error}`); }
     finally { setBusy(false); }
   }
