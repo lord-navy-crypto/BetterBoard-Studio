@@ -5,7 +5,9 @@ import { Box, Boxes, Download, ExternalLink, RefreshCw, Search, Trash2 } from 'l
 type JsonValue = unknown;
 type Tab = 'boards' | 'libraries' | 'examples';
 type JsonRecord = Record<string, unknown>;
-type PackageRow = { title: string; version: string; target: string; detail: string };
+type ExampleImportFile = { name: string; source: string; main: boolean };
+type PackageRow = { title: string; version: string; target: string; detail: string; examplePath?: string };
+type SketchbookEntry = { name: string; directory: string; main_file: string; source: string };
 
 type Props = {
   fqbn: string;
@@ -63,9 +65,6 @@ function normalizeRows(tab: Tab, raw: JsonValue): PackageRow[] {
     const installed = Boolean(root && Array.isArray(root.installed_libraries));
     const records = recordsFrom(raw, installed ? 'installed_libraries' : 'libraries');
     return records.slice(0, 80).map(record => {
-      // Arduino CLI >=0.36 wraps installed libraries as
-      // { library: {...}, release: {...} }, while search results expose name
-      // directly. Resolve both shapes explicitly instead of generic flattening.
       const library = asRecord(record.library);
       const name = scalar(record, 'name') || scalar(library, 'name');
       return {
@@ -85,12 +84,29 @@ function normalizeRows(tab: Tab, raw: JsonValue): PackageRow[] {
     return {
       title: name || path || 'Library example',
       version: libraryName,
-      // Example rows are informational. They must never replace the library-name
-      // target used by "List examples" with a filesystem path.
       target: '',
       detail: summarize(record),
+      examplePath: path || undefined,
     };
   });
+}
+
+function preparedExampleFiles(value: JsonValue): ExampleImportFile[] {
+  const root = asRecord(value);
+  const example = asRecord(root?.example);
+  if (!example || example.betterboard_importable !== true || !Array.isArray(example.betterboard_files)) return [];
+  return example.betterboard_files.map(asRecord).filter((row): row is JsonRecord => Boolean(row)).map(row => ({
+    name: scalar(row, 'name'),
+    source: scalar(row, 'source'),
+    main: row.main === true,
+  })).filter(file => file.name && file.source.length <= 512_000);
+}
+
+function safeProjectName(value: string) {
+  let result = value.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').slice(0, 72);
+  if (!result) result = 'ArduinoExample';
+  if (/^[0-9]/.test(result)) result = `Example_${result}`;
+  return result;
 }
 
 export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
@@ -110,7 +126,7 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
     setQuery('');
     setTarget('');
     setOutput(next === 'examples'
-      ? 'Enter a library name to list examples for the selected board profile.'
+      ? 'Enter a library name to list examples for the selected board profile. Examples remain read-only until explicitly imported into BetterBoard Sketchbook.'
       : 'Ready. BetterBoard delegates package operations to Arduino CLI.');
   }
 
@@ -132,7 +148,7 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
     const command = tab === 'boards' ? 'arduino_core_list' : tab === 'libraries' ? 'arduino_library_list' : 'arduino_library_examples';
     if (tab === 'examples') {
       if (!target.trim()) { setOutput('Enter a library name to list examples.'); return; }
-      const result = await run<JsonValue>('List examples', command, { name: target.trim(), fqbn });
+      const result = await run<JsonValue>('List examples', command, { name: target.trim(), fqbn, examplePath: null });
       if (result !== null) setRaw(result);
       return;
     }
@@ -146,12 +162,41 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
     if (tab === 'examples') {
       const nextTarget = query.trim();
       setTarget(nextTarget);
-      const result = await run<JsonValue>('List examples', 'arduino_library_examples', { name: nextTarget, fqbn });
+      const result = await run<JsonValue>('List examples', 'arduino_library_examples', { name: nextTarget, fqbn, examplePath: null });
       if (result !== null) setRaw(result);
       return;
     }
     const result = await run<JsonValue>('Search Arduino index', command, { query: query.trim() });
     if (result !== null) setRaw(result);
+  }
+
+  async function importExample(row: PackageRow) {
+    if (busy || !target.trim() || !row.examplePath) return;
+    setBusy(true);
+    setOutput(`Preparing ${row.title} for safe Sketchbook import…`);
+    try {
+      const prepared = await invoke<JsonValue>('arduino_library_examples', {
+        name: target.trim(), fqbn, examplePath: row.examplePath,
+      });
+      const files = preparedExampleFiles(prepared);
+      if (!files.length) throw new Error('Example could not be prepared as a bounded BetterBoard source project.');
+      const mainCount = files.filter(file => file.main).length;
+      if (mainCount !== 1) throw new Error('Prepared example does not identify exactly one main .ino source.');
+      const requestedName = window.prompt('Import this Arduino example into BetterBoard Sketchbook as:', safeProjectName(row.title));
+      if (!requestedName) {
+        setOutput('Example import cancelled. The installed library example was not modified.');
+        return;
+      }
+      const projectName = safeProjectName(requestedName);
+      const entry = await invoke<SketchbookEntry>('developer_project_create', { name: projectName, files });
+      const detail = `Imported Arduino example · ${row.title} → ${entry.name}\n${entry.directory}\nSwitch to Developer → Sketchbook to open, edit, Verify or Upload the imported copy.`;
+      setOutput(detail);
+      onStatus(`Imported example to Sketchbook · ${entry.name}`);
+    } catch (error) {
+      const detail = `Example import failed: ${error}`;
+      setOutput(detail);
+      onStatus(detail);
+    } finally { setBusy(false); }
   }
 
   async function install() {
@@ -210,6 +255,7 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
           <b>{row.title}</b>
           {row.version && <span>{row.version}</span>}
           <small>{row.detail}</small>
+          <button className="ghost" disabled={busy || !row.examplePath || !target.trim()} onClick={() => void importExample(row)}><Download size={14}/> Import to Sketchbook</button>
         </div> : <button key={`${row.title}-${index}`} className="package-card" onClick={() => row.target && setTarget(row.target)}>
           <b>{row.title}</b>
           {row.version && <span>{row.version}</span>}
