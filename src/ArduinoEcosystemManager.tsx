@@ -190,6 +190,8 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
       await loadExamples(query);
       return;
     }
+    // A search changes the candidate set. Do not leave an old install target
+    // armed while displaying results for a different query.
     setTarget('');
     setRaw(null);
     const command = tab === 'boards' ? 'arduino_core_search' : 'arduino_library_search';
