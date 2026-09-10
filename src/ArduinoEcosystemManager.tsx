@@ -109,6 +109,12 @@ function safeProjectName(value: string) {
   return result;
 }
 
+function uninstallTarget(value: string) {
+  // Arduino CLI install accepts Name@version / packager:arch@version, while
+  // lib/core uninstall accept only the unversioned name/packager:arch target.
+  return value.trim().replace(/@[^@]+$/, '').trim();
+}
+
 export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
   const [tab, setTab] = useState<Tab>('boards');
   const [query, setQuery] = useState('');
@@ -158,8 +164,6 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
       setOutput('Enter a library name to list examples.');
       return;
     }
-    // Clear the old rows before changing the authoritative library target. If
-    // Arduino CLI fails, stale cards can never be paired with a new target.
     setRaw(null);
     const result = await run<JsonValue>('List examples', 'arduino_library_examples', { name: library, fqbn, examplePath: null });
     if (result === null) {
@@ -186,8 +190,6 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
       await loadExamples(query);
       return;
     }
-    // A search changes the candidate set. Do not leave an old install target
-    // armed while displaying results for a different query.
     setTarget('');
     setRaw(null);
     const command = tab === 'boards' ? 'arduino_core_search' : 'arduino_library_search';
@@ -233,11 +235,15 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
   }
 
   async function uninstall() {
-    if (!target.trim()) return;
+    const normalized = uninstallTarget(target);
+    if (!normalized) return;
     const command = tab === 'boards' ? 'arduino_core_uninstall' : 'arduino_library_uninstall';
-    const arg = tab === 'boards' ? { core: target.trim() } : { name: target.trim() };
-    const result = await run<string>('Uninstall package', command, arg);
-    if (result !== null) await refreshInstalled();
+    const arg = tab === 'boards' ? { core: normalized } : { name: normalized };
+    const result = await run<string>(`Uninstall package · ${normalized}`, command, arg);
+    if (result !== null) {
+      setTarget(normalized);
+      await refreshInstalled();
+    }
   }
 
   async function updateIndex() {
@@ -261,9 +267,9 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
       </div>
 
       {tab !== 'examples' && <div className="manager-row">
-        <input value={target} onChange={e => setTarget(e.target.value)} placeholder={tab === 'boards' ? 'Exact core: arduino:avr or arduino:samd@1.8.14' : 'Exact library: Adafruit MPU6050 or Name@version'} />
+        <input value={target} onChange={e => setTarget(e.target.value)} placeholder={tab === 'boards' ? 'Install: arduino:avr or arduino:samd@1.8.14 · Uninstall strips @version' : 'Install: Adafruit MPU6050 or Name@version · Uninstall strips @version'} />
         <button className="primary" disabled={busy || !target.trim()} onClick={() => void install()}><Download size={15}/> Install</button>
-        <button className="ghost danger" disabled={busy || !target.trim()} onClick={() => void uninstall()}><Trash2 size={15}/> Uninstall</button>
+        <button className="ghost danger" disabled={busy || !uninstallTarget(target)} onClick={() => void uninstall()}><Trash2 size={15}/> Uninstall</button>
       </div>}
 
       {tab === 'boards' && <div className="manager-row">
