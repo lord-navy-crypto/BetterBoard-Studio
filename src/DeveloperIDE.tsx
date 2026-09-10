@@ -70,6 +70,7 @@ export default function DeveloperIDE({
   if (initialDraftRef.current === undefined) initialDraftRef.current = loadDeveloperDraft();
   const initialDraft = initialDraftRef.current;
   const recoveredDraftRef = useRef(Boolean(initialDraft));
+  const appliedCanonicalRef = useRef(`${recipe?.id ?? ''}\n${canonicalSource}`);
 
   const [view, setView] = useState<DeveloperView>('editor');
   const [source, setSource] = useState(initialDraft?.source ?? canonicalSource ?? BLANK_SKETCH);
@@ -85,19 +86,34 @@ export default function DeveloperIDE({
   const [recoveredAt, setRecoveredAt] = useState(initialDraft?.updatedAt ?? 0);
 
   useEffect(() => {
+    const canonicalKey = `${recipe?.id ?? ''}\n${canonicalSource}`;
+    if (canonicalKey === appliedCanonicalRef.current && !recoveredDraftRef.current) return;
+
     if (recoveredDraftRef.current) {
       const draftRecipe = initialDraftRef.current?.recipeId ?? '';
       if (!recipe?.id || !draftRecipe || draftRecipe === recipe.id) return;
+      // A recovered draft belongs to another context. Preserve it in the editor
+      // rather than silently deleting user work; the user can explicitly load a
+      // recipe template when they intend to replace it.
       recoveredDraftRef.current = false;
-      clearDeveloperDraft();
-      setRecoveredAt(0);
+      setOutput(`Recipe selection changed to ${recipe.title}, but the recovered Developer draft was preserved. Save it or explicitly load a recipe template to replace it.`);
+      onStatus('Developer preserved recovered edits while the recipe selection changed.');
+      return;
     }
+
+    if (dirty) {
+      setOutput(`Recipe/source selection changed to ${recipe?.title || 'blank sketch'}, but unsaved Developer edits were preserved. Save them or use Load recipe template to replace the editor explicitly.`);
+      onStatus('Developer preserved unsaved edits while the recipe/source selection changed.');
+      return;
+    }
+
+    appliedCanonicalRef.current = canonicalKey;
     setSource(canonicalSource || BLANK_SKETCH);
     setSketchName(safeDefaultName(recipe?.sketch_name));
     setSavedDir(''); setProjectDir(''); setProjectFileName('');
     setOutput(`Loaded ${recipe?.title || 'blank sketch'} as the editing starting point.`);
     setDirty(false); setDiagnostics([]); setTemplateId(recipe?.id ?? '');
-  }, [recipe?.id, canonicalSource]);
+  }, [recipe?.id, recipe?.title, canonicalSource, dirty, onStatus]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -201,7 +217,9 @@ export default function DeveloperIDE({
   }
 
   function resetToRecipe() {
+    if (dirty && !window.confirm('Replace the current unsaved Developer edits with the selected canonical recipe?')) return;
     recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
+    appliedCanonicalRef.current = `${recipe?.id ?? ''}\n${canonicalSource}`;
     setSource(canonicalSource || BLANK_SKETCH); setSketchName(safeDefaultName(recipe?.sketch_name));
     setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]);
     setOutput(`Reset editor to canonical ${recipe?.sketch_name || 'blank'} source.`);
@@ -210,9 +228,11 @@ export default function DeveloperIDE({
   async function loadTemplate() {
     const template = recipes.find(item => item.id === templateId);
     if (!template) { resetToRecipe(); return; }
+    if (dirty && !window.confirm(`Replace the current unsaved Developer edits with the ${template.title} template?`)) return;
     try {
       const text = await invoke<string>('recipe_source', { recipeId: template.id });
       recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
+      appliedCanonicalRef.current = `${template.id}\n${text}`;
       setSource(text); setSketchName(safeDefaultName(template.sketch_name)); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]);
       setOutput(`Loaded recipe template: ${template.title}`); setView('editor');
     } catch (error) { setOutput(`Template load failed: ${error}`); }
@@ -231,17 +251,19 @@ export default function DeveloperIDE({
   }
 
   function newSketch() {
+    if (dirty && !window.confirm('Create a new sketch and replace the current unsaved Developer edits?')) return;
     recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
     setSource(BLANK_SKETCH); setSketchName('BetterBoardSketch'); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(true); setDiagnostics([]);
     setOutput('New blank Arduino sketch. Draft autosave is active until the first explicit Save.'); setView('editor');
   }
 
-  function openProjectSource(nextSource: string, fileName: string, directory: string) {
-    if (dirty && !window.confirm('The current unsaved edits are protected by Draft Recovery. Open another project file now?')) return;
+  function openProjectSource(nextSource: string, fileName: string, directory: string): boolean {
+    if (dirty && !window.confirm('The current unsaved edits are protected by Draft Recovery. Open another project file now?')) return false;
     recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
     setSource(nextSource); setProjectFileName(fileName); setProjectDir(directory); setSavedDir(directory);
     setSketchName(safeDefaultName(fileName.replace(/\.[^.]+$/, ''))); setDirty(false); setDiagnostics([]); setView('editor');
     setOutput(`Opened project file: ${fileName}\n${directory}`);
+    return true;
   }
 
   return <section className="developer-ide">
@@ -291,11 +313,11 @@ export default function DeveloperIDE({
           </div>
           <div className="info-section"><b>Starting recipe notes</b>{recipe?.notes?.length ? recipe.notes.map(note => <span key={note}>• {note}</span>) : <span>• Free sketch mode is not constrained to a recipe.</span>}</div>
         </div>
-        <OpenPenguinBridge context={`Recipe: ${recipe?.title || 'free sketch'}\nBoard: ${fqbn}\nPort: ${selectedPort || 'none'}\nProject: ${projectDir || 'BetterBoard sketch'}\nFile: ${projectFileName || `${sketchName}.ino`}\n\nSketch:\n${source}`} />
+        <OpenPenguinBridge context={`Recipe selection: ${recipe?.title || 'free sketch'}\nBoard: ${fqbn}\nPort: ${selectedPort || 'none'}\nProject: ${projectDir || 'BetterBoard sketch'}\nFile: ${projectFileName || `${sketchName}.ino`}\nEditor state: ${dirty ? 'unsaved draft preserved' : 'saved / canonical'}\n\nSketch:\n${source}`} />
       </div>
     </div>}
 
     {view === 'ecosystem' && <ArduinoEcosystemManager fqbn={fqbn} onStatus={onStatus} />}
-    {view === 'sketchbook' && <div className="panel"><SketchbookExplorer onOpenSource={openProjectSource} onStatus={onStatus} /></div>}
+    {view === 'sketchbook' && <div className="panel"><SketchbookExplorer onOpenSource={openProjectSource} onStatus={onStatus} hasUnsavedEdits={dirty} /></div>}
   </section>;
 }
