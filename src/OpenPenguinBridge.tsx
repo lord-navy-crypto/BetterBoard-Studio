@@ -19,12 +19,19 @@ export default function OpenPenguinBridge({ context }: Props) {
     try {
       const next = await invoke<Status>('openguin_probe');
       setStatus(next);
-      if (!model && next.models.length) setModel(next.models[0]);
-    } catch (error) { setStatus({ found: false, endpoint: '127.0.0.1:11435', models: [], error: String(error) }); }
-    finally { setBusy(false); }
+      if (next.found && next.models.length) {
+        setModel(current => next.models.includes(current) ? current : next.models[0]);
+      } else {
+        setModel('');
+      }
+    } catch (error) {
+      setStatus({ found: false, endpoint: 'runtime optional / not connected', models: [], error: String(error) });
+      setModel('');
+    } finally { setBusy(false); }
   }
+
   async function ask() {
-    if (!model || !prompt.trim()) return;
+    if (!status?.found || !model || !prompt.trim()) return;
     setBusy(true);
     try { setAnswer(await invoke<string>('openguin_generate', { model, prompt, context: contextPreview })); }
     catch (error) { setAnswer(`OpenPenguin local AI error: ${error}`); }
@@ -33,9 +40,9 @@ export default function OpenPenguinBridge({ context }: Props) {
 
   return <div className="panel" style={{ marginTop: 12 }}>
     <div className="panel-title"><Bot size={18}/> OpenPenguin · Local AI</div>
-    <p className="muted">Optional loopback-only bridge to OpenPenguin's private local runtime. BetterBoard never sends this context to a cloud service.</p>
-    <div className="facts"><span>Local endpoint</span><b><code>{status?.endpoint || 'http://127.0.0.1:11435'}</code></b><span>Bridge</span><b>{status?.found ? 'Connected' : 'Not connected'}</b></div>
-    <div className="action-row"><button className="ghost" disabled={busy} onClick={() => void probe()}><RefreshCw size={14}/> Connect OpenPenguin / reload models</button>{status && <span className={status.found ? 'ok' : 'warn'}>{status.found ? `${status.models.length} local model(s) loaded` : status.error || 'not detected'}</span>}</div>
+    <p className="muted">Optional loopback-only bridge. BetterBoard never starts Ollama for you and never treats runtime availability as hardware readiness. It uses OpenPenguin's private 127.0.0.1:11435 runtime when active, or an already-running external 127.0.0.1:11434 runtime.</p>
+    <div className="facts"><span>Local endpoint</span><b><code>{status?.endpoint || 'runtime optional / not connected'}</code></b><span>Bridge</span><b>{status?.found ? 'Connected' : 'Not connected'}</b></div>
+    <div className="action-row"><button className="ghost" disabled={busy} onClick={() => void probe()}><RefreshCw size={14}/> Connect OpenPenguin / reload models</button>{status && <span className={status.found ? 'ok' : 'warn'}>{status.found ? `${status.models.length} local model(s) loaded` : status.error || 'Runtime optional / not connected'}</span>}</div>
     {status?.found && <>
       <label>Local model<select value={model} onChange={event => setModel(event.target.value)}>{status.models.map(name => <option key={name}>{name}</option>)}</select></label>
       <label>Ask about this sketch / recipe<textarea style={{ minHeight: 86 }} value={prompt} onChange={event => setPrompt(event.target.value)}/></label>
