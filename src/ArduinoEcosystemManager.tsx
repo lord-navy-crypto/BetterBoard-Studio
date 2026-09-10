@@ -4,33 +4,93 @@ import { Box, Boxes, Download, ExternalLink, RefreshCw, Search, Trash2 } from 'l
 
 type JsonValue = unknown;
 type Tab = 'boards' | 'libraries' | 'examples';
+type JsonRecord = Record<string, unknown>;
+type PackageRow = { title: string; version: string; target: string; detail: string };
 
 type Props = {
   fqbn: string;
   onStatus: (message: string) => void;
 };
 
-function flattenRecords(value: JsonValue): Record<string, unknown>[] {
-  if (Array.isArray(value)) return value.flatMap(flattenRecords);
-  if (!value || typeof value !== 'object') return [];
-  const record = value as Record<string, unknown>;
-  const arrays = Object.values(record).filter(Array.isArray) as unknown[][];
-  if (arrays.length) return arrays.flatMap(flattenRecords);
-  return [record];
+function asRecord(value: unknown): JsonRecord | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : null;
 }
 
-function field(record: Record<string, unknown>, keys: string[]) {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'string' || typeof value === 'number') return String(value);
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const nested = value as Record<string, unknown>;
-      for (const inner of ['name', 'id', 'version']) {
-        if (typeof nested[inner] === 'string') return String(nested[inner]);
-      }
-    }
+function recordsFrom(value: JsonValue, wrapper: string): JsonRecord[] {
+  if (Array.isArray(value)) return value.map(asRecord).filter((row): row is JsonRecord => Boolean(row));
+  const root = asRecord(value);
+  if (!root) return [];
+  const wrapped = root[wrapper];
+  if (Array.isArray(wrapped)) return wrapped.map(asRecord).filter((row): row is JsonRecord => Boolean(row));
+  return [];
+}
+
+function scalar(record: JsonRecord | null, key: string) {
+  const value = record?.[key];
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+}
+
+function latestReleaseVersion(record: JsonRecord) {
+  const direct = scalar(record, 'latest') || scalar(record, 'installed') || scalar(record, 'version');
+  if (direct) return direct;
+  const release = asRecord(record.release);
+  if (release) return scalar(release, 'version');
+  const releases = asRecord(record.releases);
+  if (!releases) return '';
+  const versions = Object.keys(releases);
+  return versions[versions.length - 1] ?? '';
+}
+
+function summarize(record: JsonRecord) {
+  return Object.entries(record).slice(0, 5).map(([key, value]) => {
+    if (value && typeof value === 'object') return `${key}: ${JSON.stringify(value)}`;
+    return `${key}: ${String(value)}`;
+  }).join(' · ');
+}
+
+function normalizeRows(tab: Tab, raw: JsonValue): PackageRow[] {
+  if (tab === 'boards') {
+    return recordsFrom(raw, 'platforms').slice(0, 80).map(record => ({
+      title: scalar(record, 'name') || scalar(record, 'id') || 'Board platform',
+      version: latestReleaseVersion(record),
+      target: scalar(record, 'id'),
+      detail: summarize(record),
+    }));
   }
-  return '';
+
+  if (tab === 'libraries') {
+    const root = asRecord(raw);
+    const installed = Boolean(root && Array.isArray(root.installed_libraries));
+    const records = recordsFrom(raw, installed ? 'installed_libraries' : 'libraries');
+    return records.slice(0, 80).map(record => {
+      // Arduino CLI >=0.36 wraps installed libraries as
+      // { library: {...}, release: {...} }, while search results expose name
+      // directly. Resolve both shapes explicitly instead of generic flattening.
+      const library = asRecord(record.library);
+      const name = scalar(record, 'name') || scalar(library, 'name');
+      return {
+        title: name || 'Arduino library',
+        version: latestReleaseVersion(record) || (library ? latestReleaseVersion(library) : ''),
+        target: name,
+        detail: summarize(record),
+      };
+    });
+  }
+
+  return recordsFrom(raw, 'examples').slice(0, 80).map(record => {
+    const library = asRecord(record.library);
+    const path = scalar(record, 'path') || scalar(record, 'sketch_path');
+    const name = scalar(record, 'name') || (path ? path.split('/').filter(Boolean).pop() ?? '' : '');
+    const libraryName = scalar(library, 'name');
+    return {
+      title: name || path || 'Library example',
+      version: libraryName,
+      // Example rows are informational. They must never replace the library-name
+      // target used by "List examples" with a filesystem path.
+      target: '',
+      detail: summarize(record),
+    };
+  });
 }
 
 export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
@@ -42,7 +102,17 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
   const [additionalUrl, setAdditionalUrl] = useState('');
   const [output, setOutput] = useState('Ready. BetterBoard delegates package operations to Arduino CLI.');
 
-  const rows = useMemo(() => flattenRecords(raw).slice(0, 80), [raw]);
+  const rows = useMemo(() => normalizeRows(tab, raw), [tab, raw]);
+
+  function switchTab(next: Tab) {
+    setTab(next);
+    setRaw(null);
+    setQuery('');
+    setTarget('');
+    setOutput(next === 'examples'
+      ? 'Enter a library name to list examples for the selected board profile.'
+      : 'Ready. BetterBoard delegates package operations to Arduino CLI.');
+  }
 
   async function run<T>(label: string, command: string, args: Record<string, unknown> = {}): Promise<T | null> {
     setBusy(true); setOutput(`${label}…`);
@@ -107,9 +177,9 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
 
   return <section className="ide-manager">
     <div className="ide-subtabs">
-      <button className={tab === 'boards' ? 'active' : ''} onClick={() => { setTab('boards'); setRaw(null); }}><Box size={15}/> Boards</button>
-      <button className={tab === 'libraries' ? 'active' : ''} onClick={() => { setTab('libraries'); setRaw(null); }}><Boxes size={15}/> Libraries</button>
-      <button className={tab === 'examples' ? 'active' : ''} onClick={() => { setTab('examples'); setRaw(null); }}><ExternalLink size={15}/> Examples</button>
+      <button className={tab === 'boards' ? 'active' : ''} onClick={() => switchTab('boards')}><Box size={15}/> Boards</button>
+      <button className={tab === 'libraries' ? 'active' : ''} onClick={() => switchTab('libraries')}><Boxes size={15}/> Libraries</button>
+      <button className={tab === 'examples' ? 'active' : ''} onClick={() => switchTab('examples')}><ExternalLink size={15}/> Examples</button>
     </div>
 
     <div className="panel ide-manager-controls">
@@ -136,16 +206,15 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
       <div className="panel package-results">
         <div className="panel-title">{tab === 'boards' ? 'Board platforms' : tab === 'libraries' ? 'Libraries' : 'Library examples'}</div>
         {!rows.length && <p className="muted">Search or refresh to load Arduino CLI results.</p>}
-        {rows.map((record, index) => {
-          const title = field(record, ['name', 'id', 'platform', 'library', 'path']) || `Result ${index + 1}`;
-          const version = field(record, ['installed', 'version', 'latest', 'release']);
-          const id = field(record, ['id', 'name', 'path']);
-          return <button key={`${title}-${index}`} className="package-card" onClick={() => id && setTarget(id)}>
-            <b>{title}</b>
-            {version && <span>{version}</span>}
-            <small>{Object.entries(record).slice(0, 5).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`).join(' · ')}</small>
-          </button>;
-        })}
+        {rows.map((row, index) => tab === 'examples' ? <div key={`${row.title}-${index}`} className="package-card">
+          <b>{row.title}</b>
+          {row.version && <span>{row.version}</span>}
+          <small>{row.detail}</small>
+        </div> : <button key={`${row.title}-${index}`} className="package-card" onClick={() => row.target && setTarget(row.target)}>
+          <b>{row.title}</b>
+          {row.version && <span>{row.version}</span>}
+          <small>{row.detail}</small>
+        </button>)}
       </div>
       <div className="panel developer-output-panel">
         <div className="panel-title">Arduino CLI package output</div>
