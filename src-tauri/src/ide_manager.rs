@@ -272,16 +272,62 @@ pub fn developer_project_rename(directory: String, new_name: String) -> Result<S
     let old_name = dir.file_name().and_then(|v| v.to_str()).ok_or_else(|| "Project name is invalid".to_string())?.to_string();
     let target = parent.join(&new_name);
     if target.exists() { return Err(format!("Project already exists: {new_name}")); }
+
     fs::rename(&dir, &target).map_err(|e| e.to_string())?;
     let old_main = target.join(format!("{old_name}.ino"));
     let new_main = target.join(format!("{new_name}.ino"));
-    if old_main.is_file() { fs::rename(&old_main, &new_main).map_err(|e| e.to_string())?; }
-    let main = if new_main.is_file() { new_main } else {
-        fs::read_dir(&target).map_err(|e| e.to_string())?.filter_map(Result::ok)
-            .map(|entry| entry.path()).find(|path| path.extension().and_then(|v| v.to_str()) == Some("ino"))
-            .ok_or_else(|| "Renamed project has no .ino file".to_string())?
+    let mut main_renamed = false;
+
+    if old_main.is_file() {
+        if let Err(error) = fs::rename(&old_main, &new_main) {
+            let rollback = fs::rename(&target, &dir);
+            return Err(match rollback {
+                Ok(()) => format!("Project rename rolled back because the main .ino rename failed: {error}"),
+                Err(rollback_error) => format!("Project rename failed while renaming the main .ino ({error}); rollback also failed ({rollback_error}). Disk state requires manual inspection."),
+            });
+        }
+        main_renamed = true;
+    }
+
+    let main_result = if new_main.is_file() {
+        Ok(new_main.clone())
+    } else {
+        fs::read_dir(&target).map_err(|e| e.to_string()).and_then(|items| {
+            items.filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .find(|path| path.extension().and_then(|v| v.to_str()) == Some("ino"))
+                .ok_or_else(|| "Renamed project has no .ino file".to_string())
+        })
     };
-    let source = fs::read_to_string(&main).map_err(|e| e.to_string())?;
+
+    let main = match main_result {
+        Ok(main) => main,
+        Err(error) => {
+            if main_renamed && new_main.is_file() {
+                let _ = fs::rename(&new_main, &old_main);
+            }
+            let rollback = fs::rename(&target, &dir);
+            return Err(match rollback {
+                Ok(()) => format!("Project rename rolled back: {error}"),
+                Err(rollback_error) => format!("Project rename failed ({error}); rollback also failed ({rollback_error}). Disk state requires manual inspection."),
+            });
+        }
+    };
+
+    let source = match fs::read_to_string(&main) {
+        Ok(source) => source,
+        Err(error) => {
+            if main_renamed && new_main.is_file() {
+                let _ = fs::rename(&new_main, &old_main);
+            }
+            let rollback = fs::rename(&target, &dir);
+            return Err(match rollback {
+                Ok(()) => format!("Project rename rolled back because the main source could not be read: {error}"),
+                Err(rollback_error) => format!("Project rename could not read the main source ({error}); rollback also failed ({rollback_error}). Disk state requires manual inspection."),
+            });
+        }
+    };
+
     Ok(SketchbookEntry {
         name: new_name,
         directory: target.display().to_string(),
