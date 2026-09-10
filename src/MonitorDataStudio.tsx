@@ -30,8 +30,10 @@ type MeasurementResult = {
   samples: number;
 };
 
+type CapturedRow = { host_timestamp_ms: number; line: string; numeric: boolean };
 type CaptureResult = {
   lines: string[];
+  rows: CapturedRow[];
   numeric_rows: number;
   ignored_rows: number;
 };
@@ -48,6 +50,15 @@ type MonitorRow = {
   line: string;
   numeric: boolean;
   direction?: 'rx' | 'tx';
+};
+
+type AcquisitionContext = {
+  port: string;
+  fqbn: string;
+  baud: number;
+  numericOnly: boolean;
+  recipe?: RecipeSpec;
+  parameterValues: Record<string, string>;
 };
 
 type BridgeDocs = {
@@ -77,7 +88,7 @@ type MeasurementReplay = {
   units: string[];
   primary_column?: string | null;
   sample_rate_hz?: number | null;
-  rows: Array<{ host_timestamp_ms: number; line: string; numeric: boolean }>;
+  rows: CapturedRow[];
 };
 
 type Props = {
@@ -107,6 +118,10 @@ function parseNumericRow(row: MonitorRow, expectedColumns: number): number[] | n
   return parts;
 }
 
+function cloneRecipe(recipe?: RecipeSpec): RecipeSpec | undefined {
+  return recipe ? { ...recipe, columns: [...recipe.columns], units: [...recipe.units] } : undefined;
+}
+
 export default function MonitorDataStudio({
   recipe, selectedPort, fqbn, latestMeasurement, bridgeDocs, onStatus, onMeasurement, parameterValues = {}, tasks = [],
   onTaskStart, onTaskLog, onTaskFinish,
@@ -124,6 +139,7 @@ export default function MonitorDataStudio({
   const [sessions, setSessions] = useState<MeasurementSessionSummary[]>([]);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [replay, setReplay] = useState<MeasurementReplay | null>(null);
+  const [bufferContext, setBufferContext] = useState<AcquisitionContext | null>(null);
   const channelRef = useRef<Channel<SerialStreamEvent> | null>(null);
   const liveTaskRef = useRef<number | null>(null);
   const liveCountRef = useRef(0);
@@ -135,11 +151,12 @@ export default function MonitorDataStudio({
   function taskFinish(id: number | null, state: Exclude<TaskState, 'running'>, detail: string) { if (id !== null) onTaskFinish?.(id, state, detail); }
 
   useEffect(() => {
+    if (bufferContext || replay) return;
     setBaud(recipe?.baud ?? 115200);
     setNumericOnly(recipe?.capture_mode === 'numeric');
     const primaryIndex = recipe?.primary_column ? recipe.columns.indexOf(recipe.primary_column) : -1;
     setSelectedChannel(primaryIndex >= 0 ? primaryIndex : Math.max((recipe?.columns.length ?? 1) - 1, 0));
-  }, [recipe?.id]);
+  }, [recipe?.id, bufferContext, replay]);
 
   useEffect(() => {
     return () => {
@@ -149,12 +166,13 @@ export default function MonitorDataStudio({
 
   useEffect(() => { void refreshSessions(); }, []);
 
+  const visibleRecipe = bufferContext?.recipe ?? recipe;
   const displayRows = useMemo<MonitorRow[]>(() => replay
     ? replay.rows.map(row => ({ hostTimestampMs: row.host_timestamp_ms, line: row.line, numeric: row.numeric, direction: 'rx' as const }))
     : rows, [replay, rows]);
-  const activeColumns = replay?.columns ?? recipe?.columns ?? [];
-  const activeUnits = replay?.units ?? recipe?.units ?? [];
-  const activePrimary = replay?.primary_column ?? recipe?.primary_column;
+  const activeColumns = replay?.columns ?? visibleRecipe?.columns ?? [];
+  const activeUnits = replay?.units ?? visibleRecipe?.units ?? [];
+  const activePrimary = replay?.primary_column ?? visibleRecipe?.primary_column;
   const serialCopyText = useMemo(() => displayRows.map(row => row.line).join('\n'), [displayRows]);
 
   const numericRows = useMemo(() => displayRows
@@ -179,11 +197,22 @@ export default function MonitorDataStudio({
   const lastValue = channelValues.at(-1);
   const minValue = channelValues.length ? Math.min(...channelValues) : undefined;
   const maxValue = channelValues.length ? Math.max(...channelValues) : undefined;
-  const bufferedEvidenceRows = useMemo(() => rows.filter(row => parseNumericRow(row, recipe?.columns.length ?? 0) !== null), [rows, recipe?.columns.length]);
+  const bufferedEvidenceRows = useMemo(() => rows.filter(row => parseNumericRow(row, visibleRecipe?.columns.length ?? 0) !== null), [rows, visibleRecipe?.columns.length]);
 
   function report(message: string) {
     setMonitorMessage(message);
     onStatus?.(message);
+  }
+
+  function clearDisplayedData() {
+    if (replay) {
+      setReplay(null);
+      report('Replay cleared. Returning to the current acquisition buffer.');
+      return;
+    }
+    setRows([]);
+    if (monitorState !== 'live' && monitorState !== 'starting') setBufferContext(null);
+    report(monitorState === 'live' || monitorState === 'starting' ? 'Live buffer cleared; acquisition continues with its locked context.' : 'Monitor buffer cleared.');
   }
 
   async function startMonitor() {
@@ -193,10 +222,23 @@ export default function MonitorDataStudio({
     }
     if (monitorState === 'live' || monitorState === 'starting') return;
 
+    const context: AcquisitionContext = {
+      port: selectedPort,
+      fqbn,
+      baud,
+      numericOnly,
+      recipe: cloneRecipe(recipe),
+      parameterValues: { ...parameterValues },
+    };
+    setReplay(null);
+    setRows([]);
+    setBufferContext(context);
+    const primaryIndex = context.recipe?.primary_column ? context.recipe.columns.indexOf(context.recipe.primary_column) : -1;
+    setSelectedChannel(primaryIndex >= 0 ? primaryIndex : Math.max((context.recipe?.columns.length ?? 1) - 1, 0));
     setMonitorState('starting');
-    report(`Opening ${selectedPort} @ ${baud} baud…`);
+    report(`Opening ${context.port} @ ${context.baud} baud… acquisition context locked.`);
     liveCountRef.current = 0;
-    liveTaskRef.current = beginTask('Monitor', `Live serial · ${selectedPort}`, `Opening ${selectedPort} @ ${baud} baud…`, async () => {
+    liveTaskRef.current = beginTask('Monitor', `Live serial · ${context.port}`, `Opening ${context.port} @ ${context.baud} baud…`, async () => {
       await invoke<boolean>('serial_stream_stop');
     });
 
@@ -206,6 +248,7 @@ export default function MonitorDataStudio({
         setMonitorState('live');
         report(`Live · ${message.line}`);
         taskLog(liveTaskRef.current, `Serial stream opened · ${message.line}`);
+        taskLog(liveTaskRef.current, `Locked provenance · ${context.recipe?.title || 'no recipe'} · ${context.fqbn} · ${context.port}`);
         return;
       }
       if (message.event === 'line') {
@@ -228,7 +271,7 @@ export default function MonitorDataStudio({
         return;
       }
       setMonitorState('idle');
-      report('Serial monitor stopped.');
+      report('Serial monitor stopped. Buffered rows keep the acquisition context they were captured with.');
       taskFinish(liveTaskRef.current, 'done', `Serial monitor stopped · ${liveCountRef.current} RX rows`);
       liveTaskRef.current = null;
     };
@@ -236,13 +279,14 @@ export default function MonitorDataStudio({
 
     try {
       await invoke('serial_stream_start', {
-        port: selectedPort,
-        baud,
-        numericOnly,
+        port: context.port,
+        baud: context.baud,
+        numericOnly: context.numericOnly,
         onEvent: channel,
       });
     } catch (error) {
       setMonitorState('error');
+      setBufferContext(null);
       report(`Could not start serial monitor: ${error}`);
       taskLog(liveTaskRef.current, String(error));
       taskFinish(liveTaskRef.current, 'failed', `Could not start serial monitor: ${error}`);
@@ -274,6 +318,10 @@ export default function MonitorDataStudio({
   }
 
   async function loadReplay(session: MeasurementSessionSummary) {
+    if (monitorState === 'live' || monitorState === 'starting') {
+      report('Stop Live Monitor before opening historical replay. The active stream remains bound to its acquisition context.');
+      return;
+    }
     setHistoryBusy(true);
     const task = beginTask('Evidence', `Replay · ${session.recipe_title}`, `Loading ${session.directory}`);
     try {
@@ -323,25 +371,34 @@ export default function MonitorDataStudio({
       report('Stop Live Monitor before taking a separate snapshot; both operations need the same serial port.');
       return;
     }
+    const context: AcquisitionContext = {
+      port: selectedPort,
+      fqbn,
+      baud,
+      numericOnly,
+      recipe: cloneRecipe(recipe),
+      parameterValues: { ...parameterValues },
+    };
     setBusy(true);
-    const task = beginTask('Monitor', `Snapshot · ${recipe?.title || selectedPort}`, `Capturing 3 s @ ${baud} baud…`);
+    const task = beginTask('Monitor', `Snapshot · ${context.recipe?.title || context.port}`, `Capturing 3 s @ ${context.baud} baud…`);
     try {
-      report('Capturing a 3 s diagnostic snapshot…');
+      report('Capturing a 3 s diagnostic snapshot with backend timestamps…');
       const result = await invoke<CaptureResult>('serial_capture', {
-        port: selectedPort,
-        baud,
+        port: context.port,
+        baud: context.baud,
         durationMs: 3000,
         maxLines: 2000,
-        numericOnly,
+        numericOnly: context.numericOnly,
       });
-      const now = Date.now();
-      setRows(result.lines.map((line, index) => ({
-        hostTimestampMs: now + index,
-        line,
-        numeric: line.split(',').every(part => Number.isFinite(Number(part.trim()))),
+      setReplay(null);
+      setBufferContext(context);
+      setRows(result.rows.map(row => ({
+        hostTimestampMs: row.host_timestamp_ms,
+        line: row.line,
+        numeric: row.numeric,
         direction: 'rx' as const,
       })));
-      const detail = `${result.lines.length} snapshot rows · ${result.numeric_rows} numeric · ${result.ignored_rows} ignored`;
+      const detail = `${result.rows.length} snapshot rows · ${result.numeric_rows} numeric · ${result.ignored_rows} ignored · real host timestamps preserved`;
       taskLog(task, detail); taskFinish(task, 'done', detail); report(detail);
     } catch (error) {
       taskLog(task, String(error)); taskFinish(task, 'failed', `Snapshot failed: ${error}`); report(`Snapshot failed: ${error}`);
@@ -351,46 +408,56 @@ export default function MonitorDataStudio({
   }
 
   async function recordMeasurement() {
-    if (!recipe || recipe.capture_mode !== 'numeric') {
-      report('The selected recipe does not define numeric Measurement Evidence.');
+    const live = monitorState === 'live' || monitorState === 'starting';
+    const evidenceContext = live ? bufferContext : {
+      port: selectedPort,
+      fqbn,
+      baud,
+      numericOnly,
+      recipe: cloneRecipe(recipe),
+      parameterValues: { ...parameterValues },
+    } satisfies AcquisitionContext;
+    const evidenceRecipe = evidenceContext?.recipe;
+    if (!evidenceRecipe || evidenceRecipe.capture_mode !== 'numeric') {
+      report(live ? 'The active Live acquisition was not started with a numeric Measurement Evidence recipe.' : 'The selected recipe does not define numeric Measurement Evidence.');
       return;
     }
-    if (!selectedPort) {
+    if (!evidenceContext?.port) {
       report('Select a serial device first.');
       return;
     }
-    if ((monitorState === 'live' || monitorState === 'starting') && !bufferedEvidenceRows.length) {
+    if (live && !bufferedEvidenceRows.length) {
       report('Live Monitor has no complete recipe-shaped numeric rows to save yet.');
       return;
     }
     setBusy(true);
-    const task = beginTask('Evidence', `Record evidence · ${recipe.title}`, monitorState === 'live' || monitorState === 'starting'
-      ? `Saving ${bufferedEvidenceRows.length} structured live rows without closing serial…`
+    const task = beginTask('Evidence', `Record evidence · ${evidenceRecipe.title}`, live
+      ? `Saving ${bufferedEvidenceRows.length} structured live rows with locked provenance…`
       : 'Acquiring a fresh 5 s multichannel Measurement Package…');
     try {
       let result: MeasurementResult;
-      if (monitorState === 'live' || monitorState === 'starting') {
-        report(`Saving ${bufferedEvidenceRows.length} buffered live rows without closing the serial port…`);
+      if (live) {
+        report(`Saving ${bufferedEvidenceRows.length} buffered live rows with the acquisition-start context; the serial port stays open…`);
         result = await invoke<MeasurementResult>('save_measurement_buffer', {
-          port: selectedPort,
-          boardProfile: fqbn,
-          recipeId: recipe.id,
+          port: evidenceContext.port,
+          boardProfile: evidenceContext.fqbn,
+          recipeId: evidenceRecipe.id,
           rows: bufferedEvidenceRows.map(row => ({
             host_timestamp_ms: row.hostTimestampMs,
             line: row.line,
             numeric: row.numeric,
           })),
-          parameterValues,
+          parameterValues: evidenceContext.parameterValues,
         });
       } else {
         report('Recording a new 5 s full multichannel Measurement Package…');
         result = await invoke<MeasurementResult>('capture_measurement', {
-          port: selectedPort,
+          port: evidenceContext.port,
           durationMs: 5000,
           maxLines: 10000,
-          boardProfile: fqbn,
-          recipeId: recipe.id,
-          parameterValues,
+          boardProfile: evidenceContext.fqbn,
+          recipeId: evidenceRecipe.id,
+          parameterValues: evidenceContext.parameterValues,
         });
       }
       setMeasurement(result);
@@ -398,8 +465,8 @@ export default function MonitorDataStudio({
       onMeasurement?.(result);
       taskLog(task, `data.csv · ${result.csv_path}`);
       taskLog(task, `metadata.json · ${result.metadata_path}`);
-      taskLog(task, `Physical Lab v1 · ${result.physical_lab_csv_path}`);
-      taskLog(task, `bridge · ${result.physical_lab_bridge_path}`);
+      taskLog(task, `Legacy Physical Lab v1 compatibility export · ${result.physical_lab_csv_path}`);
+      taskLog(task, `Engineering Lab bridge · ${result.physical_lab_bridge_path}`);
       await refreshSessions();
       const detail = `${result.samples} samples saved · ${result.directory}`;
       taskFinish(task, 'done', detail); report(detail);
@@ -410,44 +477,50 @@ export default function MonitorDataStudio({
     }
   }
 
+  const live = monitorState === 'live' || monitorState === 'starting';
+  const evidenceRecipe = live ? bufferContext?.recipe : recipe;
   const stateLabel = monitorState === 'live' ? 'LIVE' : monitorState === 'starting' ? 'OPENING' : monitorState === 'error' ? 'ERROR' : 'STOPPED';
   const selectedColumn = activeColumns[selectedChannel] ?? `channel_${selectedChannel + 1}`;
   const selectedUnit = activeUnits[selectedChannel] ?? '';
   const activePackage = replay?.session ?? measurement ?? latestMeasurement ?? null;
   const activePackageSamples = replay?.session.sample_count ?? measurement?.samples ?? latestMeasurement?.samples ?? null;
+  const contextRecipeTitle = replay?.session.recipe_title ?? bufferContext?.recipe?.title ?? recipe?.title ?? '—';
+  const contextPort = replay?.session.port ?? bufferContext?.port ?? selectedPort;
+  const contextBaud = replay ? 'recorded session' : (bufferContext?.baud ?? baud);
+  const contextRate = replay?.sample_rate_hz ?? visibleRecipe?.sample_rate_hz;
 
   return <section className="monitor-workspace">
     <div className="monitor-toolbar panel">
       <div className="monitor-toolbar-title">
         <div className={`live-badge ${monitorState}`}><span/><b>{stateLabel}</b></div>
-        <div><b>Monitor & Data</b><small>{recipe?.title || 'Select a recipe'} · {selectedPort || 'no serial device'}</small></div>
+        <div><b>Monitor & Data</b><small>{contextRecipeTitle} · {contextPort || 'no serial device'}</small></div>
       </div>
 
       <div className="monitor-controls">
         <label>Baud
-          <select value={baud} disabled={monitorState === 'live' || monitorState === 'starting'} onChange={event => setBaud(Number(event.target.value))}>
+          <select value={baud} disabled={live} onChange={event => setBaud(Number(event.target.value))}>
             {BAUD_OPTIONS.map(value => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>
-        <label className="monitor-check"><input type="checkbox" checked={numericOnly} disabled={monitorState === 'live' || monitorState === 'starting'} onChange={event => setNumericOnly(event.target.checked)}/> Numeric only</label>
-        {monitorState === 'live' || monitorState === 'starting'
+        <label className="monitor-check"><input type="checkbox" checked={numericOnly} disabled={live} onChange={event => setNumericOnly(event.target.checked)}/> Numeric only</label>
+        {live
           ? <button className="danger-soft" onClick={() => void stopMonitor()}><Square size={15}/> Stop</button>
           : <button className="primary" disabled={!selectedPort} onClick={() => void startMonitor()}><Radio size={15}/> Start Live</button>}
-        <button className="ghost" disabled={busy || monitorState === 'live' || monitorState === 'starting'} onClick={() => void captureSnapshot()}><Activity size={15}/> Snapshot 3 s</button>
-        <button className="ghost" onClick={() => setRows([])}><Eraser size={15}/> Clear</button>
+        <button className="ghost" disabled={busy || live} onClick={() => void captureSnapshot()}><Activity size={15}/> Snapshot 3 s</button>
+        <button className="ghost" onClick={clearDisplayedData}><Eraser size={15}/> Clear</button>
       </div>
     </div>
 
     <div className="monitor-statusline">
       <TerminalSquare size={14}/><span>{monitorMessage}</span>
-      {replay && <button className="replay-pill" onClick={() => setReplay(null)}>REPLAY · {replay.session.recipe_title} · return to live</button>}
+      {replay && <button className="replay-pill" onClick={() => setReplay(null)}>REPLAY · {replay.session.recipe_title} · return to buffer</button>}
       <span className="monitor-count">{replay ? `${displayRows.length} replay rows` : `${rows.length} buffered rows`}</span>
     </div>
 
     <div className="monitor-main-grid">
       <div className="panel monitor-plot-panel">
         <div className="panel-title"><Waves size={18}/> Live plot</div>
-        {!replay && recipe?.capture_mode === 'text' ? <div className="empty">This recipe is diagnostic text. Use the Serial Monitor panel instead of numeric plotting.</div> : <>
+        {!replay && visibleRecipe?.capture_mode === 'text' ? <div className="empty">This recipe is diagnostic text. Use the Serial Monitor panel instead of numeric plotting.</div> : <>
           <div className="plot-head">
             <div className="metric">{lastValue === undefined ? '—' : lastValue.toFixed(5)} <small>{selectedUnit}</small></div>
             <div className="plot-range"><span>min <b>{minValue === undefined ? '—' : minValue.toFixed(4)}</b></span><span>max <b>{maxValue === undefined ? '—' : maxValue.toFixed(4)}</b></span><span>points <b>{channelValues.length}</b></span></div>
@@ -476,10 +549,10 @@ export default function MonitorDataStudio({
     <div className="monitor-bottom-grid">
       <div className="panel monitor-record-panel">
         <div className="panel-title"><Database size={18}/> Record & evidence</div>
-        <p className="muted">Monitoring and recording share one evidence path. While Live is running, BetterBoard can save the current structured buffer without closing/reopening the serial port; while stopped, it can acquire a fresh 5 s package.</p>
+        <p className="muted">Monitoring and recording share one evidence path. Live acquisition locks port, board profile, recipe, schema and parameters at stream start so later navigation cannot relabel buffered evidence.</p>
         <div className="record-actions">
-          <button className="primary" disabled={busy || !selectedPort || recipe?.capture_mode !== 'numeric' || ((monitorState === 'live' || monitorState === 'starting') && !bufferedEvidenceRows.length)} onClick={() => void recordMeasurement()}><Save size={15}/> {monitorState === 'live' || monitorState === 'starting' ? `Save live buffer (${bufferedEvidenceRows.length})` : 'Record new 5 s package'}</button>
-          {(monitorState === 'live' || monitorState === 'starting') && <span className="record-note"><CircleAlert size={14}/> Saving the buffer keeps Live Monitor open and does not reset the board.</span>}
+          <button className="primary" disabled={busy || !(live ? bufferContext?.port : selectedPort) || evidenceRecipe?.capture_mode !== 'numeric' || (live && !bufferedEvidenceRows.length)} onClick={() => void recordMeasurement()}><Save size={15}/> {live ? `Save live buffer (${bufferedEvidenceRows.length})` : 'Record new 5 s package'}</button>
+          {live && <span className="record-note"><CircleAlert size={14}/> Saving keeps Live open and uses the context locked when this stream started.</span>}
         </div>
         {measurement && <div className="measurement big"><b>{measurement.samples} samples</b><span>{measurement.directory}</span><span>{measurement.csv_path}</span><span>{measurement.metadata_path}</span></div>}
       </div>
@@ -487,12 +560,13 @@ export default function MonitorDataStudio({
       <div className="panel monitor-context-panel">
         <div className="panel-title"><Gauge size={18}/> Session context</div>
         <div className="monitor-facts">
-          <span>Mode</span><b>{replay ? 'Historical replay' : 'Live / acquisition'}</b>
-          <span>Recipe</span><b>{replay?.session.recipe_title ?? recipe?.title ?? '—'}</b>
-          <span>Port</span><b>{(replay?.session.port ?? selectedPort) || '—'}</b>
-          <span>Baud</span><b>{replay ? 'recorded session' : baud}</b>
-          <span>Schema</span><b>{activeColumns.length ? `${activeColumns.length} channels` : recipe?.capture_mode ?? '—'}</b>
-          <span>Declared rate</span><b>{(replay?.sample_rate_hz ?? recipe?.sample_rate_hz) ? `${replay?.sample_rate_hz ?? recipe?.sample_rate_hz} Hz` : 'event / unspecified'}</b>
+          <span>Mode</span><b>{replay ? 'Historical replay' : live ? 'Live · context locked' : bufferContext ? 'Captured buffer · context locked' : 'Ready for acquisition'}</b>
+          <span>Recipe</span><b>{contextRecipeTitle}</b>
+          <span>Port</span><b>{contextPort || '—'}</b>
+          <span>Board profile</span><b>{replay?.session.board_profile ?? bufferContext?.fqbn ?? fqbn}</b>
+          <span>Baud</span><b>{contextBaud}</b>
+          <span>Schema</span><b>{activeColumns.length ? `${activeColumns.length} channels` : visibleRecipe?.capture_mode ?? '—'}</b>
+          <span>Declared rate</span><b>{contextRate ? `${contextRate} Hz` : 'event / unspecified'}</b>
           <span>Primary</span><b>{activePrimary || selectedColumn}</b>
         </div>
       </div>
@@ -503,17 +577,17 @@ export default function MonitorDataStudio({
         <div className="panel-title"><History size={18}/> Measurement sessions <button className="ghost mini" disabled={historyBusy} onClick={() => void refreshSessions()}><RefreshCw size={13}/> Refresh</button></div>
         {!sessions.length ? <div className="empty compact">No saved BetterBoard measurement sessions yet.</div> : <div className="session-list">{sessions.map(session => <div className={`session-row ${replay?.session.directory === session.directory ? 'active' : ''}`} key={session.directory}>
           <div><b>{session.recipe_title}</b><span>{new Date(session.created_at_utc).toLocaleString()} · {session.sample_count} samples · {session.acquisition_mode}</span><small>{session.directory}</small></div>
-          <button className="ghost" disabled={historyBusy} onClick={() => void loadReplay(session)}>Replay</button>
+          <button className="ghost" disabled={historyBusy || live} onClick={() => void loadReplay(session)}>Replay</button>
         </div>)}</div>}
       </div>
 
       <div className="panel monitor-export-panel">
-        <div className="panel-title"><Link2 size={18}/> Physical Lab export & bridge</div>
-        <p className="muted">The original standalone Bridge surface is preserved here inside the evidence workflow: package files plus the embedded hardware, serial-protocol and integration documentation remain directly inspectable.</p>
-        {activePackage ? <div className="measurement big"><b>{activePackageSamples ?? '—'} samples</b><span>Full: {activePackage.csv_path}</span><span>Metadata: {activePackage.metadata_path}</span><span>Physical Lab v1: {activePackage.physical_lab_csv_path}</span><span>Bridge: {activePackage.physical_lab_bridge_path}</span></div> : <div className="empty compact">Record or replay a measurement to expose its export package.</div>}
+        <div className="panel-title"><Link2 size={18}/> Engineering Lab handoff · Physical Lab export & bridge compatibility</div>
+        <p className="muted">Current BetterBoard evidence is handed to Engineering Lab through inspectable package files. Legacy Physical Lab compatibility files and embedded protocol documentation remain available so older workflows do not break.</p>
+        {activePackage ? <div className="measurement big"><b>{activePackageSamples ?? '—'} samples</b><span>Full: {activePackage.csv_path}</span><span>Metadata: {activePackage.metadata_path}</span><span>Legacy Physical Lab v1 compatibility: {activePackage.physical_lab_csv_path}</span><span>Engineering Lab bridge: {activePackage.physical_lab_bridge_path}</span></div> : <div className="empty compact">Record or replay a measurement to expose its export package.</div>}
         <div className="boundary"><CircleAlert size={14}/> A serial acquisition is evidence, not automatic proof of calibration, uncertainty, traceability, alignment, or model validity.</div>
-        {bridgeDocs?.hardware_map && <details className="bridge-details"><summary>Physical Lab hardware map</summary><pre className="docs-preview">{bridgeDocs.hardware_map}</pre></details>}
-        {bridgeDocs?.serial_protocol && <details className="bridge-details"><summary>Physical Lab serial protocol</summary><pre className="docs-preview">{bridgeDocs.serial_protocol}</pre></details>}
+        {bridgeDocs?.hardware_map && <details className="bridge-details"><summary>Legacy Physical Lab hardware map (compatibility)</summary><pre className="docs-preview">{bridgeDocs.hardware_map}</pre></details>}
+        {bridgeDocs?.serial_protocol && <details className="bridge-details"><summary>Legacy Physical Lab serial protocol (compatibility)</summary><pre className="docs-preview">{bridgeDocs.serial_protocol}</pre></details>}
         {bridgeDocs?.honeycomb_guide && <details className="bridge-details"><summary>Honeycomb / integration guide</summary><pre className="docs-preview">{bridgeDocs.honeycomb_guide}</pre></details>}
       </div>
     </div>
