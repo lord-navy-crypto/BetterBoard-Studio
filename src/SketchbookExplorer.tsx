@@ -76,7 +76,7 @@ export default function SketchbookExplorer({ onOpenSource, onStatus, hasUnsavedE
     if (!name) return;
     setBusy(true);
     try {
-      const entry = await invoke<SketchbookEntry>('developer_project_create', { name });
+      const entry = await invoke<SketchbookEntry>('developer_project_create', { name, files: null });
       const rows = await invoke<SketchbookEntry[]>('developer_sketchbook_list');
       setSketches(rows);
       const projectFiles = await fetchProjectFiles(entry.directory);
