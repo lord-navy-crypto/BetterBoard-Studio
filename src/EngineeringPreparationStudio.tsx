@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowRight, Database, FileCheck2, Magnet, Sigma, UploadCloud, Wrench } from 'lucide-react';
+import { ArrowRight, CircleAlert, Database, FileCheck2, Magnet, Sigma, UploadCloud, Wrench } from 'lucide-react';
 import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
 import NumericalBenchAdvanced from './NumericalBenchAdvanced';
 import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
@@ -31,12 +31,26 @@ export default function EngineeringPreparationStudio() {
   const [sessions, setSessions] = useState<MeasurementSessionSummary[]>([]);
   const [selected, setSelected] = useState<MeasurementSessionSummary | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [loadingEvidence, setLoadingEvidence] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   async function loadEvidence() {
-    const list = await invoke<MeasurementSessionSummary[]>('measurement_sessions', { limit: 50 });
-    setSessions(list);
-    setSelected(list[0] ?? null);
-    setLoaded(true);
+    if (loadingEvidence) return;
+    setLoadingEvidence(true);
+    setLoadError('');
+    try {
+      const list = await invoke<MeasurementSessionSummary[]>('measurement_sessions', { limit: 50 });
+      setSessions(list);
+      setSelected(current => current && list.some(item => item.directory === current.directory)
+        ? current
+        : (list[0] ?? null));
+      setLoaded(true);
+    } catch (error) {
+      setLoadError(`Could not load saved evidence: ${error}`);
+      setLoaded(true);
+    } finally {
+      setLoadingEvidence(false);
+    }
   }
 
   const exportText = useMemo(() => selected ? [
@@ -45,8 +59,8 @@ export default function EngineeringPreparationStudio() {
     `Samples: ${selected.sample_count}`,
     `data.csv: ${selected.csv_path}`,
     `metadata.json: ${selected.metadata_path}`,
-    `physical_lab_v1.csv: ${selected.physical_lab_csv_path}`,
-    `bridge: ${selected.physical_lab_bridge_path}`,
+    `legacy physical_lab_v1.csv compatibility: ${selected.physical_lab_csv_path}`,
+    `Engineering Lab bridge: ${selected.physical_lab_bridge_path}`,
   ].join('\n') : '', [selected]);
 
   return <section className="panel" style={{ maxWidth: 1420, margin: '18px auto 52px' }}>
@@ -91,12 +105,13 @@ export default function EngineeringPreparationStudio() {
     <section className="panel engineering-handoff" style={{ marginTop: 18 }}>
       <div className="panel-title"><UploadCloud size={18}/> BetterBoard → Engineering Lab handoff</div>
       <p className="muted">Preparation ends by producing inspectable files. Engineering Lab should independently recompute or validate the result instead of trusting BetterBoard's displayed summary.</p>
-      <button className="ghost" onClick={() => void loadEvidence()}><Database size={15}/> Load saved evidence</button>
-      {!loaded ? <div className="empty compact">Load evidence to browse recent measurement packages.</div> : !sessions.length ? <div className="empty compact">No saved measurement sessions yet.</div> : <>
+      <button className="ghost" disabled={loadingEvidence} onClick={() => void loadEvidence()}><Database size={15}/> {loadingEvidence ? 'Loading evidence…' : loaded ? 'Refresh saved evidence' : 'Load saved evidence'}</button>
+      {loadError && <div className="boundary" style={{ marginTop: 10 }}><CircleAlert size={14}/>{loadError}</div>}
+      {!loaded ? <div className="empty compact">Load evidence to browse recent measurement packages.</div> : !loadError && !sessions.length ? <div className="empty compact">No saved measurement sessions yet.</div> : !loadError && <>
         <select value={selected?.directory ?? ''} onChange={e => setSelected(sessions.find(s => s.directory === e.target.value) ?? null)}>
           {sessions.map(s => <option key={s.directory} value={s.directory}>{s.recipe_title} · {s.sample_count} samples · {new Date(s.created_at_utc).toLocaleString()}</option>)}
         </select>
-        {selected && <div className="measurement big"><b>{selected.recipe_title}</b><span>data.csv · {selected.csv_path}</span><span>metadata.json · {selected.metadata_path}</span><span>Physical Lab v1 · {selected.physical_lab_csv_path}</span><span>bridge · {selected.physical_lab_bridge_path}</span></div>}
+        {selected && <div className="measurement big"><b>{selected.recipe_title}</b><span>data.csv · {selected.csv_path}</span><span>metadata.json · {selected.metadata_path}</span><span>Legacy Physical Lab v1 compatibility · {selected.physical_lab_csv_path}</span><span>Engineering Lab bridge · {selected.physical_lab_bridge_path}</span></div>}
         <div className="action-row"><CopyButton text={exportText} label="Copy handoff"/><CopyButton text={selected?.csv_path || ''} label="Copy data path"/><CopyButton text={selected?.physical_lab_bridge_path || ''} label="Copy bridge path"/></div>
       </>}
       <div className="boundary"><FileCheck2 size={14}/> Handoff success means the evidence package exists and is traceable. It does not prove the physical measurement or computational model is correct.</div>
