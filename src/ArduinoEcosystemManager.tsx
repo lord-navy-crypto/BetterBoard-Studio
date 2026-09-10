@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Box, Boxes, Download, ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react';
 
@@ -120,6 +120,13 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
 
   const rows = useMemo(() => normalizeRows(tab, raw), [tab, raw]);
 
+  useEffect(() => {
+    if (tab !== 'examples') return;
+    setRaw(null);
+    setTarget('');
+    setOutput(`Board profile is now ${fqbn}. Reload library examples for this board before importing.`);
+  }, [fqbn, tab]);
+
   function switchTab(next: Tab) {
     setTab(next);
     setRaw(null);
@@ -144,28 +151,46 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
     } finally { setBusy(false); }
   }
 
-  async function refreshInstalled() {
-    const command = tab === 'boards' ? 'arduino_core_list' : tab === 'libraries' ? 'arduino_library_list' : 'arduino_library_examples';
-    if (tab === 'examples') {
-      if (!target.trim()) { setOutput('Enter a library name to list examples.'); return; }
-      const result = await run<JsonValue>('List examples', command, { name: target.trim(), fqbn, examplePath: null });
-      if (result !== null) setRaw(result);
+  async function loadExamples(libraryName: string) {
+    const library = libraryName.trim();
+    if (!library) {
+      setRaw(null); setTarget('');
+      setOutput('Enter a library name to list examples.');
       return;
     }
+    // Clear the old rows before changing the authoritative library target. If
+    // Arduino CLI fails, stale cards can never be paired with a new target.
+    setRaw(null);
+    const result = await run<JsonValue>('List examples', 'arduino_library_examples', { name: library, fqbn, examplePath: null });
+    if (result === null) {
+      setTarget('');
+      return;
+    }
+    setTarget(library);
+    setRaw(result);
+  }
+
+  async function refreshInstalled() {
+    if (tab === 'examples') {
+      await loadExamples(query.trim() || target.trim());
+      return;
+    }
+    const command = tab === 'boards' ? 'arduino_core_list' : 'arduino_library_list';
     const result = await run<JsonValue>('Refresh installed packages', command);
     if (result !== null) setRaw(result);
   }
 
   async function search() {
     if (!query.trim()) return;
-    const command = tab === 'boards' ? 'arduino_core_search' : 'arduino_library_search';
     if (tab === 'examples') {
-      const nextTarget = query.trim();
-      setTarget(nextTarget);
-      const result = await run<JsonValue>('List examples', 'arduino_library_examples', { name: nextTarget, fqbn, examplePath: null });
-      if (result !== null) setRaw(result);
+      await loadExamples(query);
       return;
     }
+    // A search changes the candidate set. Do not leave an old install target
+    // armed while displaying results for a different query.
+    setTarget('');
+    setRaw(null);
+    const command = tab === 'boards' ? 'arduino_core_search' : 'arduino_library_search';
     const result = await run<JsonValue>('Search Arduino index', command, { query: query.trim() });
     if (result !== null) setRaw(result);
   }
@@ -231,7 +256,7 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
       <div className="manager-row">
         <input value={query} onChange={e => setQuery(e.target.value)} placeholder={tab === 'boards' ? 'Search board platforms / cores' : tab === 'libraries' ? 'Search Arduino libraries' : 'Library name, e.g. Wire'} />
         <button className="ghost" disabled={busy || !query.trim()} onClick={() => void search()}><Search size={15}/> Search</button>
-        <button className="ghost" disabled={busy} onClick={() => void refreshInstalled()}><RefreshCw size={15}/> {tab === 'examples' ? 'List examples' : 'Installed'}</button>
+        <button className="ghost" disabled={busy || (tab === 'examples' && !query.trim() && !target.trim())} onClick={() => void refreshInstalled()}><RefreshCw size={15}/> {tab === 'examples' ? 'List examples' : 'Installed'}</button>
         {tab !== 'examples' && <button className="ghost" disabled={busy} onClick={() => void updateIndex()}><RefreshCw size={15}/> Update index</button>}
       </div>
 
