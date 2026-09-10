@@ -33,6 +33,9 @@ jobs:
       - name: Functionality surface no-regression check
         run: python3 scripts/functionality_surface_check.py
 
+      - name: Monitor provenance and evidence-handling self-check
+        run: python3 scripts/monitor_provenance_self_check.py
+
       - name: Numerical depth self-check
         run: python3 scripts/numerical_depth_self_check.py
 
