@@ -1,6 +1,12 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{fs, io::Write, path::{Path, PathBuf}, process::{Command, Stdio}};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 fn find_cli() -> Result<PathBuf, String> {
     if let Ok(custom) = std::env::var("ARDUINO_CLI") {
@@ -116,11 +122,86 @@ pub fn arduino_library_uninstall(name: String) -> Result<String, String> {
     run_cli(&["lib".into(), "uninstall".into(), name])
 }
 
+fn example_record_by_path(raw: &Value, requested_path: &str) -> Option<Value> {
+    let records = if let Some(array) = raw.as_array() {
+        Some(array)
+    } else {
+        raw.get("examples").and_then(Value::as_array)
+    }?;
+    records.iter().find_map(|record| {
+        let path = record.get("path").or_else(|| record.get("sketch_path")).and_then(Value::as_str)?;
+        (path == requested_path).then(|| record.clone())
+    })
+}
+
+fn verified_library_example_dir(path: &str, requested_library: &str) -> Result<PathBuf, String> {
+    let canonical = fs::canonicalize(path).map_err(|e| format!("Example path is unavailable: {e}"))?;
+    if !canonical.is_dir() { return Err("Arduino CLI example path is not a directory".into()); }
+    let examples_root = canonical.ancestors()
+        .find(|ancestor| ancestor.file_name().and_then(|v| v.to_str()) == Some("examples"))
+        .ok_or_else(|| "Arduino CLI example is not inside a library examples directory".to_string())?;
+    let library_root = examples_root.parent().ok_or_else(|| "Library example has no library root".to_string())?;
+    let properties = fs::read_to_string(library_root.join("library.properties"))
+        .map_err(|e| format!("Could not verify library.properties for this example: {e}"))?;
+    let declared_name = properties.lines().find_map(|line| line.strip_prefix("name=")).map(str::trim)
+        .ok_or_else(|| "library.properties does not declare a library name".to_string())?;
+    let requested_name = requested_library.split('@').next().unwrap_or(requested_library).trim();
+    if declared_name != requested_name {
+        return Err(format!("Example belongs to library '{declared_name}', not requested library '{requested_name}'"));
+    }
+    Ok(canonical)
+}
+
+fn prepare_example_record(mut record: Value, library_name: &str) -> Result<Value, String> {
+    let path = record.get("path").or_else(|| record.get("sketch_path")).and_then(Value::as_str)
+        .ok_or_else(|| "Arduino CLI example did not provide a sketch path".to_string())?.to_string();
+    let dir = verified_library_example_dir(&path, library_name)?;
+    let example_name = dir.file_name().and_then(|v| v.to_str()).unwrap_or_default().to_string();
+    let mut files = Vec::new();
+    let mut total_bytes = 0usize;
+    for entry in fs::read_dir(&dir).map_err(|e| e.to_string())?.filter_map(Result::ok) {
+        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        if !file_type.is_file() { continue; }
+        let path = entry.path();
+        let ext = path.extension().and_then(|v| v.to_str()).unwrap_or_default();
+        if !matches!(ext, "ino" | "h" | "hpp" | "c" | "cpp") { continue; }
+        if files.len() >= 32 { return Err("Example has more than 32 top-level source files; import is intentionally bounded".into()); }
+        let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+        if metadata.len() > 512_000 { return Err("Example contains a source file larger than the 512 KB import limit".into()); }
+        total_bytes = total_bytes.saturating_add(metadata.len() as usize);
+        if total_bytes > 2_000_000 { return Err("Example source exceeds the 2 MB import limit".into()); }
+        let source = fs::read_to_string(&path).map_err(|e| format!("Example source is not UTF-8 text: {e}"))?;
+        let file_name = path.file_name().and_then(|v| v.to_str()).unwrap_or_default().to_string();
+        files.push(json!({
+            "name": file_name,
+            "source": source,
+            "main": path.file_name().and_then(|v| v.to_str()) == Some(&format!("{example_name}.ino")),
+        }));
+    }
+    if !files.iter().any(|file| file.get("name").and_then(Value::as_str).is_some_and(|name| name.ends_with(".ino"))) {
+        return Err("Example has no top-level .ino file that BetterBoard can import".into());
+    }
+    if !files.iter().any(|file| file.get("main").and_then(Value::as_bool) == Some(true)) {
+        if let Some(file) = files.iter_mut().find(|file| file.get("name").and_then(Value::as_str).is_some_and(|name| name.ends_with(".ino"))) {
+            if let Some(object) = file.as_object_mut() { object.insert("main".into(), Value::Bool(true)); }
+        }
+    }
+    let object = record.as_object_mut().ok_or_else(|| "Arduino CLI example record is invalid".to_string())?;
+    object.insert("betterboard_files".into(), Value::Array(files));
+    object.insert("betterboard_importable".into(), Value::Bool(true));
+    Ok(record)
+}
+
 #[tauri::command]
-pub fn arduino_library_examples(name: String, fqbn: String) -> Result<Value, String> {
+pub fn arduino_library_examples(name: String, fqbn: String, example_path: Option<String>) -> Result<Value, String> {
     let name = bounded_text(&name, "Library name", 180)?;
     let fqbn = bounded_text(&fqbn, "Board profile", 180)?;
-    run_cli_json(&["lib", "examples", &name, "--fqbn", &fqbn])
+    let raw = run_cli_json(&["lib", "examples", &name, "--fqbn", &fqbn])?;
+    let Some(example_path) = example_path else { return Ok(raw); };
+    let example_path = bounded_text(&example_path, "Example path", 1200)?;
+    let record = example_record_by_path(&raw, &example_path)
+        .ok_or_else(|| "Requested example is not present in the current Arduino CLI example list".to_string())?;
+    Ok(json!({ "example": prepare_example_record(record, &name)? }))
 }
 
 #[derive(Debug, Serialize)]
@@ -129,6 +210,14 @@ pub struct SketchbookEntry {
     directory: String,
     main_file: String,
     source: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ImportedProjectFile {
+    name: String,
+    source: String,
+    #[serde(default)]
+    main: bool,
 }
 
 fn sketch_roots() -> Vec<PathBuf> {
@@ -243,16 +332,71 @@ pub fn developer_project_file_save(directory: String, file_name: String, source:
 }
 
 #[tauri::command]
-pub fn developer_project_create(name: String) -> Result<SketchbookEntry, String> {
+pub fn developer_project_create(name: String, files: Option<Vec<ImportedProjectFile>>) -> Result<SketchbookEntry, String> {
     let name = safe_project_name(&name)?;
     let root = betterboard_sketch_root();
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
     let dir = root.join(&name);
     if dir.exists() { return Err(format!("Project already exists: {name}")); }
-    fs::create_dir(&dir).map_err(|e| e.to_string())?;
-    let main = dir.join(format!("{name}.ino"));
-    let source = "void setup() {\n  // runs once\n}\n\nvoid loop() {\n  // runs repeatedly\n}\n".to_string();
-    fs::write(&main, &source).map_err(|e| e.to_string())?;
+
+    let canonical_main_name = format!("{name}.ino");
+    let source_files = files.unwrap_or_default();
+    if source_files.is_empty() {
+        fs::create_dir(&dir).map_err(|e| e.to_string())?;
+        let main = dir.join(&canonical_main_name);
+        let source = "void setup() {\n  // runs once\n}\n\nvoid loop() {\n  // runs repeatedly\n}\n".to_string();
+        if let Err(error) = fs::write(&main, &source) {
+            let _ = fs::remove_dir_all(&dir);
+            return Err(error.to_string());
+        }
+        return Ok(SketchbookEntry {
+            name,
+            directory: dir.display().to_string(),
+            main_file: main.display().to_string(),
+            source,
+        });
+    }
+
+    if source_files.len() > 32 { return Err("Imported project exceeds the 32-file limit".into()); }
+    let mut total_bytes = 0usize;
+    let mut validated = Vec::new();
+    let mut main_index = None;
+    for (index, file) in source_files.into_iter().enumerate() {
+        let file_name = safe_project_file_name(&file.name)?;
+        if file.source.len() > 512_000 { return Err(format!("Imported file {file_name} exceeds the 512 KB limit")); }
+        total_bytes = total_bytes.saturating_add(file.source.len());
+        if total_bytes > 2_000_000 { return Err("Imported project exceeds the 2 MB source limit".into()); }
+        if file.main {
+            if main_index.is_some() { return Err("Imported example identifies more than one main .ino file".into()); }
+            main_index = Some(index);
+        }
+        validated.push((file_name, file.source));
+    }
+    let main_index = main_index.or_else(|| validated.iter().position(|(file_name, _)| file_name.ends_with(".ino")))
+        .ok_or_else(|| "Imported project has no .ino file".to_string())?;
+
+    for (index, (file_name, _)) in validated.iter().enumerate() {
+        if index != main_index && file_name == &canonical_main_name {
+            return Err(format!("Imported file name collides with required main sketch: {canonical_main_name}"));
+        }
+    }
+
+    let nonce = SystemTime::now().duration_since(UNIX_EPOCH).map(|value| value.as_nanos()).unwrap_or_default();
+    let staging = root.join(format!(".{name}.importing-{}-{nonce}", std::process::id()));
+    fs::create_dir(&staging).map_err(|e| e.to_string())?;
+    for (index, (file_name, source)) in validated.iter().enumerate() {
+        let output_name = if index == main_index { &canonical_main_name } else { file_name };
+        if let Err(error) = fs::write(staging.join(output_name), source) {
+            let _ = fs::remove_dir_all(&staging);
+            return Err(format!("Could not stage imported file {output_name}: {error}"));
+        }
+    }
+    if let Err(error) = fs::rename(&staging, &dir) {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(format!("Could not commit imported project: {error}"));
+    }
+    let main = dir.join(&canonical_main_name);
+    let source = fs::read_to_string(&main).map_err(|e| e.to_string())?;
     Ok(SketchbookEntry {
         name,
         directory: dir.display().to_string(),
