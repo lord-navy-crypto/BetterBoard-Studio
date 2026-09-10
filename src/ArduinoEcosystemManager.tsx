@@ -44,7 +44,7 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
 
   const rows = useMemo(() => flattenRecords(raw).slice(0, 80), [raw]);
 
-  async function run<T>(label: string, command: string, args: Record<string, unknown> = {}) {
+  async function run<T>(label: string, command: string, args: Record<string, unknown> = {}): Promise<T | null> {
     setBusy(true); setOutput(`${label}…`);
     try {
       const result = await invoke<T>(command, args);
@@ -52,8 +52,9 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
       onStatus(`${label} complete`);
       return result;
     } catch (error) {
-      setOutput(String(error)); onStatus(`${label} failed: ${error}`);
-      throw error;
+      const detail = String(error);
+      setOutput(detail); onStatus(`${label} failed: ${detail}`);
+      return null;
     } finally { setBusy(false); }
   }
 
@@ -62,34 +63,41 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
     if (tab === 'examples') {
       if (!target.trim()) { setOutput('Enter a library name to list examples.'); return; }
       const result = await run<JsonValue>('List examples', command, { name: target.trim(), fqbn });
-      setRaw(result); return;
+      if (result !== null) setRaw(result);
+      return;
     }
     const result = await run<JsonValue>('Refresh installed packages', command);
-    setRaw(result);
+    if (result !== null) setRaw(result);
   }
 
   async function search() {
     if (!query.trim()) return;
     const command = tab === 'boards' ? 'arduino_core_search' : 'arduino_library_search';
-    if (tab === 'examples') { setTarget(query.trim()); await refreshInstalled(); return; }
+    if (tab === 'examples') {
+      const nextTarget = query.trim();
+      setTarget(nextTarget);
+      const result = await run<JsonValue>('List examples', 'arduino_library_examples', { name: nextTarget, fqbn });
+      if (result !== null) setRaw(result);
+      return;
+    }
     const result = await run<JsonValue>('Search Arduino index', command, { query: query.trim() });
-    setRaw(result);
+    if (result !== null) setRaw(result);
   }
 
   async function install() {
     if (!target.trim()) return;
     const command = tab === 'boards' ? 'arduino_core_install' : 'arduino_library_install';
     const arg = tab === 'boards' ? { core: target.trim() } : { name: target.trim() };
-    await run<string>('Install package', command, arg);
-    await refreshInstalled();
+    const result = await run<string>('Install package', command, arg);
+    if (result !== null) await refreshInstalled();
   }
 
   async function uninstall() {
     if (!target.trim()) return;
     const command = tab === 'boards' ? 'arduino_core_uninstall' : 'arduino_library_uninstall';
     const arg = tab === 'boards' ? { core: target.trim() } : { name: target.trim() };
-    await run<string>('Uninstall package', command, arg);
-    await refreshInstalled();
+    const result = await run<string>('Uninstall package', command, arg);
+    if (result !== null) await refreshInstalled();
   }
 
   async function updateIndex() {
