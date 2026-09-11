@@ -22,9 +22,11 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix='bb-build-manifest-test-') as tmp_raw:
         tmp = Path(tmp_raw)
         fake_cli = tmp / 'arduino-cli'
+        upload_log = tmp / 'upload.log'
         fake_cli.write_text(
             '#!/usr/bin/env python3\n'
             'import json, pathlib, sys\n'
+            f'UPLOAD_LOG = pathlib.Path({str(upload_log)!r})\n'
             'args = sys.argv[1:]\n'
             'if args == ["version"]:\n'
             '    print("arduino-cli Version: 1.2.3-test")\n'
@@ -47,6 +49,14 @@ def main() -> int:
             '    (build / "firmware.bin").write_bytes(b"fake-bin\\x00" + payload)\n'
             '    (build / "firmware.elf").write_bytes(b"fake-elf\\x02" + payload)\n'
             '    print("fake compile ok")\n'
+            'elif args and args[0] == "upload":\n'
+            '    build = pathlib.Path(args[args.index("--input-dir") + 1])\n'
+            '    port = args[args.index("-p") + 1]\n'
+            '    if not (build / "firmware.bin").is_file():\n'
+            '        print("missing compiled firmware", file=sys.stderr)\n'
+            '        raise SystemExit(5)\n'
+            '    UPLOAD_LOG.write_text(json.dumps({"port": port, "build": str(build), "args": args}))\n'
+            '    print("fake upload ok")\n'
             'else:\n'
             '    print("unsupported fake arduino-cli invocation", args, file=sys.stderr)\n'
             '    raise SystemExit(2)\n'
@@ -60,6 +70,7 @@ def main() -> int:
             '--fqbn', 'esp32:esp32:esp32',
             '--arduino-cli', str(fake_cli),
             '--out-dir', str(out_dir),
+            '--port', '/dev/ttyTEST0',
         ], check=True, text=True, capture_output=True)
 
         manifest_path = out_dir / 'firmware_build_manifest.json'
@@ -93,6 +104,16 @@ def main() -> int:
             artifact = out_dir / item['path']
             assert item['bytes'] == artifact.stat().st_size
             assert item['sha256'] == sha256(artifact)
+
+        upload = manifest['upload']
+        assert upload['attempted'] is True
+        assert upload['success'] is True
+        assert upload['port'] == '/dev/ttyTEST0'
+        assert upload['command'][0] == str(fake_cli)
+        assert '--input-dir' in upload['command']
+        logged = json.loads(upload_log.read_text())
+        assert logged['port'] == '/dev/ttyTEST0'
+        assert Path(logged['build']).resolve() == (out_dir / 'build').resolve()
         assert 'self-report' in manifest['attestation_boundary']
 
         good_capture = tmp / 'good.txt'
