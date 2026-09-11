@@ -9,7 +9,7 @@ import MagnetBenchSuite from './MagnetBenchSuite';
 import './styles.css';
 import './visual-system.css';
 
-type Workspace = 'studio' | 'numerical' | 'esp32' | 'esp32-campaign' | 'magnet';
+type Workspace = 'studio' | 'numerical' | 'esp32' | 'campaign' | 'magnet';
 
 const WORKSPACES: Array<{
   id: Workspace;
@@ -20,7 +20,7 @@ const WORKSPACES: Array<{
   { id: 'studio', label: 'Studio', subtitle: 'hardware + data', icon: CircuitBoard },
   { id: 'numerical', label: 'Numerical', subtitle: 'Numerical Bench 01–03', icon: Sigma },
   { id: 'esp32', label: 'ESP32 Research', subtitle: 'timing + numerics', icon: Cpu },
-  { id: 'esp32-campaign', label: 'ESP32 Campaign', subtitle: 'repeat + compare', icon: Repeat2 },
+  { id: 'campaign', label: 'ESP32 Campaign', subtitle: 'repeat + compare', icon: Repeat2 },
   { id: 'magnet', label: 'Magnet', subtitle: 'Magnet Bench 01–03', icon: Magnet },
 ];
 
@@ -56,7 +56,7 @@ function Root() {
       {workspace === 'studio' && <App />}
       {workspace === 'numerical' && <NumericalBenchSuite />}
       {workspace === 'esp32' && <ESP32ResearchWorkspace />}
-      {workspace === 'esp32-campaign' && <ESP32CampaignWorkspace />}
+      {workspace === 'campaign' && <ESP32CampaignWorkspace />}
       {workspace === 'magnet' && <MagnetBenchSuite />}
     </div>
   </div>;
