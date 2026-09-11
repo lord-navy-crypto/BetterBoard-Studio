@@ -5,7 +5,10 @@
     "fqbn": "arduino:avr:uno",
     "core": "arduino:avr",
     "default_baud": 115200,
-    "notes": ["Compatible USB-serial boards may appear with Board Name Unknown.", "Profile selection remains explicit rather than guessing from a serial chip."]
+    "notes": [
+      "Compatible USB-serial boards may appear with Board Name Unknown.",
+      "Profile selection remains explicit rather than guessing from a serial chip."
+    ]
   },
   {
     "id": "nano",
@@ -13,7 +16,9 @@
     "fqbn": "arduino:avr:nano",
     "core": "arduino:avr",
     "default_baud": 115200,
-    "notes": ["Some classic Nano clones may require processor-specific upload options; BetterBoard does not guess those yet."]
+    "notes": [
+      "Some classic Nano clones may require processor-specific upload options; BetterBoard does not guess those yet."
+    ]
   },
   {
     "id": "mega",
@@ -21,6 +26,42 @@
     "fqbn": "arduino:avr:mega",
     "core": "arduino:avr",
     "default_baud": 115200,
-    "notes": ["Initial recipes are authored against the UNO pin conventions; review pin assignments before using non-UNO boards."]
+    "notes": [
+      "Initial recipes are authored against the UNO pin conventions; review pin assignments before using non-UNO boards."
+    ]
+  },
+  {
+    "id": "esp32-generic",
+    "label": "ESP32 Dev Module (generic)",
+    "fqbn": "esp32:esp32:esp32",
+    "core": "esp32:esp32",
+    "default_baud": 115200,
+    "notes": [
+      "Use only when the board is a classic ESP32-compatible Dev Module or when the exact vendor profile maps to this FQBN.",
+      "GPIO logic is 3.3 V; do not assume 5 V tolerance.",
+      "BetterBoard keeps the profile explicit because USB serial identity alone does not reliably identify the MCU variant."
+    ]
+  },
+  {
+    "id": "esp32-s3-generic",
+    "label": "ESP32-S3 Dev Module (generic)",
+    "fqbn": "esp32:esp32:esp32s3",
+    "core": "esp32:esp32",
+    "default_baud": 115200,
+    "notes": [
+      "Generic Arduino-ESP32 S3 profile; vendor boards can require a more specific FQBN or USB option.",
+      "GPIO logic is 3.3 V and the safe pin map is board-specific."
+    ]
+  },
+  {
+    "id": "esp32-c3-generic",
+    "label": "ESP32-C3 Dev Module (generic)",
+    "fqbn": "esp32:esp32:esp32c3",
+    "core": "esp32:esp32",
+    "default_baud": 115200,
+    "notes": [
+      "Generic Arduino-ESP32 C3 profile; ESP32-C3 is single-core, so multicore experiments must be interpreted as grouped/task execution only.",
+      "GPIO logic is 3.3 V and the safe pin map is board-specific."
+    ]
   }
 ]
