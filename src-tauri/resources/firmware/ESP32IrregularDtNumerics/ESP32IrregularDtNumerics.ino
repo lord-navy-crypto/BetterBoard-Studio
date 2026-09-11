@@ -1,7 +1,13 @@
 #include <Arduino.h>
 #include <math.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 #include <esp_timer.h>
 #include <WiFi.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #if !defined(ARDUINO_ARCH_ESP32)
 #error "ESP32IrregularDtNumerics requires an ESP32-family board/core."
@@ -16,12 +22,14 @@
 // - esp_timer_get_time() timestamps are measurement evidence, not an external time standard.
 // - Wi-Fi and load modes are interference experiments, not universal ESP32 claims.
 // - Serial output occurs after acquisition so printing does not directly pace the sampler.
+// - load/Wi-Fi modes fail closed if their requested interference source cannot start.
 
 static const uint32_t BAUD = 115200;
 static const uint32_t MAX_SAMPLES = 4096;
 static const uint32_t MIN_PERIOD_US = 100;
 static const uint32_t MAX_PERIOD_US = 1000000;
-static const uint32_t SCHEMA_VERSION = 1;
+static const uint32_t SCHEMA_VERSION = 2;
+static constexpr double TWO_PI_D = 6.283185307179586476925286766559;
 
 struct Sample {
   int64_t tUs;
@@ -108,8 +116,8 @@ bool parseDoubleValue(const char* s, double& out) {
   return true;
 }
 
-void startLoad() {
-  if (loadTaskHandle) return;
+bool startLoad() {
+  if (loadTaskHandle) return true;
   loadRun = true;
   BaseType_t ok = xTaskCreatePinnedToCore(
     loadTask,
@@ -123,25 +131,31 @@ void startLoad() {
   if (ok != pdPASS) {
     loadRun = false;
     loadTaskHandle = nullptr;
+    return false;
   }
+  return true;
 }
 
 void stopLoad() {
   loadRun = false;
   uint32_t waited = 0;
-  while (loadTaskHandle && waited < 1000) {
+  while (loadTaskHandle && waited < 2000) {
     delay(1);
     ++waited;
   }
 }
 
-void startWifiInterference() {
+bool startWifiInterference() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(false, false);
   delay(20);
-  // Asynchronous scan; results are deliberately ignored. The experiment asks whether
-  // subsystem activity perturbs timing, not what networks are visible.
-  WiFi.scanNetworks(true, true);
+  WiFi.scanDelete();
+  const int state = WiFi.scanNetworks(true, true);
+  if (state == WIFI_SCAN_FAILED) {
+    WiFi.mode(WIFI_OFF);
+    return false;
+  }
+  return true;
 }
 
 void stopWifiInterference() {
@@ -149,15 +163,28 @@ void stopWifiInterference() {
   WiFi.mode(WIFI_OFF);
 }
 
+void waitUntilTarget(int64_t targetUs) {
+  while (true) {
+    const int64_t now = esp_timer_get_time();
+    const int64_t remaining = targetUs - now;
+    if (remaining <= 0) return;
+    if (remaining > 1500) {
+      delayMicroseconds(100);
+    } else if (remaining > 200) {
+      taskYIELD();
+    } else if (remaining > 25) {
+      delayMicroseconds(5);
+    }
+  }
+}
+
 void acquire(uint32_t periodUs, uint32_t n, double freqHz) {
-  const double omega = 2.0 * M_PI * freqHz;
+  const double omega = TWO_PI_D * freqHz;
   int64_t target = esp_timer_get_time();
   for (uint32_t i = 0; i < n; ++i) {
     target += (int64_t)periodUs;
-    while (esp_timer_get_time() < target) {
-      taskYIELD();
-    }
-    int64_t t = esp_timer_get_time();
+    waitUntilTarget(target);
+    const int64_t t = esp_timer_get_time();
     samplesBuf[i].tUs = t;
     samplesBuf[i].y = (float)sin(omega * ((double)t * 1e-6));
   }
@@ -186,7 +213,9 @@ void computeNumerics(uint32_t periodUs, uint32_t n) {
     const double areaScale = 0.5 * (y0 + y1);
     integConst[i] = integConst[i - 1] + areaScale * nominalDt;
     const double measuredDt = ((double)(samplesBuf[i].tUs - samplesBuf[i - 1].tUs)) * 1e-6;
-    integMeasured[i] = integMeasured[i - 1] + areaScale * measuredDt;
+    integMeasured[i] = measuredDt > 0.0
+      ? integMeasured[i - 1] + areaScale * measuredDt
+      : NAN;
   }
 }
 
@@ -198,8 +227,8 @@ void emitRows(uint32_t periodUs, uint32_t n, double freqHz, const char* mode) {
     Serial.print(mode); Serial.print(',');
     Serial.print(periodUs); Serial.print(',');
     Serial.print(freqHz, 8); Serial.print(',');
-    Serial.print(samplesBuf[i].tUs); Serial.print(',');
-    Serial.print(dtPrev); Serial.print(',');
+    Serial.print((long long)samplesBuf[i].tUs); Serial.print(',');
+    Serial.print((long long)dtPrev); Serial.print(',');
     Serial.print(samplesBuf[i].y, 9); Serial.print(',');
     if (isfinite(derivConst[i])) Serial.print(derivConst[i], 9); else Serial.print(F("nan"));
     Serial.print(',');
@@ -219,8 +248,14 @@ void runIrregular(uint32_t periodUs, uint32_t n, double freqHz, const char* mode
   const bool useLoad = !strcmp(mode, "LOAD");
   const bool useWifi = !strcmp(mode, "WIFI");
 
-  if (useLoad) startLoad();
-  if (useWifi) startWifiInterference();
+  if (useLoad && !startLoad()) {
+    Serial.println(F("#ERROR,load_task_create_failed"));
+    return;
+  }
+  if (useWifi && !startWifiInterference()) {
+    Serial.println(F("#ERROR,wifi_scan_start_failed"));
+    return;
+  }
   delay(25);
 
   runId++;
@@ -306,4 +341,5 @@ void loop() {
       Serial.println(F("#ERROR,command_too_long"));
     }
   }
+  delay(1);
 }
