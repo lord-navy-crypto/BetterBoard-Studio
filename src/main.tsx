@@ -16,8 +16,8 @@ const WORKSPACES: Array<{
   icon: typeof CircuitBoard;
 }> = [
   { id: 'studio', label: 'Studio', subtitle: 'hardware + data', icon: CircuitBoard },
-  { id: 'numerical', label: 'Numerical', subtitle: 'bench 01–03', icon: Sigma },
-  { id: 'magnet', label: 'Magnet', subtitle: 'bench 01–03', icon: Magnet },
+  { id: 'numerical', label: 'Numerical', subtitle: 'Numerical Bench 01–03', icon: Sigma },
+  { id: 'magnet', label: 'Magnet', subtitle: 'Magnet Bench 01–03', icon: Magnet },
 ];
 
 function Root() {
