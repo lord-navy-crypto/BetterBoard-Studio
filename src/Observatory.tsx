@@ -41,10 +41,18 @@ function latestNumericStats(replay: MeasurementReplay | null) {
   const firstT = numeric[0].host_timestamp_ms, lastT = numeric[numeric.length - 1].host_timestamp_ms;
   const durationS = Math.max((lastT - firstT) / 1000, 0);
   const observedHz = durationS > 0 && numeric.length > 1 ? (numeric.length - 1) / durationS : null;
-  const primary = replay.primary_column ? replay.columns.indexOf(replay.primary_column) : Math.max(replay.columns.length - 1, 0);
-  const values = numeric.map(row => Number(row.line.split(',')[primary]?.trim())).filter(Number.isFinite);
-  const min = values.length ? Math.min(...values) : null, max = values.length ? Math.max(...values) : null;
-  const last = values.length ? values[values.length - 1] : null;
+  const declaredPrimary = replay.primary_column ? replay.columns.indexOf(replay.primary_column) : -1;
+  const primary = declaredPrimary >= 0 ? declaredPrimary : Math.max(replay.columns.length - 1, 0);
+  let min: number | null = null;
+  let max: number | null = null;
+  let last: number | null = null;
+  for (const row of numeric) {
+    const value = Number(row.line.split(',')[primary]?.trim());
+    if (!Number.isFinite(value)) continue;
+    min = min === null ? value : Math.min(min, value);
+    max = max === null ? value : Math.max(max, value);
+    last = value;
+  }
   return { durationS, observedHz, min, max, last, numericRows: numeric.length, primary: replay.columns[primary] || `channel_${primary+1}`, unit: replay.units[primary] || '' };
 }
 
@@ -124,7 +132,7 @@ export default function Observatory() {
 
   useEffect(() => {
     void refreshRuntime();
-    const fast = window.setInterval(() => { setTasks(readTaskMemory()); setLastRefresh(Date.now()); }, 1500);
+    const fast = window.setInterval(() => { setTasks(readTaskMemory()); }, 1500);
     const slow = window.setInterval(() => void refreshRuntime(), 7000);
     return () => { window.clearInterval(fast); window.clearInterval(slow); };
   }, []);
