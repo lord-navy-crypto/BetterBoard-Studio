@@ -12,6 +12,7 @@ type SketchbookEntry = { name: string; directory: string; main_file: string; sou
 type Props = {
   fqbn: string;
   onStatus: (message: string) => void;
+  onImported: (entry: SketchbookEntry) => boolean;
 };
 
 function asRecord(value: unknown): JsonRecord | null {
@@ -115,7 +116,7 @@ function uninstallTarget(value: string) {
   return value.trim().replace(/@[^@]+$/, '').trim();
 }
 
-export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
+export default function ArduinoEcosystemManager({ fqbn, onStatus, onImported }: Props) {
   const [tab, setTab] = useState<Tab>('boards');
   const [query, setQuery] = useState('');
   const [target, setTarget] = useState('');
@@ -218,9 +219,12 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus }: Props) {
       }
       const projectName = safeProjectName(requestedName);
       const entry = await invoke<SketchbookEntry>('developer_project_create', { name: projectName, files });
-      const detail = `Imported Arduino example · ${row.title} → ${entry.name}\n${entry.directory}\nSwitch to Developer → Sketchbook to open, edit, Verify or Upload the imported copy.`;
+      const opened = onImported(entry);
+      const detail = opened
+        ? `Imported Arduino example · ${row.title} → ${entry.name}\n${entry.directory}\nOpened the imported main sketch in Developer Editor.`
+        : `Imported Arduino example · ${row.title} → ${entry.name}\n${entry.directory}\nThe current unsaved Developer draft was preserved; open the imported copy from Sketchbook when ready.`;
       setOutput(detail);
-      onStatus(`Imported example to Sketchbook · ${entry.name}`);
+      onStatus(opened ? `Imported and opened example · ${entry.name}` : `Imported example to Sketchbook · ${entry.name}; current draft preserved`);
     } catch (error) {
       const detail = `Example import failed: ${error}`;
       setOutput(detail);

@@ -334,7 +334,7 @@ export default function DeveloperIDE({
       </div>
     </div>}
 
-    {view === 'ecosystem' && <ArduinoEcosystemManager fqbn={fqbn} onStatus={onStatus} />}
+    {view === 'ecosystem' && <ArduinoEcosystemManager fqbn={fqbn} onStatus={onStatus} onImported={entry => openProjectSource(entry.source, entry.main_file.split(/[\\/]/).filter(Boolean).pop() ?? `${entry.name}.ino`, entry.directory)} />}
     {view === 'sketchbook' && <div className="panel"><SketchbookExplorer onOpenSource={openProjectSource} onStatus={onStatus} hasUnsavedEdits={dirty} /></div>}
   </section>;
 }
