@@ -25,7 +25,7 @@
     "active": true,
     "targets": "all",
     "category": "DeveloperTool",
-    "shortDescription": "Easier physical computing workflows",
-    "longDescription": "Goal-first board and sensor workflows with a Physical Lab measurement bridge."
+    "shortDescription": "Physical computing and embedded measurement studio",
+    "longDescription": "Goal-first Arduino and ESP32 board workflows with firmware, serial research tools, measurement capture, numerical reliability experiments, and a Physical Lab bridge."
   }
 }
