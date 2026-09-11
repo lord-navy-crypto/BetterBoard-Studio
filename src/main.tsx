@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { CircuitBoard, Magnet, Sigma } from 'lucide-react';
+import { CircuitBoard, Cpu, Magnet, Sigma } from 'lucide-react';
 import App from './App';
+import ESP32ResearchWorkspace from './ESP32ResearchWorkspace';
 import NumericalBenchSuite from './NumericalBenchSuite';
 import MagnetBenchSuite from './MagnetBenchSuite';
 import './styles.css';
 import './visual-system.css';
 
-type Workspace = 'studio' | 'numerical' | 'magnet';
+type Workspace = 'studio' | 'numerical' | 'esp32' | 'magnet';
 
 const WORKSPACES: Array<{
   id: Workspace;
@@ -17,6 +18,7 @@ const WORKSPACES: Array<{
 }> = [
   { id: 'studio', label: 'Studio', subtitle: 'hardware + data', icon: CircuitBoard },
   { id: 'numerical', label: 'Numerical', subtitle: 'Numerical Bench 01–03', icon: Sigma },
+  { id: 'esp32', label: 'ESP32 Research', subtitle: 'timing + numerics', icon: Cpu },
   { id: 'magnet', label: 'Magnet', subtitle: 'Magnet Bench 01–03', icon: Magnet },
 ];
 
@@ -51,6 +53,7 @@ function Root() {
     <div className="bb-workspace-frame">
       {workspace === 'studio' && <App />}
       {workspace === 'numerical' && <NumericalBenchSuite />}
+      {workspace === 'esp32' && <ESP32ResearchWorkspace />}
       {workspace === 'magnet' && <MagnetBenchSuite />}
     </div>
   </div>;
