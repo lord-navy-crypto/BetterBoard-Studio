@@ -13,6 +13,7 @@ ESP32_WORKSPACE = ROOT / 'src' / 'ESP32ResearchWorkspace.tsx'
 ESP32_CAMPAIGN = ROOT / 'src' / 'ESP32CampaignWorkspace.tsx'
 ESP32_CAMPAIGN_CORE = ROOT / 'src' / 'esp32Campaign.ts'
 ESP32_CAMPAIGN_EXPORT = ROOT / 'src' / 'esp32CampaignExport.ts'
+ESP32_PROVENANCE = ROOT / 'src' / 'esp32Provenance.ts'
 NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuite.tsx'
 MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuite.tsx'
 
@@ -70,7 +71,7 @@ def main() -> int:
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
     rust = LIB.read_text()
-    for path in [ESP32_WORKSPACE, ESP32_CAMPAIGN, ESP32_CAMPAIGN_CORE, ESP32_CAMPAIGN_EXPORT]:
+    for path in [ESP32_WORKSPACE, ESP32_CAMPAIGN, ESP32_CAMPAIGN_CORE, ESP32_CAMPAIGN_EXPORT, ESP32_PROVENANCE]:
         assert path.is_file(), path
     frontend = '\n'.join(path.read_text() for path in [APP, ESP32_WORKSPACE, ESP32_CAMPAIGN, NUMERICAL_SUITE, MAGNET_SUITE])
     by_id = {r['id']: r for r in catalog}
@@ -199,14 +200,17 @@ def main() -> int:
         assert token in esp32_text, token
 
     campaign_text = ESP32_CAMPAIGN.read_text()
-    for token in ['ESP32 condition campaign', 'Run campaign', 'Research package export', 'Archive JSON', 'Comparator capture', 'captureLines']:
+    for token in ['ESP32 condition campaign', 'Preflight & run campaign', 'Research package export', 'Runtime provenance gate', 'Archive JSON', 'Comparator capture', 'captureLines', "command: 'INFO'", "command: 'SCHEMA'"]:
         assert token in campaign_text, token
     campaign_core = ESP32_CAMPAIGN_CORE.read_text()
     for token in ['buildEsp32CampaignPlan', 'rotatedConditions', 'aggregateCampaignObservations', 'ratioVsIdle']:
         assert token in campaign_core, token
     campaign_export = ESP32_CAMPAIGN_EXPORT.read_text()
-    for token in ['betterboard.esp32-campaign/1', 'campaignSummaryCsv', 'campaignComparatorCapture', 'capturedRows', 'Raw serial rows are preserved']:
+    for token in ['betterboard.esp32-campaign/1', 'campaignSummaryCsv', 'campaignComparatorCapture', 'capturedRows', 'Raw serial rows are preserved', 'provenance', 'not cryptographic attestation']:
         assert token in campaign_export, token
+    provenance_text = ESP32_PROVENANCE.read_text()
+    for token in ['expectedCampaignSchemaPrefix', 'parseInfoLines', 'infoEnvelopeComplete', 'sha256Text', 'host-embedded-source-sha256-not-device-attestation']:
+        assert token in provenance_text, token
 
     main = (ROOT / 'src' / 'main.tsx').read_text()
     assert 'Numerical Bench 01–03' in main
@@ -227,7 +231,9 @@ def main() -> int:
     print(f'- {len(ESP32_RESEARCH_EXPECTED)} ESP32 research recipes registered')
     print('- ESP32 / S3 / C3 explicit board profiles registered')
     print('- dedicated ESP32 Research + Campaign workspaces registered')
+    print('- ESP32 campaign INFO/SCHEMA provenance gate registered')
     print('- ESP32 campaign raw-evidence JSON/CSV/comparator export path registered')
+    print('- ESP32 embedded-source SHA-256 is explicitly separated from device attestation')
     print('- ESP32 research recipes are core-gated and command-driven')
     print('- system debug/Bluetooth serial ports are filtered in the backend')
     print('- frontend invoke / Rust handler contract consistent')
