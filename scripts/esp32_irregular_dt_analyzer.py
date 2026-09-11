@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Analyze BetterBoard ESP32IrregularDtNumerics captures.
 
-Input may contain BetterBoard comments beginning with '#'. Numeric rows follow:
-run_id,index,mode,period_us,freq_hz,t_us,dt_prev_us,y,d_const,d_measured,i_const,i_measured
+Current firmware emits:
+IRREG,run_id,index,mode,period_us,freq_hz,t_us,dt_prev_us,y,d_const,d_measured,i_const,i_measured
 
-The host computes an independent analytic reference for y(t)=sin(2*pi*f*t),
-its derivative, and the definite integral from the first timestamp in each run.
+Legacy untagged rows from schema v2 are also accepted. The host computes an independent
+analytic reference for y(t)=sin(2*pi*f*t), its derivative, and the definite integral from
+the first timestamp in each run.
 """
 
 from __future__ import annotations
@@ -42,6 +43,8 @@ def parse_capture(path: Path) -> list[dict]:
         if not line or line.startswith("#"):
             continue
         parts = [p.strip() for p in line.split(",")]
+        if parts and parts[0].upper() == "IRREG":
+            parts = parts[1:]
         if len(parts) != len(COLUMNS):
             continue
         try:
@@ -86,8 +89,10 @@ def analyze_run(rows: list[dict]) -> tuple[dict, list[dict]]:
             d_const_errors.append(r["d_const"] - d_ref)
         if finite(r["d_measured"]):
             d_measured_errors.append(r["d_measured"] - d_ref)
-        i_const_errors.append(r["i_const"] - i_ref)
-        i_measured_errors.append(r["i_measured"] - i_ref)
+        if finite(r["i_const"]):
+            i_const_errors.append(r["i_const"] - i_ref)
+        if finite(r["i_measured"]):
+            i_measured_errors.append(r["i_measured"] - i_ref)
 
         e = dict(r)
         e.update(
@@ -97,8 +102,8 @@ def analyze_run(rows: list[dict]) -> tuple[dict, list[dict]]:
             d_const_abs_error=abs(r["d_const"] - d_ref) if finite(r["d_const"]) else float("nan"),
             d_measured_abs_error=abs(r["d_measured"] - d_ref) if finite(r["d_measured"]) else float("nan"),
             integral_reference=i_ref,
-            i_const_abs_error=abs(r["i_const"] - i_ref),
-            i_measured_abs_error=abs(r["i_measured"] - i_ref),
+            i_const_abs_error=abs(r["i_const"] - i_ref) if finite(r["i_const"]) else float("nan"),
+            i_measured_abs_error=abs(r["i_measured"] - i_ref) if finite(r["i_measured"]) else float("nan"),
         )
         enriched.append(e)
 
@@ -156,10 +161,18 @@ def main() -> None:
         w.writerows(enriched_all)
 
     (args.out / "esp32_irregular_dt_summary.json").write_text(
-        json.dumps({"schema": "betterboard-esp32-irregular-dt-analysis-v1", "runs": summaries}, indent=2)
+        json.dumps({
+            "schema": "betterboard-esp32-irregular-dt-analysis-v2",
+            "runs": summaries,
+            "scientific_boundary": [
+                "esp_timer timestamps are runtime evidence rather than an external calibrated time reference.",
+                "Synthetic sine provides an analytic host reference for this numerical study.",
+                "IDLE/LOAD/WIFI comparisons apply to the tested board, firmware, and environment."
+            ],
+        }, indent=2, allow_nan=True)
     )
 
-    print(json.dumps(summaries, indent=2))
+    print(json.dumps(summaries, indent=2, allow_nan=True))
 
 
 if __name__ == "__main__":
