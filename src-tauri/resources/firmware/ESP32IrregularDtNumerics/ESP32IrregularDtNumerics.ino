@@ -28,7 +28,7 @@ static const uint32_t BAUD = 115200;
 static const uint32_t MAX_SAMPLES = 4096;
 static const uint32_t MIN_PERIOD_US = 100;
 static const uint32_t MAX_PERIOD_US = 1000000;
-static const uint32_t SCHEMA_VERSION = 2;
+static const uint32_t SCHEMA_VERSION = 3;
 static constexpr double TWO_PI_D = 6.283185307179586476925286766559;
 
 struct Sample {
@@ -74,8 +74,8 @@ bool ensureBuffers(uint32_t n) {
 void printSchema() {
   Serial.print(F("#SCHEMA,betterboard-esp32-irregular-dt-v"));
   Serial.println(SCHEMA_VERSION);
-  Serial.println(F("#COLUMNS,run_id,index,mode,period_us,freq_hz,t_us,dt_prev_us,y,d_const,d_measured,i_const,i_measured"));
-  Serial.println(F("#UNITS,1,1,enum,us,Hz,us,us,1,1/s,1/s,s,s"));
+  Serial.println(F("#COLUMNS,type,run_id,index,mode,period_us,freq_hz,t_us,dt_prev_us,y,d_const,d_measured,i_const,i_measured"));
+  Serial.println(F("#UNITS,enum,1,1,enum,us,Hz,us,us,1,1/s,1/s,s,s"));
   Serial.println(F("#BOUNDARY,synthetic sine; host must compute independent analytic reference"));
 }
 
@@ -222,6 +222,7 @@ void computeNumerics(uint32_t periodUs, uint32_t n) {
 void emitRows(uint32_t periodUs, uint32_t n, double freqHz, const char* mode) {
   for (uint32_t i = 0; i < n; ++i) {
     const int64_t dtPrev = i == 0 ? 0 : samplesBuf[i].tUs - samplesBuf[i - 1].tUs;
+    Serial.print(F("IRREG,"));
     Serial.print(runId); Serial.print(',');
     Serial.print(i); Serial.print(',');
     Serial.print(mode); Serial.print(',');
