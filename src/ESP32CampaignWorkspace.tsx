@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Activity, Cable, Cpu, Download, FlaskConical, Play, RefreshCw, Square, TerminalSquare } from 'lucide-react';
+import { Activity, Cable, Cpu, Download, FlaskConical, Play, RefreshCw, ShieldCheck, Square, TerminalSquare } from 'lucide-react';
 import {
   aggregateCampaignObservations,
   buildEsp32CampaignPlan,
@@ -18,6 +18,17 @@ import {
   type CampaignArchiveInput,
   type CampaignCapturedRow,
 } from './esp32CampaignExport';
+import {
+  expectedCampaignSchemaPrefix,
+  inferArduinoEsp32Version,
+  infoEnvelopeComplete,
+  observedSchema,
+  parseInfoLines,
+  provenanceDisplay,
+  sha256Text,
+  type CampaignProvenance,
+  type CliInfo,
+} from './esp32Provenance';
 
 type BoardPort = { port: string; protocol: string; board_name?: string; fqbn?: string };
 type BoardProfile = { id: string; label: string; fqbn: string; core: string; default_baud: number; notes: string[] };
@@ -112,6 +123,7 @@ export default function ESP32CampaignWorkspace() {
   const [samples, setSamples] = useState(500);
   const [freqHz, setFreqHz] = useState(17);
   const [runs, setRuns] = useState<CampaignRun[]>([]);
+  const [provenance, setProvenance] = useState<CampaignProvenance | null>(null);
   const [status, setStatus] = useState('Ready');
   const [busy, setBusy] = useState(false);
   const cancelRef = useRef(false);
@@ -125,6 +137,7 @@ export default function ESP32CampaignWorkspace() {
   const aggregates = useMemo(() => aggregateCampaignObservations(observations), [observations]);
   const loadRatio = useMemo(() => ratioVsIdle(aggregates, 'LOAD'), [aggregates]);
   const wifiRatio = useMemo(() => ratioVsIdle(aggregates, 'WIFI'), [aggregates]);
+  const provenanceItems = useMemo(() => provenance ? provenanceDisplay(provenance.deviceInfo) : [], [provenance]);
   const archiveInput = useMemo<CampaignArchiveInput | null>(() => {
     if (!recipe || !runs.length) return null;
     return {
@@ -138,8 +151,9 @@ export default function ESP32CampaignWorkspace() {
       aggregates,
       loadRatio,
       wifiRatio,
+      provenance,
     };
-  }, [recipe, runs, recipeId, fqbn, selectedPort, plan, aggregates, loadRatio, wifiRatio]);
+  }, [recipe, runs, recipeId, fqbn, selectedPort, plan, aggregates, loadRatio, wifiRatio, provenance]);
 
   async function refresh() {
     setStatus('Refreshing campaign environment…');
@@ -162,6 +176,10 @@ export default function ESP32CampaignWorkspace() {
   }
 
   useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    setProvenance(null);
+    setRuns([]);
+  }, [recipeId, fqbn, selectedPort]);
 
   function cancelCampaign() {
     cancelRef.current = true;
@@ -189,12 +207,73 @@ export default function ESP32CampaignWorkspace() {
     setStatus('Condition-comparator capture prepared for download');
   }
 
+  async function collectProvenance(activeRecipe: RecipeSpec): Promise<CampaignProvenance> {
+    setStatus('Campaign preflight · collecting device INFO');
+    const infoCapture = await invoke<CaptureResult>('serial_exchange', {
+      port: selectedPort,
+      baud: activeRecipe.baud,
+      command: 'INFO',
+      durationMs: 3500,
+      maxLines: 150,
+    });
+    if (!infoEnvelopeComplete(infoCapture.lines)) {
+      throw new Error('INFO provenance envelope was incomplete. Confirm that the selected campaign firmware is actually flashed and using the expected baud rate.');
+    }
+    const deviceInfo = parseInfoLines(infoCapture.lines);
+    if (!deviceInfo.CHIP_MODEL) {
+      throw new Error('INFO did not report CHIP_MODEL; BetterBoard will not start a campaign without basic runtime identity evidence.');
+    }
+
+    setStatus('Campaign preflight · verifying firmware schema');
+    const schemaCapture = await invoke<CaptureResult>('serial_exchange', {
+      port: selectedPort,
+      baud: activeRecipe.baud,
+      command: 'SCHEMA',
+      durationMs: 3000,
+      maxLines: 150,
+    });
+    const expectedSchemaPrefix = expectedCampaignSchemaPrefix(recipeId);
+    const schema = observedSchema(schemaCapture.lines);
+    const schemaMatched = Boolean(schema?.startsWith(expectedSchemaPrefix));
+    if (!schemaMatched) {
+      throw new Error(`Firmware schema mismatch. Expected ${expectedSchemaPrefix}…, observed ${schema ?? 'no #SCHEMA line'}. Upload the selected BetterBoard recipe before running this campaign.`);
+    }
+
+    setStatus('Campaign preflight · hashing BetterBoard embedded firmware source');
+    const [source, cli] = await Promise.all([
+      invoke<string>('recipe_source', { recipeId }),
+      invoke<CliInfo>('arduino_cli_discovery').catch(() => null),
+    ]);
+    const expectedFirmwareSha256 = await sha256Text(source);
+
+    return {
+      collectedAtUtc: new Date().toISOString(),
+      recipeId,
+      fqbn,
+      port: selectedPort,
+      expectedSchemaPrefix,
+      observedSchema: schema,
+      schemaMatched,
+      deviceInfo,
+      infoLines: infoCapture.lines,
+      schemaLines: schemaCapture.lines,
+      expectedFirmwareSha256,
+      firmwareHashMeaning: 'host-embedded-source-sha256-not-device-attestation',
+      arduinoCli: cli,
+      arduinoEsp32Version: inferArduinoEsp32Version(deviceInfo),
+    };
+  }
+
   async function runCampaign() {
     if (!recipe || !selectedPort || busy) return;
     cancelRef.current = false;
     setBusy(true);
     setRuns([]);
+    setProvenance(null);
     try {
+      const collected = await collectProvenance(recipe);
+      setProvenance(collected);
+
       for (const item of plan.commands) {
         if (cancelRef.current) {
           const now = new Date().toISOString();
@@ -266,7 +345,9 @@ export default function ESP32CampaignWorkspace() {
           break;
         }
       }
-      if (!cancelRef.current) setStatus('Campaign sequence finished · review statistics or export the research package');
+      if (!cancelRef.current) setStatus('Campaign sequence finished · review statistics or export the provenance-bearing research package');
+    } catch (error) {
+      setStatus(`Campaign preflight blocked: ${String(error)}`);
     } finally {
       setBusy(false);
     }
@@ -277,14 +358,15 @@ export default function ESP32CampaignWorkspace() {
       <div className="brand"><div className="brand-mark">C</div><div><b>ESP32 Campaign</b><span>Repeated condition studies</span></div></div>
       <div className="small-card"><span>Plan</span><b>{plan.commands.length} commands · {plan.repeats} repeats</b></div>
       <div className="small-card"><span>Completed</span><b>{runs.filter(run => run.status === 'ok').length} successful runs</b></div>
+      <div className="small-card"><span>Provenance</span><b>{provenance?.schemaMatched ? 'runtime schema verified' : 'not collected'}</b></div>
       <div className="small-card"><span>Raw evidence</span><b>{runs.reduce((sum, run) => sum + run.captureLines.length, 0)} serial lines</b></div>
       <div className="sidebar-spacer"/>
-      <div className="legal">IDLE is a runtime baseline<br/>Condition order rotates by repeat<br/>No hardware-validation claim without real board evidence</div>
+      <div className="legal">IDLE is a runtime baseline<br/>Condition order rotates by repeat<br/>Source hash is not device attestation<br/>No hardware-validation claim without real board evidence</div>
     </aside>
 
     <main>
       <header>
-        <div><h1>ESP32 condition campaign.</h1><p>Run repeated matched-parameter IDLE / LOAD / WIFI studies, preserve raw evidence, and aggregate comparisons inside BetterBoard.</p></div>
+        <div><h1>ESP32 condition campaign.</h1><p>Run repeated matched-parameter studies with automatic device identity, schema verification, raw evidence preservation, and reproducible exports.</p></div>
         <button className="ghost" onClick={refresh} disabled={busy}><RefreshCw size={16}/> Refresh</button>
       </header>
 
@@ -303,7 +385,7 @@ export default function ESP32CampaignWorkspace() {
           <label>ESP32 profile<select value={fqbn} onChange={event => setFqbn(event.target.value)}>
             {espProfiles.map(profile => <option key={profile.fqbn} value={profile.fqbn}>{profile.label}</option>)}
           </select></label>
-          <div className="hint">Campaign execution assumes the matching research firmware is already compiled and uploaded for this exact target.</div>
+          <div className="hint">Campaign execution now performs INFO + SCHEMA preflight before any condition run. A mismatched firmware schema blocks the campaign.</div>
         </div>
 
         <div className="panel">
@@ -319,11 +401,24 @@ export default function ESP32CampaignWorkspace() {
       </section>
 
       <section className="panel">
+        <div className="panel-title"><ShieldCheck size={18}/> Runtime provenance gate</div>
+        {!provenance ? <div className="empty">Provenance is collected automatically when the campaign starts: INFO identity → SCHEMA match → embedded-source SHA-256 → Arduino CLI identity.</div> : <>
+          <div className="channels">
+            {provenanceItems.map(item => <div key={item.label}><span>{item.label}</span><b>{item.value}</b><small>reported by device INFO</small></div>)}
+            <div><span>Firmware schema</span><b>{provenance.observedSchema ?? '—'}</b><small>{provenance.schemaMatched ? 'matches selected BetterBoard recipe' : 'mismatch'}</small></div>
+            <div><span>Embedded source SHA-256</span><b>{provenance.expectedFirmwareSha256 ? `${provenance.expectedFirmwareSha256.slice(0, 16)}…` : 'unavailable'}</b><small>host BetterBoard source identity; not MCU attestation</small></div>
+            <div><span>Arduino CLI</span><b>{provenance.arduinoCli?.version || (provenance.arduinoCli?.found ? 'detected' : 'unavailable')}</b><small>{provenance.arduinoEsp32Version ? `Arduino-ESP32 ${provenance.arduinoEsp32Version}` : 'Arduino-ESP32 version not reported by current firmware'}</small></div>
+          </div>
+        </>}
+        <div className="hint">Changing the recipe, FQBN, or serial device clears provenance and prior runs so evidence from different targets is not silently mixed.</div>
+      </section>
+
+      <section className="panel">
         <div className="panel-title"><Activity size={18}/> Planned sequence</div>
         <div className="schema-row"><span>{plan.commands.length} total commands</span><span>{plan.periodUs} µs period</span><span>{plan.samples} samples</span>{plan.freqHz != null && <span>{plan.freqHz} Hz</span>}</div>
         <pre className="terminal">{plan.commands.map(item => `${String(item.sequence + 1).padStart(2, '0')}  r${item.repeat}  ${item.condition.padEnd(4)}  ${item.command}`).join('\n')}</pre>
         <div className="action-row">
-          <button className="primary" disabled={busy || !selectedPort || !recipe} onClick={runCampaign}><Play size={16}/> Run campaign</button>
+          <button className="primary" disabled={busy || !selectedPort || !recipe} onClick={runCampaign}><Play size={16}/> Preflight & run campaign</button>
           <button className="ghost" disabled={!busy} onClick={cancelCampaign}><Square size={14}/> Cancel after current run</button>
         </div>
         <div className="hint">Condition order rotates between repeats to reduce simple first-to-last drift bias. This is deterministic rotation, not randomized or blinded experimental design.</div>
@@ -357,8 +452,8 @@ export default function ESP32CampaignWorkspace() {
           <button className="ghost" disabled={!archiveInput || busy} onClick={exportSummaryCsv}><Download size={15}/> Summary CSV</button>
           <button className="ghost" disabled={!archiveInput || busy} onClick={exportComparatorCapture}><Download size={15}/> Comparator capture</button>
         </div>
-        <div className="schema-row"><span>manifest + plan + raw captures</span><span>run summary CSV</span><span>input for esp32_condition_compare.py</span></div>
-        <div className="hint">The JSON archive preserves the selected FQBN, port, baud, plan, aggregate statistics, every run status, raw serial lines, and host timestamps returned by BetterBoard. The comparator capture keeps successful raw runs in a comment-delimited text stream so the stronger Python analysis can be rerun independently.</div>
+        <div className="schema-row"><span>manifest + provenance + raw captures</span><span>run summary CSV</span><span>input for esp32_condition_compare.py</span></div>
+        <div className="hint">The JSON archive now preserves runtime INFO/SCHEMA evidence, expected embedded-source SHA-256, Arduino CLI identity, selected target, plan, statistics, every raw serial line, and BetterBoard host timestamps. The source hash identifies what this BetterBoard build expects; it does not prove which bytes are flashed on the device.</div>
       </section>
 
       <section className="panel">
@@ -376,7 +471,7 @@ export default function ESP32CampaignWorkspace() {
       <section className="panel">
         <div className="panel-title"><FlaskConical size={18}/> Scientific boundary</div>
         {plan.boundary.map(item => <p className="muted" key={item}>• {item}</p>)}
-        <div className="hint">This workspace automates repeated acquisition, preserves raw serial evidence, and performs first-pass statistics. Exported files remain research evidence; the stronger Python condition comparator is the archival/reproducible analysis layer.</div>
+        <div className="hint">This workspace automates provenance collection, repeated acquisition, raw serial preservation, and first-pass statistics. Exported files remain research evidence; the stronger Python condition comparator is the archival/reproducible analysis layer.</div>
       </section>
     </main>
   </div>;
