@@ -14,7 +14,7 @@ type HardwareSessionValue = {
   activePort?: BoardPort;
   hardwareStatus: string;
   refreshing: boolean;
-  refreshHardware: () => Promise<void>;
+  refreshHardware: () => Promise<string>;
 };
 
 const HardwareSessionContext = createContext<HardwareSessionValue | null>(null);
@@ -26,12 +26,13 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
   const [fqbn, setFqbn] = useState('arduino:avr:uno');
   const [hardwareStatus, setHardwareStatus] = useState('Detecting hardware…');
   const [refreshing, setRefreshing] = useState(false);
-  const refreshInFlight = useRef<Promise<void> | null>(null);
+  const refreshInFlight = useRef<Promise<string> | null>(null);
 
-  function refreshHardware(): Promise<void> {
+  function refreshHardware(): Promise<string> {
     // Root and Studio can request a refresh at the same time during startup.
     // Coalesce those requests so board_list / board_profiles are not raced or
-    // multiplied by React StrictMode development mounts.
+    // multiplied by React StrictMode development mounts. Every caller receives
+    // the same authoritative summary for that exact refresh operation.
     if (refreshInFlight.current) return refreshInFlight.current;
 
     const operation = (async () => {
@@ -77,7 +78,9 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
           status.push(`Board profile load failed: ${String(profilesResult.reason)}`);
         }
 
-        setHardwareStatus(status.join(' · '));
+        const summary = status.join(' · ');
+        setHardwareStatus(summary);
+        return summary;
       } finally {
         setRefreshing(false);
       }
