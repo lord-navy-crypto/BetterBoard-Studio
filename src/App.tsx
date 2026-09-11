@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
-  Activity, BookOpen, Bot, Boxes, Braces, Cable, CheckCircle2, CircleAlert, CircuitBoard, Code2,
+  Activity, BookOpen, Bot, Boxes, Braces, Cable, CircleAlert, CircuitBoard, Code2,
   Cpu, Database, Download, FileText, Gauge, Link2, Magnet, Play, RefreshCw, RotateCw,
   Search, ShieldCheck, TerminalSquare, TimerReset, Upload, Waves, Wrench,
 } from 'lucide-react';
@@ -15,9 +15,10 @@ type RecipeSpec = {
   capture_mode: 'none' | 'numeric' | 'text'; baud: number; columns: string[]; units: string[];
   primary_column?: string | null; sample_rate_hz?: number | null; required_libraries: string[];
   hardware: string[]; physical_lab_targets: string[]; notes: string[]; boundary: string;
+  supported_cores?: string[]; interactive_commands?: string[]; research_stage?: boolean;
 };
 type DeviceSpec = { id: string; name: string; interface: string; quantities: string[]; units: string[]; libraries: string[]; status: string };
-type PreflightResult = { cli_ready: boolean; core: string; core_installed: boolean; required_libraries: string[]; missing_libraries: string[]; warnings: string[] };
+type PreflightResult = { cli_ready: boolean; core: string; core_installed: boolean; compatible: boolean; required_libraries: string[]; missing_libraries: string[]; warnings: string[] };
 type CapturedRow = { host_timestamp_ms: number; line: string; numeric: boolean };
 type CaptureResult = { lines: string[]; rows: CapturedRow[]; numeric_rows: number; ignored_rows: number };
 type MeasurementResult = {
@@ -28,7 +29,10 @@ type BridgeDocs = { hardware_map: string; serial_protocol: string; honeycomb_gui
 type Tab = 'hardware' | 'circuit' | 'library' | 'data' | 'bridge' | 'developer';
 type Task = { id: number; title: string; state: 'running' | 'done' | 'failed'; detail: string };
 
+const coreFromFqbn = (fqbn: string) => fqbn.split(':').slice(0, 2).join(':');
+
 const iconFor = (id: string) => {
+  if (id.includes('esp32')) return Cpu;
   if (id.includes('magnetic')) return Magnet;
   if (id.includes('acceleration')) return Activity;
   if (id.includes('photogate')) return TimerReset;
@@ -51,6 +55,7 @@ export default function App() {
   const [selectedPort, setSelectedPort] = useState('');
   const [fqbn, setFqbn] = useState('arduino:avr:uno');
   const [recipeId, setRecipeId] = useState('blink');
+  const [researchCommand, setResearchCommand] = useState('');
   const [sketchDir, setSketchDir] = useState('');
   const [source, setSource] = useState('');
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
@@ -62,6 +67,13 @@ export default function App() {
 
   const recipe = useMemo(() => recipes.find(r => r.id === recipeId), [recipes, recipeId]);
   const activePort = useMemo(() => ports.find(p => p.port === selectedPort), [ports, selectedPort]);
+  const activeProfile = useMemo(() => profiles.find(p => p.fqbn === fqbn), [profiles, fqbn]);
+  const selectedCore = useMemo(() => coreFromFqbn(fqbn), [fqbn]);
+  const recipeCompatible = useMemo(() => {
+    if (!recipe) return false;
+    if (recipe.supported_cores?.length) return recipe.supported_cores.includes(selectedCore);
+    return selectedCore !== 'esp32:esp32';
+  }, [recipe, selectedCore]);
   const numericSeries = useMemo(
     () => serial.map(line => Number(line.split(',').at(-1))).filter(Number.isFinite),
     [serial],
@@ -100,7 +112,7 @@ export default function App() {
         const boardPorts = await invoke<BoardPort[]>('board_list');
         setPorts(boardPorts);
         if ((!selectedPort || !boardPorts.some(p => p.port === selectedPort)) && boardPorts.length) setSelectedPort(boardPorts[0].port);
-        setStatus(boardPorts.length ? `Ready · ${boardPorts.length} serial device(s) detected` : 'Toolchain ready · no USB serial board detected');
+        setStatus(boardPorts.length ? `Ready · ${boardPorts.length} hardware serial device(s) detected` : 'Toolchain ready · no hardware serial board detected');
       } catch (e) {
         setPorts([]);
         setStatus(cliInfo.found ? `Arduino CLI ready · board scan: ${e}` : 'Arduino CLI not found');
@@ -114,6 +126,9 @@ export default function App() {
     if (!recipeId) return;
     invoke<string>('recipe_source', { recipeId }).then(setSource).catch(e => setSource(String(e)));
   }, [recipeId]);
+  useEffect(() => {
+    setResearchCommand(recipe?.interactive_commands?.[0] || '');
+  }, [recipeId, recipe?.interactive_commands?.join('|')]);
 
   async function checkPreflight() {
     if (!recipe) return;
@@ -122,8 +137,13 @@ export default function App() {
     try {
       const result = await invoke<PreflightResult>('recipe_preflight', { recipeId: recipe.id, fqbn });
       setPreflight(result);
-      const detail = result.missing_libraries.length ? `Missing: ${result.missing_libraries.join(', ')}` : 'Core and required libraries look ready';
-      setStatus(detail); finishTask(task, result.core_installed && !result.missing_libraries.length ? 'done' : 'failed', detail);
+      const detail = !result.compatible
+        ? `Recipe is not compatible with ${result.core}`
+        : result.missing_libraries.length
+          ? `Missing: ${result.missing_libraries.join(', ')}`
+          : result.core_installed ? 'Board core, recipe compatibility, and required libraries look ready' : `Core ${result.core} is missing`;
+      setStatus(detail);
+      finishTask(task, result.compatible && result.core_installed && !result.missing_libraries.length ? 'done' : 'failed', detail);
     } catch (e) { setStatus(String(e)); finishTask(task, 'failed', String(e)); }
     finally { setBusy(false); }
   }
@@ -141,6 +161,7 @@ export default function App() {
 
   async function compile() {
     if (!recipe) return;
+    if (!recipeCompatible) { setStatus(`Blocked: ${recipe.title} is not declared compatible with ${selectedCore}.`); return; }
     const path = sketchDir || await prepare(); if (!path) return;
     const task = addTask(`Compile · ${recipe.title}`);
     setBusy(true);
@@ -154,6 +175,7 @@ export default function App() {
 
   async function upload() {
     if (!recipe) return;
+    if (!recipeCompatible) { setStatus(`Blocked: ${recipe.title} is not declared compatible with ${selectedCore}.`); return; }
     if (!selectedPort) { setStatus('Select a serial port first.'); return; }
     const path = sketchDir || await prepare(); if (!path) return;
     const task = addTask(`Upload · ${recipe.title}`);
@@ -175,22 +197,45 @@ export default function App() {
     const task = addTask(`Capture · ${recipe.title}`);
     setBusy(true);
     try {
-      setStatus(recipe.capture_mode === 'text' ? 'Capturing diagnostic text…' : 'Capturing numeric data…');
+      setStatus(recipe.capture_mode === 'text' ? 'Capturing diagnostic/research output…' : 'Capturing numeric data…');
       const result = await invoke<CaptureResult>('serial_capture', {
         port: selectedPort, baud: recipe.baud, durationMs: recipe.capture_mode === 'text' ? 4500 : 3000,
-        maxLines: 1500, numericOnly: recipe.capture_mode === 'numeric',
+        maxLines: 5000, numericOnly: recipe.capture_mode === 'numeric',
       });
       setSerial(result.lines);
       const detail = recipe.capture_mode === 'numeric'
         ? `${result.numeric_rows} numeric rows · ${result.ignored_rows} ignored`
-        : `${result.lines.length} diagnostic lines`;
+        : `${result.lines.length} diagnostic/research lines`;
       setStatus(detail); finishTask(task, 'done', detail); setTab('data');
     } catch (e) { setStatus(`Capture failed: ${e}`); finishTask(task, 'failed', String(e)); }
     finally { setBusy(false); }
   }
 
+  async function runInteractiveCommand() {
+    if (!recipe || !researchCommand.trim()) return;
+    if (!recipeCompatible) { setStatus(`Blocked: ${recipe.title} is not declared compatible with ${selectedCore}.`); return; }
+    if (!selectedPort) { setStatus('Select a serial port first.'); return; }
+    const task = addTask(`Research command · ${researchCommand}`);
+    setBusy(true);
+    try {
+      setStatus(`Running ${researchCommand}…`);
+      const result = await invoke<CaptureResult>('serial_exchange', {
+        port: selectedPort,
+        baud: recipe.baud,
+        command: researchCommand,
+        durationMs: researchCommand.startsWith('IRREG ') ? 20000 : 12000,
+        maxLines: 12000,
+      });
+      setSerial(result.lines);
+      const detail = `${result.lines.length} lines captured · ${result.numeric_rows} numeric-only CSV lines`;
+      setStatus(detail); finishTask(task, 'done', detail); setTab('data');
+    } catch (e) { setStatus(`Research command failed: ${e}`); finishTask(task, 'failed', String(e)); }
+    finally { setBusy(false); }
+  }
+
   async function recordMeasurement() {
     if (!recipe || recipe.capture_mode !== 'numeric') return;
+    if (!recipeCompatible) { setStatus(`Blocked: ${recipe.title} is not declared compatible with ${selectedCore}.`); return; }
     if (!selectedPort) { setStatus('Select a serial port first.'); return; }
     const task = addTask(`Measurement · ${recipe.title}`);
     setBusy(true);
@@ -236,21 +281,25 @@ export default function App() {
           <div className="panel">
             <div className="panel-title"><Cable size={18}/> Connection</div>
             <label>Serial device<select value={selectedPort} onChange={e => setSelectedPort(e.target.value)}>
-              {!ports.length && <option value="">No USB serial device</option>}
+              {!ports.length && <option value="">No hardware serial device</option>}
               {ports.map(p => <option key={p.port} value={p.port}>{p.port} · {p.board_name || 'Unknown board'}</option>)}
             </select></label>
-            <label>Board profile<select value={fqbn} onChange={e => setFqbn(e.target.value)}>
+            <label>Board profile<select value={fqbn} onChange={e => { setFqbn(e.target.value); setPreflight(null); }}>
               {profiles.map(p => <option key={p.fqbn} value={p.fqbn}>{p.label}</option>)}
             </select></label>
-            <div className="hint">Compatible USB-serial boards can report “Unknown”. BetterBoard keeps board-profile choice explicit instead of guessing the MCU.</div>
+            <div className="hint">System debug/Bluetooth ports are filtered. Unknown USB boards remain selectable, but BetterBoard keeps the board profile explicit instead of guessing the MCU.</div>
             {activePort && <div className="device-line"><b>{activePort.port}</b><span>{activePort.protocol}</span></div>}
+            {activeProfile && <div className="info-section"><b>{activeProfile.core}</b>{activeProfile.notes.map(v => <span key={v}>• {v}</span>)}</div>}
           </div>
           <div className="panel">
             <div className="panel-title"><ShieldCheck size={18}/> Recipe preflight</div>
             <div className="recipe-head"><b>{recipe?.title || 'Loading recipes…'}</b><span>{recipe?.category}</span></div>
             <p className="muted">{recipe?.description}</p>
-            <button className="ghost" disabled={busy || !recipe} onClick={checkPreflight}><Wrench size={16}/> Check core & libraries</button>
+            {!recipeCompatible && recipe && <div className="boundary"><CircleAlert size={15}/>This recipe is not declared compatible with {selectedCore}. Compile/upload is blocked until the board profile or recipe is changed.</div>}
+            {recipe?.research_stage && <div className="hint">Research-stage recipe · integrated for controlled testing, but real-board compile/upload/protocol validation is still required.</div>}
+            <button className="ghost" disabled={busy || !recipe} onClick={checkPreflight}><Wrench size={16}/> Check core, compatibility & libraries</button>
             {preflight && <div className="preflight">
+              <div><span>Compatibility</span><b className={preflight.compatible ? 'ok' : 'warn'}>{preflight.compatible ? 'ready' : 'blocked'}</b></div>
               <div><span>Core</span><b className={preflight.core_installed ? 'ok' : 'warn'}>{preflight.core} · {preflight.core_installed ? 'ready' : 'missing'}</b></div>
               <div><span>Libraries</span><b className={!preflight.missing_libraries.length ? 'ok' : 'warn'}>{preflight.required_libraries.length ? (preflight.missing_libraries.length ? `Missing ${preflight.missing_libraries.join(', ')}` : 'ready') : 'none required'}</b></div>
               {preflight.warnings.map(w => <small key={w}><CircleAlert size={13}/>{w}</small>)}
@@ -261,13 +310,21 @@ export default function App() {
         <section className="panel">
           <div className="panel-title"><Play size={18}/> Goal-first workflow</div>
           <div className="selected-recipe-row"><div><span className="eyebrow">Selected recipe</span><h2>{recipe?.title}</h2><p>{recipe?.description}</p></div><button className="ghost" onClick={() => setTab('library')}><BookOpen size={16}/> Browse all</button></div>
-          {recipe && <div className="schema-row"><span>{recipe.sketch_name}.ino</span><span>{recipe.baud} baud</span><span>{recipe.capture_mode}</span>{recipe.sample_rate_hz && <span>{recipe.sample_rate_hz} Hz</span>}</div>}
+          {recipe && <div className="schema-row"><span>{recipe.sketch_name}.ino</span><span>{recipe.baud} baud</span><span>{recipe.capture_mode}</span>{recipe.sample_rate_hz && <span>{recipe.sample_rate_hz} Hz</span>}{recipe.research_stage && <span>research</span>}</div>}
           <div className="action-row">
             <button className="ghost" disabled={busy || !recipe} onClick={prepare}><Braces size={16}/> Prepare firmware</button>
-            <button className="ghost" disabled={busy || !recipe} onClick={compile}><Download size={16}/> Compile</button>
-            <button className="primary" disabled={busy || !recipe || !selectedPort} onClick={upload}><Upload size={16}/> Compile & Upload</button>
-            {recipe?.capture_mode !== 'none' && <button className="primary secondary" disabled={busy || !selectedPort} onClick={capture}><Activity size={16}/> {recipe?.capture_mode === 'text' ? 'Run diagnostics' : 'Capture 3 s'}</button>}
+            <button className="ghost" disabled={busy || !recipe || !recipeCompatible} onClick={compile}><Download size={16}/> Compile</button>
+            <button className="primary" disabled={busy || !recipe || !selectedPort || !recipeCompatible} onClick={upload}><Upload size={16}/> Compile & Upload</button>
+            {recipe?.capture_mode !== 'none' && <button className="primary secondary" disabled={busy || !selectedPort} onClick={capture}><Activity size={16}/> {recipe?.capture_mode === 'text' ? 'Capture startup/output' : 'Capture 3 s'}</button>}
           </div>
+          {!!recipe?.interactive_commands?.length && <div className="info-section">
+            <b>Interactive ESP32 research command</b>
+            <label>Command preset<select value={researchCommand} onChange={e => setResearchCommand(e.target.value)}>
+              {recipe.interactive_commands.map(command => <option key={command} value={command}>{command}</option>)}
+            </select></label>
+            <span>Commands are sent only after you explicitly run them; BetterBoard captures the tagged response into Data Studio.</span>
+            <button className="primary secondary" disabled={busy || !selectedPort || !recipeCompatible || !researchCommand} onClick={runInteractiveCommand}><TerminalSquare size={16}/> Run command & capture</button>
+          </div>}
         </section>
       </>}
 
@@ -276,14 +333,16 @@ export default function App() {
       {tab === 'library' && <section className="library-layout">
         <div className="panel">
           <div className="panel-title"><Boxes size={18}/> Integrated firmware library</div>
-          <div className="recipe-list">{recipes.map(item => { const Icon = iconFor(item.id); return <button key={item.id} className={`recipe-row ${item.id === recipeId ? 'selected' : ''}`} onClick={() => setRecipeId(item.id)}><Icon size={18}/><div><b>{item.title}</b><span>{item.category} · {item.sketch_name}</span></div><small>{item.capture_mode}</small></button>; })}</div>
+          <div className="recipe-list">{recipes.map(item => { const Icon = iconFor(item.id); return <button key={item.id} className={`recipe-row ${item.id === recipeId ? 'selected' : ''}`} onClick={() => setRecipeId(item.id)}><Icon size={18}/><div><b>{item.title}</b><span>{item.category} · {item.sketch_name}</span></div><small>{item.research_stage ? 'research' : item.capture_mode}</small></button>; })}</div>
         </div>
         <div className="panel inspector">
           {recipe && <>
-            <div className="eyebrow">{recipe.category}</div><h2>{recipe.title}</h2><p className="muted">{recipe.description}</p>
+            <div className="eyebrow">{recipe.category}{recipe.research_stage ? ' · Research stage' : ''}</div><h2>{recipe.title}</h2><p className="muted">{recipe.description}</p>
             <div className="info-section"><b>Hardware</b>{recipe.hardware.map(v => <span key={v}>• {v}</span>)}</div>
+            <div className="info-section"><b>Supported board cores</b><span>{recipe.supported_cores?.length ? recipe.supported_cores.join(' · ') : 'Legacy/canonical board assumptions; ESP32 blocked until adapted'}</span></div>
             <div className="info-section"><b>Required libraries</b>{recipe.required_libraries.length ? recipe.required_libraries.map(v => <span key={v}>• {v}</span>) : <span>• None</span>}</div>
-            <div className="info-section"><b>Data schema</b><span>{recipe.columns.length ? recipe.columns.map((c, i) => `${c} [${recipe.units[i]}]`).join(' · ') : 'No measurement schema'}</span></div>
+            <div className="info-section"><b>Data schema</b><span>{recipe.columns.length ? recipe.columns.map((c, i) => `${c} [${recipe.units[i]}]`).join(' · ') : recipe.interactive_commands?.length ? 'Tagged interactive research output; inspect SCHEMA in Data Studio' : 'No measurement schema'}</span></div>
+            {!!recipe.interactive_commands?.length && <div className="info-section"><b>Command presets</b>{recipe.interactive_commands.map(v => <span key={v}>• {v}</span>)}</div>}
             <div className="info-section"><b>Physical Lab consumers</b>{recipe.physical_lab_targets.map(v => <span key={v}>• {v}</span>)}</div>
             <div className="boundary"><ShieldCheck size={15}/>{recipe.boundary}</div>
             <button className="primary" onClick={() => setTab('hardware')}>Use this recipe</button>
@@ -294,7 +353,7 @@ export default function App() {
       {tab === 'data' && <section className="data-grid">
         <div className="panel">
           <div className="panel-title"><Activity size={18}/> Capture snapshot</div>
-          {!serial.length ? <div className="empty">No capture yet. Upload a measurement/diagnostic recipe and run Capture.</div> : recipe?.capture_mode === 'text' ? <pre className="terminal">{serial.join('\n')}</pre> : <>
+          {!serial.length ? <div className="empty">No capture yet. Upload a measurement/diagnostic recipe and run Capture or an interactive research command.</div> : recipe?.capture_mode === 'text' ? <pre className="terminal">{serial.join('\n')}</pre> : <>
             <div className="metric">{numericSeries.at(-1)?.toFixed(4) ?? '—'} <small>{recipe?.units.at(-1)}</small></div>
             <svg className="plot" viewBox="0 0 100 40" preserveAspectRatio="none"><polyline points={spark} fill="none" vectorEffect="non-scaling-stroke"/></svg>
             <div className="channels">{recipe?.columns.map((column, i) => <div key={column}><span>{column}</span><b>{lastParts[i] ?? '—'}</b><small>{recipe.units[i]}</small></div>)}</div>
@@ -302,8 +361,8 @@ export default function App() {
         </div>
         <div className="panel">
           <div className="panel-title"><Database size={18}/> Measurement package</div>
-          <p className="muted">BetterBoard records the full multichannel CSV and also creates a Physical Lab v1 compatibility CSV using the final firmware field as the primary observable.</p>
-          <button className="primary" disabled={busy || !selectedPort || recipe?.capture_mode !== 'numeric'} onClick={recordMeasurement}>Record 5 s package</button>
+          <p className="muted">Canonical numeric recipes can record full multichannel CSV + Physical Lab compatibility output. Interactive ESP32 research uses tagged mixed output and remains a research evidence stream until analyzer-driven packaging is integrated.</p>
+          <button className="primary" disabled={busy || !selectedPort || recipe?.capture_mode !== 'numeric' || !recipeCompatible} onClick={recordMeasurement}>Record 5 s package</button>
           {measurement && <div className="measurement"><b>{measurement.samples} samples</b><span>{measurement.csv_path}</span><span>{measurement.metadata_path}</span></div>}
         </div>
       </section>}
@@ -313,31 +372,31 @@ export default function App() {
           <div><div className="eyebrow">Measurement Bridge 0.2</div><h2>BetterBoard measures. Physical Lab interprets.</h2><p>Keep the hardware software general-purpose while exporting evidence that Physical Lab can register, compare with models, and use in Digital Twin workflows.</p></div><Link2 size={38}/>
         </section>
         <section className="bridge-flow">
-          <div>Sensor / device</div><b>→</b><div>Arduino-compatible board</div><b>→</b><div>BetterBoard</div><b>→</b><div>CSV + metadata</div><b>→</b><div>Physical Lab</div>
+          <div>Sensor / device</div><b>→</b><div>Arduino / ESP32 board</div><b>→</b><div>BetterBoard</div><b>→</b><div>CSV + metadata</div><b>→</b><div>Physical Lab</div>
         </section>
         <section className="data-grid">
           <div className="panel"><div className="panel-title"><FileText size={18}/> Latest package</div>{measurement ? <div className="measurement big"><b>{measurement.samples} samples</b><span>Full: {measurement.csv_path}</span><span>Metadata: {measurement.metadata_path}</span><span>Physical Lab v1: {measurement.physical_lab_csv_path}</span><span>Bridge: {measurement.physical_lab_bridge_path}</span></div> : <div className="empty">No measurement package in this session yet.</div>}</div>
-          <div className="panel"><div className="panel-title"><ShieldCheck size={18}/> Scientific boundary</div><p className="muted">A serial file is evidence of acquisition, not automatic proof of calibration, sensor accuracy, traceability, uncertainty, alignment, or model validity. Those remain explicit Physical Lab responsibilities.</p></div>
+          <div className="panel"><div className="panel-title"><ShieldCheck size={18}/> Scientific boundary</div><p className="muted">A serial file is evidence of acquisition, not automatic proof of calibration, sensor accuracy, traceability, uncertainty, alignment, or model validity. Research-stage ESP32 output additionally requires its host reference/analyzer before accuracy claims.</p></div>
         </section>
         <section className="panel"><div className="panel-title"><BookOpen size={18}/> Imported Physical Lab hardware map</div><pre className="docs-preview">{bridgeDocs?.hardware_map || 'Loading…'}</pre></section>
       </>}
 
       {tab === 'developer' && <section className="developer-grid">
         <div className="panel">
-          <div className="panel-title"><Code2 size={18}/> Canonical firmware source</div>
-          <div className="schema-row"><span>{recipe?.title}</span><span>{recipe?.sketch_name}.ino</span><span>{recipe?.baud} baud</span></div>
+          <div className="panel-title"><Code2 size={18}/> Integrated firmware source</div>
+          <div className="schema-row"><span>{recipe?.title}</span><span>{recipe?.sketch_name}.ino</span><span>{recipe?.baud} baud</span>{recipe?.research_stage && <span>research stage</span>}</div>
           <pre className="code">{source || 'Select a recipe.'}</pre>
         </div>
         <div className="panel">
           <div className="panel-title"><TerminalSquare size={18}/> Runtime facts</div>
-          <div className="facts"><span>Arduino CLI</span><b>{cli?.path || 'not found'}</b><span>Board profile</span><b>{fqbn}</b><span>Prepared sketch</span><b>{sketchDir || 'not prepared'}</b><span>Integrated devices</span><b>{devices.length}</b></div>
+          <div className="facts"><span>Arduino CLI</span><b>{cli?.path || 'not found'}</b><span>Board profile</span><b>{fqbn}</b><span>Board core</span><b>{selectedCore}</b><span>Recipe compatibility</span><b>{recipeCompatible ? 'compatible' : 'blocked'}</b><span>Prepared sketch</span><b>{sketchDir || 'not prepared'}</b><span>Integrated devices</span><b>{devices.length}</b></div>
           <div className="info-section"><b>Recipe notes</b>{recipe?.notes.map(v => <span key={v}>• {v}</span>)}</div>
         </div>
       </section>}
 
       <section className="task-center panel">
         <div className="panel-title"><TerminalSquare size={17}/> Task Center</div>
-        {!tasks.length ? <span className="muted">Compile, upload, preflight, capture and export operations will appear here.</span> : <div className="task-list">{tasks.map(task => <div key={task.id}><span className={`task-icon ${task.state}`}>{task.state === 'running' ? '…' : task.state === 'done' ? '✓' : '!'}</span><b>{task.title}</b><small>{task.detail}</small></div>)}</div>}
+        {!tasks.length ? <span className="muted">Compile, upload, preflight, capture, interactive research and export operations will appear here.</span> : <div className="task-list">{tasks.map(task => <div key={task.id}><span className={`task-icon ${task.state}`}>{task.state === 'running' ? '…' : task.state === 'done' ? '✓' : '!'}</span><b>{task.title}</b><small>{task.detail}</small></div>)}</div>}
       </section>
     </main>
   </div>;
