@@ -25,7 +25,7 @@
 // - timing results characterize this board/build/runtime only.
 
 static const uint32_t BAUD = 115200;
-static const uint32_t SCHEMA_VERSION = 2;
+static const uint32_t SCHEMA_VERSION = 3;
 
 char commandBuffer[96];
 size_t commandLength = 0;
@@ -50,9 +50,9 @@ volatile bool loadRunning = false;
 void printSchema() {
   Serial.print(F("#SCHEMA,betterboard-esp32-concurrency-numerics-v"));
   Serial.println(SCHEMA_VERSION);
-  Serial.println(F("#REDUCE_COLUMNS,run_id,n,seq_float32,grouped_float32,seq_float64,grouped_float64,seq_us,grouped_us,float32_delta,float64_delta"));
-  Serial.println(F("#AFFINITY_COLUMNS,run_id,n,chip_cores,task0_core,task1_core,task0_sum,task1_sum,combined_sum,elapsed_us"));
-  Serial.println(F("#JITTER_COLUMNS,run_id,period_us,samples,mode,min_late_us,max_late_us,mean_late_us,rms_late_us,deadline_misses"));
+  Serial.println(F("#REDUCE_COLUMNS,type,run_id,n,seq_float32,grouped_float32,seq_float64,grouped_float64,seq_us,grouped_us,float32_delta,float64_delta"));
+  Serial.println(F("#AFFINITY_COLUMNS,type,run_id,n,chip_cores,task0_core,task1_core,task0_sum,task1_sum,combined_sum,elapsed_us"));
+  Serial.println(F("#JITTER_COLUMNS,type,run_id,period_us,samples,mode,min_late_us,max_late_us,mean_late_us,rms_late_us,deadline_misses"));
   Serial.println(F("#BOUNDARY,results characterize this firmware build and runtime; task placement is not a universal ESP32 guarantee"));
 }
 
@@ -132,6 +132,7 @@ void emitReduce(uint32_t n) {
   double gd = groupedDouble(n, incD);
   uint64_t groupedUs = (uint64_t)esp_timer_get_time() - t0;
 
+  Serial.print(F("REDUCE,"));
   Serial.print(runId); Serial.print(',');
   Serial.print(n); Serial.print(',');
   Serial.print(sf, 9); Serial.print(',');
@@ -192,6 +193,7 @@ void emitAffinity(uint32_t n) {
   }
   uint64_t elapsedUs = (uint64_t)esp_timer_get_time() - t0;
 
+  Serial.print(F("AFFINITY,"));
   Serial.print(runId); Serial.print(',');
   Serial.print(n); Serial.print(',');
   Serial.print(cores); Serial.print(',');
@@ -267,6 +269,7 @@ void emitJitter(uint32_t periodUs, uint32_t samples, bool withLoad) {
 
   const double mean = sum / (double)samples;
   const double rms = sqrt(sumSq / (double)samples);
+  Serial.print(F("JITTER,"));
   Serial.print(runId); Serial.print(',');
   Serial.print(periodUs); Serial.print(',');
   Serial.print(samples); Serial.print(',');
