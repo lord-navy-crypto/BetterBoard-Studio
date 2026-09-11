@@ -1,6 +1,10 @@
 #include <Arduino.h>
 #include <math.h>
 #include <float.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
 #if !defined(ARDUINO_ARCH_ESP32)
 #error "ESP32ConcurrencyNumerics requires an ESP32-family board/core."
@@ -13,9 +17,15 @@
 // BetterBoard ESP32 Concurrency Numerics — research-stage firmware
 // Focus: how scheduling, grouping, and task placement change numerical behavior.
 // No external GPIO is driven; all experiments are compute/timing only.
+//
+// Scientific boundary:
+// - grouped and sequential paths use the same mathematical increment for each precision;
+// - AFFINITY reports task placement and does not claim universal parallel speedup;
+// - on a single-core target both tasks run on core 0, so the experiment becomes grouped/task execution;
+// - timing results characterize this board/build/runtime only.
 
 static const uint32_t BAUD = 115200;
-static const uint32_t SCHEMA_VERSION = 1;
+static const uint32_t SCHEMA_VERSION = 2;
 
 char commandBuffer[96];
 size_t commandLength = 0;
@@ -23,16 +33,19 @@ uint32_t runId = 0;
 
 struct PartialResult {
   double sum;
-  uint32_t elapsedUs;
+  uint64_t elapsedUs;
   volatile bool done;
 };
 
 struct TaskArgs {
   uint32_t begin;
   uint32_t end;
-  float increment;
+  double increment;
   PartialResult* out;
 };
+
+TaskHandle_t loadTaskHandle = nullptr;
+volatile bool loadRunning = false;
 
 void printSchema() {
   Serial.print(F("#SCHEMA,betterboard-esp32-concurrency-numerics-v"));
@@ -112,12 +125,12 @@ void emitReduce(uint32_t n) {
   uint64_t t0 = esp_timer_get_time();
   float sf = sequentialFloat(n, incF);
   double sd = sequentialDouble(n, incD);
-  uint32_t seqUs = (uint32_t)(esp_timer_get_time() - t0);
+  uint64_t seqUs = (uint64_t)esp_timer_get_time() - t0;
 
   t0 = esp_timer_get_time();
   float gf = groupedFloat(n, incF);
   double gd = groupedDouble(n, incD);
-  uint32_t groupedUs = (uint32_t)(esp_timer_get_time() - t0);
+  uint64_t groupedUs = (uint64_t)esp_timer_get_time() - t0;
 
   Serial.print(runId); Serial.print(',');
   Serial.print(n); Serial.print(',');
@@ -125,8 +138,8 @@ void emitReduce(uint32_t n) {
   Serial.print(gf, 9); Serial.print(',');
   Serial.print(sd, 15); Serial.print(',');
   Serial.print(gd, 15); Serial.print(',');
-  Serial.print(seqUs); Serial.print(',');
-  Serial.print(groupedUs); Serial.print(',');
+  Serial.print((unsigned long long)seqUs); Serial.print(',');
+  Serial.print((unsigned long long)groupedUs); Serial.print(',');
   Serial.print((double)gf - (double)sf, 12); Serial.print(',');
   Serial.println(gd - sd, 18);
 }
@@ -135,9 +148,9 @@ void partialTask(void* raw) {
   TaskArgs* args = static_cast<TaskArgs*>(raw);
   uint64_t t0 = esp_timer_get_time();
   volatile double s = 0.0;
-  for (uint32_t i = args->begin; i < args->end; ++i) s += (double)args->increment;
+  for (uint32_t i = args->begin; i < args->end; ++i) s += args->increment;
   args->out->sum = (double)s;
-  args->out->elapsedUs = (uint32_t)(esp_timer_get_time() - t0);
+  args->out->elapsedUs = (uint64_t)esp_timer_get_time() - t0;
   args->out->done = true;
   vTaskDelete(nullptr);
 }
@@ -146,8 +159,8 @@ void emitAffinity(uint32_t n) {
   runId++;
   PartialResult r0{0.0, 0, false};
   PartialResult r1{0.0, 0, false};
-  TaskArgs a0{0, n / 2, 0.0001f, &r0};
-  TaskArgs a1{n / 2, n, 0.0001f, &r1};
+  TaskArgs a0{0, n / 2, 0.0001, &r0};
+  TaskArgs a1{n / 2, n, 0.0001, &r1};
 
   const int cores = ESP.getChipCores();
   const BaseType_t core0 = 0;
@@ -155,13 +168,29 @@ void emitAffinity(uint32_t n) {
 
   uint64_t t0 = esp_timer_get_time();
   BaseType_t ok0 = xTaskCreatePinnedToCore(partialTask, "num0", 4096, &a0, 1, nullptr, core0);
-  BaseType_t ok1 = xTaskCreatePinnedToCore(partialTask, "num1", 4096, &a1, 1, nullptr, core1);
-  if (ok0 != pdPASS || ok1 != pdPASS) {
-    Serial.println(F("#ERROR,task_create_failed"));
+  if (ok0 != pdPASS) {
+    Serial.println(F("#ERROR,task0_create_failed"));
     return;
   }
-  while (!r0.done || !r1.done) delay(1);
-  uint32_t elapsedUs = (uint32_t)(esp_timer_get_time() - t0);
+
+  BaseType_t ok1 = xTaskCreatePinnedToCore(partialTask, "num1", 4096, &a1, 1, nullptr, core1);
+  if (ok1 != pdPASS) {
+    uint32_t waited = 0;
+    while (!r0.done && waited < 5000) { delay(1); ++waited; }
+    Serial.println(F("#ERROR,task1_create_failed"));
+    return;
+  }
+
+  uint32_t waited = 0;
+  while ((!r0.done || !r1.done) && waited < 30000) {
+    delay(1);
+    ++waited;
+  }
+  if (!r0.done || !r1.done) {
+    Serial.println(F("#ERROR,affinity_timeout"));
+    return;
+  }
+  uint64_t elapsedUs = (uint64_t)esp_timer_get_time() - t0;
 
   Serial.print(runId); Serial.print(',');
   Serial.print(n); Serial.print(',');
@@ -171,10 +200,9 @@ void emitAffinity(uint32_t n) {
   Serial.print(r0.sum, 15); Serial.print(',');
   Serial.print(r1.sum, 15); Serial.print(',');
   Serial.print(r0.sum + r1.sum, 15); Serial.print(',');
-  Serial.println(elapsedUs);
+  Serial.println((unsigned long long)elapsedUs);
 }
 
-volatile bool loadRunning = false;
 void loadTask(void*) {
   volatile double x = 0.123456789;
   while (loadRunning) {
@@ -183,26 +211,47 @@ void loadTask(void*) {
     }
     taskYIELD();
   }
+  loadTaskHandle = nullptr;
   vTaskDelete(nullptr);
+}
+
+bool startLoadTask() {
+  if (loadTaskHandle != nullptr || loadRunning) return true;
+  loadRunning = true;
+  BaseType_t ok = xTaskCreate(loadTask, "numload", 4096, nullptr, 1, &loadTaskHandle);
+  if (ok != pdPASS) {
+    loadRunning = false;
+    loadTaskHandle = nullptr;
+    return false;
+  }
+  return true;
+}
+
+void stopLoadTask() {
+  loadRunning = false;
+  uint32_t waited = 0;
+  while (loadTaskHandle != nullptr && waited < 2000) {
+    delay(1);
+    ++waited;
+  }
 }
 
 void emitJitter(uint32_t periodUs, uint32_t samples, bool withLoad) {
   runId++;
-  TaskHandle_t loadHandle = nullptr;
-  if (withLoad) {
-    loadRunning = true;
-    xTaskCreate(loadTask, "numload", 4096, nullptr, 1, &loadHandle);
+  if (withLoad && !startLoadTask()) {
+    Serial.println(F("#ERROR,load_task_create_failed"));
+    return;
   }
 
   int64_t minLate = INT64_MAX;
   int64_t maxLate = INT64_MIN;
-  long double sum = 0.0L;
-  long double sumSq = 0.0L;
+  double sum = 0.0;
+  double sumSq = 0.0;
   uint32_t misses = 0;
   int64_t target = esp_timer_get_time();
 
   for (uint32_t i = 0; i < samples; ++i) {
-    target += periodUs;
+    target += (int64_t)periodUs;
     while (esp_timer_get_time() < target) {
       delayMicroseconds(1);
     }
@@ -210,25 +259,22 @@ void emitJitter(uint32_t periodUs, uint32_t samples, bool withLoad) {
     if (late < minLate) minLate = late;
     if (late > maxLate) maxLate = late;
     if (late >= (int64_t)periodUs) misses++;
-    sum += (long double)late;
-    sumSq += (long double)late * (long double)late;
+    sum += (double)late;
+    sumSq += (double)late * (double)late;
   }
 
-  if (withLoad) {
-    loadRunning = false;
-    delay(5);
-  }
+  if (withLoad) stopLoadTask();
 
-  long double mean = sum / (long double)samples;
-  long double rms = sqrt((double)(sumSq / (long double)samples));
+  const double mean = sum / (double)samples;
+  const double rms = sqrt(sumSq / (double)samples);
   Serial.print(runId); Serial.print(',');
   Serial.print(periodUs); Serial.print(',');
   Serial.print(samples); Serial.print(',');
   Serial.print(withLoad ? 1 : 0); Serial.print(',');
   Serial.print((long long)minLate); Serial.print(',');
   Serial.print((long long)maxLate); Serial.print(',');
-  Serial.print((double)mean, 6); Serial.print(',');
-  Serial.print((double)rms, 6); Serial.print(',');
+  Serial.print(mean, 6); Serial.print(',');
+  Serial.print(rms, 6); Serial.print(',');
   Serial.println(misses);
 }
 
@@ -236,7 +282,8 @@ void handleCommand(char* line) {
   while (*line == ' ') ++line;
   if (!*line) return;
   char* cmd = strtok(line, " ");
-  for (char* p = cmd; p && *p; ++p) *p = (char)toupper((unsigned char)*p);
+  if (!cmd) return;
+  for (char* p = cmd; *p; ++p) *p = (char)toupper((unsigned char)*p);
 
   if (!strcmp(cmd, "INFO")) printInfo();
   else if (!strcmp(cmd, "SCHEMA")) printSchema();
@@ -287,4 +334,5 @@ void loop() {
       Serial.println(F("#ERROR,command_too_long"));
     }
   }
+  delay(1);
 }
