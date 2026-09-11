@@ -57,7 +57,7 @@ function safeDefaultName(name?: string) {
 function compileDiagnostics(text: string, activeFileName: string): Diagnostic[] {
   const rows: Diagnostic[] = [];
   const active = activeFileName.trim().toLowerCase();
-  const regex = /^(.+?):(\d+):(\d+):\s+(error|warning):\s+(.+)$/gim;
+  const regex = /^(.+?):(\d+)(?::(\d+))?:\s+(error|warning):\s+(.+)$/gim;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(text))) {
     const sourcePath = match[1].trim().replace(/\\/g, '/');
@@ -68,7 +68,7 @@ function compileDiagnostics(text: string, activeFileName: string): Diagnostic[] 
     if (active && sourceFile !== active) continue;
     rows.push({
       line: Number(match[2]),
-      column: Number(match[3]),
+      column: match[3] ? Number(match[3]) : undefined,
       severity: match[4].toLowerCase() === 'warning' ? 'warning' : 'error',
       message: match[5].trim(),
     });
