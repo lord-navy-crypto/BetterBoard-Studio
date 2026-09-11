@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / 'src-tauri' / 'resources' / 'recipes' / 'catalog.json'
 FIRMWARE_ROOT = ROOT / 'src-tauri' / 'resources' / 'firmware'
 HEADER_NAME = 'BetterBoardBuildProvenance.h'
+STAMPED_SOURCE_NAME = 'betterboard_stamped_source.ino'
 
 
 def sha256_file(path: Path) -> str:
@@ -98,6 +99,27 @@ def header_text(build_id: str, source_sha256: str, identity_sha256: str) -> str:
     )
 
 
+def stamp_firmware_source(source_text: str) -> str:
+    include_anchor = '#include <Arduino.h>\n'
+    if include_anchor not in source_text:
+        raise RuntimeError('Firmware source has no #include <Arduino.h> anchor for build provenance stamping.')
+    stamped = source_text.replace(
+        include_anchor,
+        include_anchor + f'#include "{HEADER_NAME}"\n',
+        1,
+    )
+    info_anchor = '  Serial.println(F("#INFO_BEGIN"));\n'
+    if info_anchor not in stamped:
+        raise RuntimeError('Firmware source has no standard #INFO_BEGIN line; cannot inject device build identity safely.')
+    info_stamp = (
+        info_anchor
+        + '  Serial.print(F("#BUILD_ID,")); Serial.println(BETTERBOARD_BUILD_ID);\n'
+        + '  Serial.print(F("#SOURCE_SHA256,")); Serial.println(BETTERBOARD_SOURCE_SHA256);\n'
+        + '  Serial.print(F("#BUILD_IDENTITY_SHA256,")); Serial.println(BETTERBOARD_BUILD_IDENTITY_SHA256);\n'
+    )
+    return stamped.replace(info_anchor, info_stamp, 1)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description='Compile one BetterBoard recipe and emit a reproducible build-provenance manifest.')
     ap.add_argument('--recipe', required=True, help='BetterBoard recipe id')
@@ -135,11 +157,17 @@ def main() -> int:
     archived_header = args.out_dir / HEADER_NAME
     archived_header.write_text(provenance_header)
 
+    original_source_text = source.read_text()
+    stamped_source_text = stamp_firmware_source(original_source_text)
+    stamped_source_sha = sha256_text(stamped_source_text)
+    archived_stamped_source = args.out_dir / STAMPED_SOURCE_NAME
+    archived_stamped_source.write_text(stamped_source_text)
+
     with tempfile.TemporaryDirectory(prefix='betterboard-build-') as tmp:
         sketch_dir = Path(tmp) / sketch_name
         sketch_dir.mkdir()
         sketch_copy = sketch_dir / source.name
-        shutil.copy2(source, sketch_copy)
+        sketch_copy.write_text(stamped_source_text)
         (sketch_dir / HEADER_NAME).write_text(provenance_header)
 
         compile_cmd = [
@@ -174,6 +202,7 @@ def main() -> int:
             'derivation': 'sha256(canonical recipe/fqbn/core-version/arduino-cli-version/source-sha256), build_id uses first 20 hex chars',
             'payload': identity_payload,
             'generated_header': HEADER_NAME,
+            'device_info_contract': ['BUILD_ID', 'SOURCE_SHA256', 'BUILD_IDENTITY_SHA256'],
         },
         'recipe': {
             'id': recipe['id'],
@@ -194,13 +223,16 @@ def main() -> int:
             'repository_path': str(source.relative_to(ROOT)),
             'sha256': source_sha,
             'bytes': source.stat().st_size,
+            'stamped_source_path': STAMPED_SOURCE_NAME,
+            'stamped_source_sha256': stamped_source_sha,
+            'stamping': 'temporary compile copy injects BetterBoardBuildProvenance.h and INFO build-identity fields; repository source remains unchanged',
         },
         'artifacts': artifacts,
         'compile_output': compile_output,
         'attestation_boundary': (
-            'Build ID and artifact hashes identify this local compile output only. A matching device-reported BUILD_ID would associate '
-            'the running firmware with this build identity, but is still a firmware self-report rather than cryptographic device attestation '
-            'or an independently read flash digest.'
+            'Build ID and artifact hashes identify this local compile output. When firmware built by this tool reports the same BUILD_ID '
+            'through INFO, BetterBoard can associate the running firmware self-report with this manifest. This remains weaker than '
+            'cryptographic device attestation or an independently read flash digest.'
         ),
     }
 
