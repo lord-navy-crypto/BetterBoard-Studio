@@ -22,7 +22,7 @@
 //  - separate precision error, algorithmic error, scheduling jitter, grouping/order effects,
 //    transport/radio interference, timer semantics, and optional PSRAM-backed workloads;
 //  - keep GPIO untouched until the exact board/pin map is known;
-//  - emit machine-readable numeric rows plus # metadata/control lines.
+//  - emit machine-readable tagged rows plus # metadata/control lines.
 //
 // Scientific boundary:
 //  - sin()/sinf() are local library comparisons, NOT truth;
@@ -33,8 +33,10 @@
 //  - no external GPIO/ADC/PWM is touched by this suite.
 
 static const uint32_t BAUD = 115200;
-static const uint32_t SCHEMA_VERSION = 1;
+static const uint32_t SCHEMA_VERSION = 2;
 static const size_t COMMAND_CAP = 96;
+static constexpr double TWO_PI_D = 6.283185307179586476925286766559;
+static constexpr float TWO_PI_F = 6.2831853071795864769f;
 
 char commandBuffer[COMMAND_CAP];
 size_t commandLength = 0;
@@ -63,8 +65,6 @@ struct WorkerArgs {
 };
 
 static inline float generatedValueF(uint32_t i) {
-  // Deterministic cancellation-heavy sequence; host can reproduce exactly enough to
-  // compare algorithms, while the MCU result still depends on float arithmetic.
   const float sign = (i & 1U) ? -1.0f : 1.0f;
   const float small = (float)((i % 97U) + 1U) * 1.0e-6f;
   return sign * (1.0f + small);
@@ -143,9 +143,13 @@ void printPrecision() {
   Serial.print(F("#F64_NEXTAFTER_1,")); Serial.println(nextD, 18);
   Serial.print(F("#F64_ULP_AT_1,")); Serial.println(nextD - 1.0, 18);
   Serial.print(F("#F32_1E8_PLUS_1_MINUS_1E8,"));
-  volatile float af = 1.0e8f; volatile float bf = (af + 1.0f) - af; Serial.println((float)bf, 3);
+  volatile float af = 1.0e8f;
+  volatile float bf = (af + 1.0f) - af;
+  Serial.println((float)bf, 3);
   Serial.print(F("#F64_1E8_PLUS_1_MINUS_1E8,"));
-  volatile double ad = 1.0e8; volatile double bd = (ad + 1.0) - ad; Serial.println((double)bd, 3);
+  volatile double ad = 1.0e8;
+  volatile double bd = (ad + 1.0) - ad;
+  Serial.println((double)bd, 3);
   Serial.println(F("#PRECISION_END"));
 }
 
@@ -214,8 +218,10 @@ void emitSum(uint32_t n) {
   Serial.print((float)kf, 9); Serial.print(',');
   Serial.print((double)nd, 15); Serial.print(',');
   Serial.print((double)kd, 15); Serial.print(',');
-  Serial.print(nfUs); Serial.print(','); Serial.print(kfUs); Serial.print(',');
-  Serial.print(ndUs); Serial.print(','); Serial.println(kdUs);
+  Serial.print((unsigned long long)nfUs); Serial.print(',');
+  Serial.print((unsigned long long)kfUs); Serial.print(',');
+  Serial.print((unsigned long long)ndUs); Serial.print(',');
+  Serial.println((unsigned long long)kdUs);
 }
 
 float pairwiseF(uint32_t begin, uint32_t end) {
@@ -248,13 +254,11 @@ void emitSeries(uint32_t n) {
 }
 
 float reduceAngleF(float x) {
-  const float twoPi = 2.0f * PI;
-  return remainderf(x, twoPi);
+  return remainderf(x, TWO_PI_F);
 }
 
 double reduceAngleD(double x) {
-  const double twoPi = 2.0 * (double)PI;
-  return remainder(x, twoPi);
+  return remainder(x, TWO_PI_D);
 }
 
 float taylorSinF(float x, uint32_t terms) {
@@ -296,14 +300,15 @@ void emitTaylor(double x, uint32_t terms) {
   Serial.print((float)rawF, 9); Serial.print(','); Serial.print((float)redF, 9); Serial.print(',');
   Serial.print((double)rawD, 15); Serial.print(','); Serial.print((double)redD, 15); Serial.print(',');
   Serial.print(sinf(xf), 9); Serial.print(','); Serial.print(sin(x), 15); Serial.print(',');
-  Serial.print(rawFUs); Serial.print(','); Serial.print(redFUs); Serial.print(',');
-  Serial.print(rawDUs); Serial.print(','); Serial.println(redDUs);
+  Serial.print((unsigned long long)rawFUs); Serial.print(',');
+  Serial.print((unsigned long long)redFUs); Serial.print(',');
+  Serial.print((unsigned long long)rawDUs); Serial.print(',');
+  Serial.println((unsigned long long)redDUs);
 }
 
 void loadTask(void*) {
   volatile double x = 0.123456789;
   while (loadTaskRun) {
-    // Deliberately compute-heavy and memory-light so this is mainly CPU/scheduler load.
     x = sin(x) + sqrt(fabs(x) + 1.0);
     loadTaskIterations++;
     if ((loadTaskIterations & 0x3FFULL) == 0) taskYIELD();
@@ -312,19 +317,25 @@ void loadTask(void*) {
   vTaskDelete(nullptr);
 }
 
-void startLoadTask() {
-  if (loadTaskRun) return;
+bool startLoadTask() {
+  if (loadTaskRun || loadTaskHandle != nullptr) return true;
   loadTaskIterations = 0;
   loadTaskRun = true;
   BaseType_t core = 0;
   if (ESP.getChipCores() > 1) core = 1;
-  xTaskCreatePinnedToCore(loadTask, "bb-num-load", 4096, nullptr, 1, &loadTaskHandle, core);
+  BaseType_t ok = xTaskCreatePinnedToCore(loadTask, "bb-num-load", 4096, nullptr, 1, &loadTaskHandle, core);
+  if (ok != pdPASS) {
+    loadTaskRun = false;
+    loadTaskHandle = nullptr;
+    return false;
+  }
+  return true;
 }
 
 void stopLoadTask() {
   loadTaskRun = false;
   uint32_t wait = 0;
-  while (loadTaskHandle != nullptr && wait < 1000) { delay(1); wait++; }
+  while (loadTaskHandle != nullptr && wait < 2000) { delay(1); wait++; }
 }
 
 JitterStats measureJitter(uint32_t periodUs, uint32_t samples) {
@@ -351,14 +362,17 @@ JitterStats measureJitter(uint32_t periodUs, uint32_t samples) {
 
 void emitJitter(uint32_t periodUs, uint32_t samples, bool withLoad) {
   runId++;
-  if (withLoad) startLoadTask();
+  if (withLoad && !startLoadTask()) {
+    Serial.println(F("#ERROR,load_task_create_failed"));
+    return;
+  }
   delay(20);
   JitterStats s = measureJitter(periodUs, samples);
   uint64_t iters = loadTaskIterations;
   if (withLoad) stopLoadTask();
   Serial.print(F("JITTER,")); Serial.print(runId); Serial.print(','); Serial.print(withLoad ? 1 : 0); Serial.print(',');
   Serial.print(periodUs); Serial.print(','); Serial.print(samples); Serial.print(',');
-  Serial.print(s.minErrorUs); Serial.print(','); Serial.print(s.maxErrorUs); Serial.print(',');
+  Serial.print((long long)s.minErrorUs); Serial.print(','); Serial.print((long long)s.maxErrorUs); Serial.print(',');
   Serial.print(s.meanErrorUs, 6); Serial.print(','); Serial.print(s.rmsErrorUs, 6); Serial.print(',');
   Serial.print(s.deadlineMisses); Serial.print(','); Serial.println((unsigned long long)iters);
 }
@@ -383,7 +397,8 @@ void emitTimer(uint32_t samples) {
   t1 = (uint64_t)esp_timer_get_time();
   double espCostNs = ((double)(t1 - t0) * 1000.0) / (double)samples;
 
-  (void)sinkM; (void)sinkE;
+  (void)sinkM;
+  (void)sinkE;
   Serial.print(F("TIMER,")); Serial.print(runId); Serial.print(','); Serial.print(samples); Serial.print(',');
   Serial.print(mElapsed); Serial.print(','); Serial.print((long long)eElapsed); Serial.print(',');
   Serial.print(microsCostNs, 3); Serial.print(','); Serial.println(espCostNs, 3);
@@ -410,24 +425,42 @@ void emitDualCore(uint32_t n) {
   volatile double seqD = 0.0;
   uint64_t t0 = esp_timer_get_time();
   for (uint32_t i = 0; i < n; ++i) { seqF += generatedValueF(i); seqD += generatedValueD(i); }
-  uint64_t seqUs = esp_timer_get_time() - t0;
+  uint64_t seqUs = (uint64_t)esp_timer_get_time() - t0;
 
   WorkerArgs a{0, n / 2, 0.0f, 0.0, false};
   WorkerArgs b{n / 2, n, 0.0f, 0.0, false};
   t0 = esp_timer_get_time();
   BaseType_t coreA = 0;
   BaseType_t coreB = (cores > 1) ? 1 : 0;
-  xTaskCreatePinnedToCore(sumWorker, "bb-sum-a", 4096, &a, 1, nullptr, coreA);
-  xTaskCreatePinnedToCore(sumWorker, "bb-sum-b", 4096, &b, 1, nullptr, coreB);
-  while (!a.done || !b.done) delay(1);
+
+  BaseType_t okA = xTaskCreatePinnedToCore(sumWorker, "bb-sum-a", 4096, &a, 1, nullptr, coreA);
+  if (okA != pdPASS) {
+    Serial.println(F("#ERROR,dualcore_task_a_create_failed"));
+    return;
+  }
+  BaseType_t okB = xTaskCreatePinnedToCore(sumWorker, "bb-sum-b", 4096, &b, 1, nullptr, coreB);
+  if (okB != pdPASS) {
+    uint32_t waited = 0;
+    while (!a.done && waited < 5000) { delay(1); ++waited; }
+    Serial.println(F("#ERROR,dualcore_task_b_create_failed"));
+    return;
+  }
+
+  uint32_t waited = 0;
+  while ((!a.done || !b.done) && waited < 30000) { delay(1); ++waited; }
+  if (!a.done || !b.done) {
+    Serial.println(F("#ERROR,dualcore_task_timeout"));
+    return;
+  }
+
   float groupedF = a.resultF + b.resultF;
   double groupedD = a.resultD + b.resultD;
-  uint64_t parUs = esp_timer_get_time() - t0;
+  uint64_t parUs = (uint64_t)esp_timer_get_time() - t0;
 
   Serial.print(F("DUALCORE,")); Serial.print(runId); Serial.print(','); Serial.print(n); Serial.print(','); Serial.print(cores); Serial.print(',');
   Serial.print((float)seqF, 9); Serial.print(','); Serial.print(groupedF, 9); Serial.print(',');
   Serial.print((double)seqD, 15); Serial.print(','); Serial.print(groupedD, 15); Serial.print(',');
-  Serial.print(seqUs); Serial.print(','); Serial.println(parUs);
+  Serial.print((unsigned long long)seqUs); Serial.print(','); Serial.println((unsigned long long)parUs);
 }
 
 void emitPsram(uint32_t n) {
@@ -440,6 +473,7 @@ void emitPsram(uint32_t n) {
   float* data = (float*)heap_caps_malloc((size_t)n * sizeof(float), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (!data) {
     Serial.print(F("#ERROR,psram_allocation_failed,")); Serial.println(n);
+    Serial.print(F("PSRAM,")); Serial.print(runId); Serial.print(','); Serial.print(n); Serial.println(F(",1,nan,nan,0,0"));
     return;
   }
   for (uint32_t i = 0; i < n; ++i) data[i] = generatedValueF(i);
@@ -447,7 +481,7 @@ void emitPsram(uint32_t n) {
   uint64_t t0 = esp_timer_get_time();
   volatile float naive = 0.0f;
   for (uint32_t i = 0; i < n; ++i) naive += data[i];
-  uint64_t naiveUs = esp_timer_get_time() - t0;
+  uint64_t naiveUs = (uint64_t)esp_timer_get_time() - t0;
 
   t0 = esp_timer_get_time();
   float sum = 0.0f, c = 0.0f;
@@ -458,33 +492,41 @@ void emitPsram(uint32_t n) {
     sum = t;
   }
   volatile float kahan = sum;
-  uint64_t kahanUs = esp_timer_get_time() - t0;
+  uint64_t kahanUs = (uint64_t)esp_timer_get_time() - t0;
   free(data);
 
   Serial.print(F("PSRAM,")); Serial.print(runId); Serial.print(','); Serial.print(n); Serial.print(F(",1,"));
   Serial.print((float)naive, 9); Serial.print(','); Serial.print((float)kahan, 9); Serial.print(',');
-  Serial.print(naiveUs); Serial.print(','); Serial.println(kahanUs);
+  Serial.print((unsigned long long)naiveUs); Serial.print(','); Serial.println((unsigned long long)kahanUs);
 }
 
 void emitWifiJitter(uint32_t periodUs, uint32_t samples) {
   runId++;
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect(true, false);
+  WiFi.disconnect(false, false);
   delay(20);
   WiFi.scanDelete();
-  WiFi.scanNetworks(true, true);
+  int startState = WiFi.scanNetworks(true, true);
+  if (startState == WIFI_SCAN_FAILED) {
+    WiFi.mode(WIFI_OFF);
+    Serial.println(F("#ERROR,wifi_scan_start_failed"));
+    return;
+  }
+
   JitterStats s = measureJitter(periodUs, samples);
   int networks = WiFi.scanComplete();
   uint32_t waitMs = 0;
   while (networks == WIFI_SCAN_RUNNING && waitMs < 5000) {
-    delay(10); waitMs += 10; networks = WiFi.scanComplete();
+    delay(10);
+    waitMs += 10;
+    networks = WiFi.scanComplete();
   }
   if (networks < 0) networks = 0;
   WiFi.scanDelete();
   WiFi.mode(WIFI_OFF);
 
   Serial.print(F("WIFIJITTER,")); Serial.print(runId); Serial.print(','); Serial.print(periodUs); Serial.print(','); Serial.print(samples); Serial.print(',');
-  Serial.print(s.minErrorUs); Serial.print(','); Serial.print(s.maxErrorUs); Serial.print(',');
+  Serial.print((long long)s.minErrorUs); Serial.print(','); Serial.print((long long)s.maxErrorUs); Serial.print(',');
   Serial.print(s.meanErrorUs, 6); Serial.print(','); Serial.print(s.rmsErrorUs, 6); Serial.print(',');
   Serial.print(s.deadlineMisses); Serial.print(','); Serial.println(networks);
 }
@@ -503,7 +545,10 @@ void handleCommand(char* line) {
 
   if (!strcmp(cmd, "SUM") || !strcmp(cmd, "SERIES") || !strcmp(cmd, "DUALCORE") || !strcmp(cmd, "PSRAM") || !strcmp(cmd, "TIMER")) {
     uint32_t n = 0;
-    if (!parseU32(strtok(nullptr, " "), n)) { Serial.println(F("#ERROR,expected unsigned integer")); return; }
+    if (!parseU32(strtok(nullptr, " "), n)) {
+      Serial.println(F("#ERROR,expected unsigned integer"));
+      return;
+    }
     if (!strcmp(cmd, "SUM")) {
       if (n < 10 || n > 2000000U) { Serial.println(F("#ERROR,SUM n range 10..2000000")); return; }
       return emitSum(n);
@@ -527,9 +572,11 @@ void handleCommand(char* line) {
   }
 
   if (!strcmp(cmd, "TAYLOR")) {
-    double x = 0.0; uint32_t terms = 0;
+    double x = 0.0;
+    uint32_t terms = 0;
     if (!parseDouble(strtok(nullptr, " "), x) || !parseU32(strtok(nullptr, " "), terms) || terms < 1 || terms > 80 || fabs(x) > 1000.0) {
-      Serial.println(F("#ERROR,TAYLOR expects x[-1000,1000] terms[1,80]")); return;
+      Serial.println(F("#ERROR,TAYLOR expects x[-1000,1000] terms[1,80]"));
+      return;
     }
     return emitTaylor(x, terms);
   }
@@ -537,7 +584,8 @@ void handleCommand(char* line) {
   if (!strcmp(cmd, "JITTER") || !strcmp(cmd, "LOADJITTER") || !strcmp(cmd, "WIFIJITTER")) {
     uint32_t periodUs = 0, samples = 0;
     if (!parseU32(strtok(nullptr, " "), periodUs) || !parseU32(strtok(nullptr, " "), samples) || periodUs < 100 || periodUs > 1000000U || samples < 20 || samples > 20000U) {
-      Serial.println(F("#ERROR,jitter expects period_us 100..1000000 samples 20..20000")); return;
+      Serial.println(F("#ERROR,jitter expects period_us 100..1000000 samples 20..20000"));
+      return;
     }
     if (!strcmp(cmd, "JITTER")) return emitJitter(periodUs, samples, false);
     if (!strcmp(cmd, "LOADJITTER")) return emitJitter(periodUs, samples, true);
