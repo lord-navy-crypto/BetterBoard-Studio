@@ -26,6 +26,9 @@ jobs:
       - name: BetterBoard repository self-check
         run: python scripts/self_check.py
 
+      - name: ESP32 analyzer contract self-check
+        run: python scripts/esp32_analyzer_self_check.py
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
