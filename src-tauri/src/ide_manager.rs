@@ -152,10 +152,48 @@ fn verified_library_example_dir(path: &str, requested_library: &str) -> Result<P
     Ok(canonical)
 }
 
+fn nested_example_source_paths(dir: &Path) -> Result<Vec<String>, String> {
+    let mut stack = vec![dir.to_path_buf()];
+    let mut nested_sources = Vec::new();
+    let mut scanned_entries = 0usize;
+    while let Some(current) = stack.pop() {
+        for entry in fs::read_dir(&current).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            scanned_entries += 1;
+            if scanned_entries > 4096 {
+                return Err("Example tree exceeds the 4096-entry import inspection limit".into());
+            }
+            let file_type = entry.file_type().map_err(|e| e.to_string())?;
+            if file_type.is_symlink() { continue; }
+            let path = entry.path();
+            if file_type.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if current == dir || !file_type.is_file() { continue; }
+            let ext = path.extension().and_then(|v| v.to_str()).unwrap_or_default();
+            if !matches!(ext, "ino" | "h" | "hpp" | "c" | "cpp") { continue; }
+            let relative = path.strip_prefix(dir).unwrap_or(&path).display().to_string();
+            nested_sources.push(relative);
+            if nested_sources.len() >= 16 { break; }
+        }
+        if nested_sources.len() >= 16 { break; }
+    }
+    nested_sources.sort();
+    Ok(nested_sources)
+}
+
 fn prepare_example_record(mut record: Value, library_name: &str) -> Result<Value, String> {
     let path = record.get("path").or_else(|| record.get("sketch_path")).and_then(Value::as_str)
         .ok_or_else(|| "Arduino CLI example did not provide a sketch path".to_string())?.to_string();
     let dir = verified_library_example_dir(&path, library_name)?;
+    let nested_sources = nested_example_source_paths(&dir)?;
+    if !nested_sources.is_empty() {
+        return Err(format!(
+            "Example uses nested source files ({}). BetterBoard currently imports only top-level Arduino sketch files; import was refused to avoid creating an incomplete project.",
+            nested_sources.join(", ")
+        ));
+    }
     let example_name = dir.file_name().and_then(|v| v.to_str()).unwrap_or_default().to_string();
     let mut files = Vec::new();
     let mut total_bytes = 0usize;
