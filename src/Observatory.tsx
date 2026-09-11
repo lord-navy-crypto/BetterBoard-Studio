@@ -59,21 +59,67 @@ export default function Observatory() {
   const [tasks, setTasks] = useState<BackgroundTask[]>(readTaskMemory);
   const [lastRefresh, setLastRefresh] = useState(Date.now());
   const [refreshingRuntime, setRefreshingRuntime] = useState(false);
+  const [runtimeErrors, setRuntimeErrors] = useState<string[]>([]);
 
   async function refreshRuntime() {
     setRefreshingRuntime(true);
+    const errors: string[] = [];
     try {
-      const [cliInfo, measurementSessions, recipeList, deviceList, aiStatus] = await Promise.all([
-        invoke<CliInfo>('arduino_cli_discovery'), invoke<MeasurementSessionSummary[]>('measurement_sessions', { limit: 24 }),
-        invoke<RecipeSpec[]>('recipe_catalog'), invoke<DeviceSpec[]>('device_catalog'), invoke<OpenPenguinStatus>('openguin_probe'),
+      const [cliResult, sessionsResult, recipesResult, devicesResult, aiResult] = await Promise.allSettled([
+        invoke<CliInfo>('arduino_cli_discovery'),
+        invoke<MeasurementSessionSummary[]>('measurement_sessions', { limit: 24 }),
+        invoke<RecipeSpec[]>('recipe_catalog'),
+        invoke<DeviceSpec[]>('device_catalog'),
+        invoke<OpenPenguinStatus>('openguin_probe'),
       ]);
-      setCli(cliInfo); setSessions(measurementSessions); setRecipes(recipeList); setDevices(deviceList); setAi(aiStatus);
-      if (measurementSessions[0]) {
-        try { setLatestReplay(await invoke<MeasurementReplay>('measurement_session_load', { directory: measurementSessions[0].directory })); }
-        catch { setLatestReplay(null); }
-      } else setLatestReplay(null);
-    } catch { /* keep last known values */ }
-    setTasks(readTaskMemory()); setLastRefresh(Date.now()); setRefreshingRuntime(false);
+
+      if (cliResult.status === 'fulfilled') setCli(cliResult.value);
+      else {
+        setCli({ found: false, error: String(cliResult.reason) });
+        errors.push('Arduino CLI discovery');
+      }
+
+      if (recipesResult.status === 'fulfilled') setRecipes(recipesResult.value);
+      else {
+        setRecipes([]);
+        errors.push('recipe catalog');
+      }
+
+      if (devicesResult.status === 'fulfilled') setDevices(devicesResult.value);
+      else {
+        setDevices([]);
+        errors.push('device catalog');
+      }
+
+      if (aiResult.status === 'fulfilled') setAi(aiResult.value);
+      else {
+        setAi({ found: false, endpoint: 'runtime optional / not connected', models: [], error: String(aiResult.reason) });
+        errors.push('OpenPenguin probe');
+      }
+
+      if (sessionsResult.status === 'fulfilled') {
+        const measurementSessions = sessionsResult.value;
+        setSessions(measurementSessions);
+        if (measurementSessions[0]) {
+          try {
+            setLatestReplay(await invoke<MeasurementReplay>('measurement_session_load', { directory: measurementSessions[0].directory }));
+          } catch {
+            setLatestReplay(null);
+            errors.push('latest measurement replay');
+          }
+        } else setLatestReplay(null);
+      } else {
+        setSessions([]);
+        setLatestReplay(null);
+        errors.push('measurement history');
+      }
+
+      setRuntimeErrors(errors);
+    } finally {
+      setTasks(readTaskMemory());
+      setLastRefresh(Date.now());
+      setRefreshingRuntime(false);
+    }
   }
 
   useEffect(() => {
@@ -92,6 +138,7 @@ export default function Observatory() {
   const totalSamples = sessions.reduce((sum, s) => sum + s.sample_count, 0);
   const userRecipes = recipes.filter(r => r.user_defined).length;
   const warnings = [
+    runtimeErrors.length ? `Observatory could not refresh: ${runtimeErrors.join(', ')}.` : null,
     !selectedPort ? 'No hardware board is selected.' : null,
     !cli?.found ? 'Arduino CLI is unavailable.' : null,
     failedTasks.length ? `${failedTasks.length} failed background task(s) are retained in Task Center history.` : null,
