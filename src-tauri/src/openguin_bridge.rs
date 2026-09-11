@@ -9,6 +9,7 @@ use std::{
 const HOST: &str = "127.0.0.1";
 const PRIVATE_PORT: u16 = 11435;
 const EXTERNAL_PORT: u16 = 11434;
+const MAX_RESPONSE_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
 pub struct OpenPenguinStatus {
@@ -48,7 +49,13 @@ fn request(port: u16, method: &str, path: &str, body: Option<&str>) -> Result<Ve
     if !payload.is_empty() { stream.write_all(payload.as_bytes()).map_err(|e| e.to_string())?; }
     stream.flush().map_err(|e| e.to_string())?;
     let mut raw = Vec::new();
-    stream.read_to_end(&mut raw).map_err(|e| e.to_string())?;
+    (&mut stream)
+        .take(MAX_RESPONSE_BYTES + 1)
+        .read_to_end(&mut raw)
+        .map_err(|e| e.to_string())?;
+    if raw.len() as u64 > MAX_RESPONSE_BYTES {
+        return Err(format!("Local AI runtime response exceeded the {} MiB bridge limit.", MAX_RESPONSE_BYTES / 1024 / 1024));
+    }
     let split = raw.windows(4).position(|w| w == b"\r\n\r\n").ok_or("Invalid HTTP response from local AI runtime")?;
     let header = String::from_utf8_lossy(&raw[..split]);
     let status = header.lines().next().unwrap_or_default();
@@ -105,10 +112,14 @@ pub fn openguin_probe() -> OpenPenguinStatus {
 
 #[tauri::command]
 pub fn openguin_generate(model: String, prompt: String, context: String) -> Result<String, String> {
-    if model.trim().is_empty() || model.len() > 200 { return Err("Select a valid local model.".into()); }
+    let model = model.trim();
+    if model.is_empty() || model.len() > 200 { return Err("Select a valid local model.".into()); }
     if prompt.trim().is_empty() || prompt.len() > 12_000 { return Err("Prompt must be 1..12000 characters.".into()); }
     if context.len() > 40_000 { return Err("BetterBoard context exceeds the 40000-character local bridge limit.".into()); }
-    let (port, _) = active_runtime()?;
+    let (port, models) = active_runtime()?;
+    if !models.iter().any(|available| available == model) {
+        return Err("The selected local model is no longer available on the active runtime. Reload models and try again.".into());
+    }
     let combined = format!("You are assisting inside BetterBoard Studio. Keep measurement, numerical and model error distinct.\n\nBETTERBOARD CONTEXT:\n{}\n\nUSER REQUEST:\n{}", context, prompt);
     let body = serde_json::json!({"model": model, "prompt": combined, "stream": false, "options": {"temperature": 0.2}}).to_string();
     let bytes = request(port, "POST", "/api/generate", Some(&body))?;
