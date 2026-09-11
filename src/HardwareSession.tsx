@@ -38,25 +38,46 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
       setRefreshing(true);
       setHardwareStatus('Detecting USB serial devices and board profiles…');
       try {
-        const [boardPorts, boardProfiles] = await Promise.all([
+        // The physical-port scan and static board-profile catalog are independent
+        // resources. Settle them independently so one failure never discards a
+        // successful result from the other.
+        const [portsResult, profilesResult] = await Promise.allSettled([
           invoke<BoardPort[]>('board_list'),
           invoke<BoardProfile[]>('board_profiles'),
         ]);
-        setPorts(boardPorts);
-        setProfiles(boardProfiles);
-        setSelectedPort(current => {
-          if (current && boardPorts.some(port => port.port === current)) return current;
-          return boardPorts[0]?.port ?? '';
-        });
-        setFqbn(current => boardProfiles.some(profile => profile.fqbn === current)
-          ? current
-          : (boardProfiles[0]?.fqbn ?? current));
-        setHardwareStatus(boardPorts.length
-          ? `${boardPorts.length} serial device(s) detected`
-          : 'No USB serial board detected');
-      } catch (error) {
-        setPorts([]);
-        setHardwareStatus(`Hardware scan failed: ${error}`);
+        const status: string[] = [];
+
+        if (portsResult.status === 'fulfilled') {
+          const boardPorts = portsResult.value;
+          setPorts(boardPorts);
+          setSelectedPort(current => {
+            if (current && boardPorts.some(port => port.port === current)) return current;
+            return boardPorts[0]?.port ?? '';
+          });
+          status.push(boardPorts.length
+            ? `${boardPorts.length} serial device(s) detected`
+            : 'No USB serial board detected');
+        } else {
+          // A failed scan must revoke the previous physical-port selection. A
+          // stale non-empty selectedPort could otherwise leave Run / Upload armed.
+          setPorts([]);
+          setSelectedPort('');
+          status.push(`Hardware scan failed: ${String(portsResult.reason)}`);
+        }
+
+        if (profilesResult.status === 'fulfilled') {
+          const boardProfiles = profilesResult.value;
+          setProfiles(boardProfiles);
+          setFqbn(current => boardProfiles.some(profile => profile.fqbn === current)
+            ? current
+            : (boardProfiles[0]?.fqbn ?? current));
+          status.push(`${boardProfiles.length} board profile(s) available`);
+        } else {
+          setProfiles([]);
+          status.push(`Board profile load failed: ${String(profilesResult.reason)}`);
+        }
+
+        setHardwareStatus(status.join(' · '));
       } finally {
         setRefreshing(false);
       }
