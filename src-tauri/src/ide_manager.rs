@@ -295,11 +295,22 @@ fn safe_project_file_name(value: &str) -> Result<String, String> {
     Ok(file_name)
 }
 
+fn regular_file_without_symlink(path: &Path) -> bool {
+    fs::symlink_metadata(path)
+        .map(|metadata| metadata.file_type().is_file())
+        .unwrap_or(false)
+}
+
 fn project_file(directory: &str, file_name: &str) -> Result<(PathBuf, PathBuf, String), String> {
     let dir = PathBuf::from(directory);
     if !safe_sketch_dir(&dir) { return Err("Project access is restricted to Arduino or BetterBoard sketchbook roots".into()); }
     let file_name = safe_project_file_name(file_name)?;
     let path = dir.join(&file_name);
+    if let Ok(metadata) = fs::symlink_metadata(&path) {
+        if metadata.file_type().is_symlink() {
+            return Err("Project file symlinks are not allowed".into());
+        }
+    }
     Ok((dir, path, file_name))
 }
 
@@ -314,9 +325,10 @@ pub fn developer_sketchbook_list() -> Result<Vec<SketchbookEntry>, String> {
             if !dir.is_dir() { continue; }
             let folder_name = entry.file_name().to_string_lossy().to_string();
             let preferred = dir.join(format!("{folder_name}.ino"));
-            let main = if preferred.is_file() { Some(preferred) } else {
+            let main = if regular_file_without_symlink(&preferred) { Some(preferred) } else {
                 fs::read_dir(&dir).ok().and_then(|items| items.filter_map(Result::ok)
-                    .map(|item| item.path()).find(|path| path.extension().and_then(|v| v.to_str()) == Some("ino")))
+                    .map(|item| item.path())
+                    .find(|path| regular_file_without_symlink(path) && path.extension().and_then(|v| v.to_str()) == Some("ino")))
             };
             let Some(main) = main else { continue; };
             let source = fs::read_to_string(&main).unwrap_or_default();
@@ -345,8 +357,9 @@ pub fn developer_project_files(directory: String) -> Result<Vec<ProjectFile>, St
     if !safe_sketch_dir(&dir) { return Err("Project access is restricted to Arduino or BetterBoard sketchbook roots".into()); }
     let mut files = Vec::new();
     for entry in fs::read_dir(&dir).map_err(|e| e.to_string())?.filter_map(Result::ok) {
+        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        if file_type.is_symlink() || !file_type.is_file() { continue; }
         let path = entry.path();
-        if !path.is_file() { continue; }
         let ext = path.extension().and_then(|v| v.to_str()).unwrap_or_default();
         if !matches!(ext, "ino" | "h" | "hpp" | "c" | "cpp") { continue; }
         let source = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -364,7 +377,10 @@ pub fn developer_project_files(directory: String) -> Result<Vec<ProjectFile>, St
 #[tauri::command]
 pub fn developer_project_file_save(directory: String, file_name: String, source: String) -> Result<String, String> {
     if source.len() > 2_000_000 { return Err("Project file exceeds the 2 MB editor limit".into()); }
-    let (_, path, _) = project_file(&directory, &file_name)?;
+    let (_, path, file_name) = project_file(&directory, &file_name)?;
+    if !regular_file_without_symlink(&path) {
+        return Err(format!("Project file no longer exists as a regular file: {file_name}. Refresh or reopen the project before saving."));
+    }
     fs::write(&path, source).map_err(|e| e.to_string())?;
     Ok(path.display().to_string())
 }
@@ -529,7 +545,7 @@ pub fn developer_project_file_create(directory: String, file_name: String) -> Re
 #[tauri::command]
 pub fn developer_project_file_rename(directory: String, file_name: String, new_name: String) -> Result<ProjectFile, String> {
     let (dir, path, file_name) = project_file(&directory, &file_name)?;
-    if !path.is_file() { return Err(format!("Project file not found: {file_name}")); }
+    if !regular_file_without_symlink(&path) { return Err(format!("Project file not found as a regular file: {file_name}")); }
     let folder_name = dir.file_name().and_then(|v| v.to_str()).unwrap_or_default();
     if file_name == format!("{folder_name}.ino") { return Err("Rename the project to rename its required main .ino file".into()); }
     let new_name = safe_project_file_name(&new_name)?;
@@ -543,7 +559,8 @@ pub fn developer_project_file_rename(directory: String, file_name: String, new_n
 #[tauri::command]
 pub fn developer_project_file_delete(directory: String, file_name: String) -> Result<bool, String> {
     let (dir, path, file_name) = project_file(&directory, &file_name)?;
-    if !path.is_file() { return Ok(false); }
+    if !path.exists() { return Ok(false); }
+    if !regular_file_without_symlink(&path) { return Err(format!("Project file is not a regular file: {file_name}")); }
     let folder_name = dir.file_name().and_then(|v| v.to_str()).unwrap_or_default();
     if file_name == format!("{folder_name}.ino") { return Err("The required main .ino file cannot be deleted".into()); }
     fs::remove_file(path).map_err(|e| e.to_string())?;
