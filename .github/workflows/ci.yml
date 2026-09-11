@@ -42,6 +42,9 @@ jobs:
       - name: OpenPenguin bridge boundary self-check
         run: python3 scripts/openguin_bridge_self_check.py
 
+      - name: Observatory statistics boundary self-check
+        run: python3 scripts/observatory_stats_self_check.py
+
       - name: Developer workspace correctness self-check
         run: python3 scripts/developer_workspace_self_check.py
 
