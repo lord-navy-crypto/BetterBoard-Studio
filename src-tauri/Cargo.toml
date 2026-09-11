@@ -1,7 +1,7 @@
 [package]
 name = "betterboard-studio"
 version = "0.2.0-alpha.1"
-description = "Goal-first physical computing environment for Arduino-compatible boards"
+description = "Goal-first physical computing environment for Arduino and ESP32 board workflows"
 edition = "2021"
 
 [lib]
