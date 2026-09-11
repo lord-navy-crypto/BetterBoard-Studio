@@ -122,6 +122,53 @@ const bench01Design = (): CircuitDesign => ({
   ],
 });
 
+function asObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function parseStoredCircuitDesign(raw: string): CircuitDesign {
+  const root = asObject(JSON.parse(raw));
+  if (!root || root.schema !== 'betterboard.circuit-design/0.1') throw new Error('unsupported design schema');
+  if (typeof root.name !== 'string' || !root.name.trim() || root.name.length > 160) throw new Error('invalid design name');
+  if (!Array.isArray(root.components) || !Array.isArray(root.wires)) throw new Error('design components/wires must be arrays');
+  if (root.components.length > 1000 || root.wires.length > 5000) throw new Error('saved design is too large to load safely');
+
+  const componentIds = new Set<string>();
+  const components = root.components.map((value, index) => {
+    const item = asObject(value);
+    if (!item || typeof item.id !== 'string' || !item.id || item.id.length > 160) throw new Error(`invalid component id at index ${index}`);
+    if (componentIds.has(item.id)) throw new Error(`duplicate component id: ${item.id}`);
+    if (typeof item.kind !== 'string' || !Object.prototype.hasOwnProperty.call(SPECS, item.kind)) throw new Error(`unsupported component kind at index ${index}`);
+    if (typeof item.x !== 'number' || typeof item.y !== 'number' || !Number.isFinite(item.x) || !Number.isFinite(item.y)) throw new Error(`invalid component coordinates at index ${index}`);
+    componentIds.add(item.id);
+    return { id: item.id, kind: item.kind as ComponentKind, x: item.x, y: item.y } satisfies PlacedComponent;
+  });
+  const componentMap = new Map(components.map(component => [component.id, component]));
+
+  function parsePinRef(value: unknown, label: string): PinRef {
+    const item = asObject(value);
+    if (!item || typeof item.componentId !== 'string' || typeof item.pinId !== 'string') throw new Error(`invalid ${label}`);
+    const component = componentMap.get(item.componentId);
+    if (!component) throw new Error(`${label} references missing component ${item.componentId}`);
+    if (!SPECS[component.kind].pins.some(pin => pin.id === item.pinId)) throw new Error(`${label} references missing pin ${item.componentId}.${item.pinId}`);
+    return { componentId: item.componentId, pinId: item.pinId };
+  }
+
+  const wireIds = new Set<string>();
+  const wires = root.wires.map((value, index) => {
+    const item = asObject(value);
+    if (!item || typeof item.id !== 'string' || !item.id || item.id.length > 160) throw new Error(`invalid wire id at index ${index}`);
+    if (wireIds.has(item.id)) throw new Error(`duplicate wire id: ${item.id}`);
+    const from = parsePinRef(item.from, `wire ${item.id} source`);
+    const to = parsePinRef(item.to, `wire ${item.id} destination`);
+    if (samePin(from, to)) throw new Error(`wire ${item.id} connects a pin to itself`);
+    wireIds.add(item.id);
+    return { id: item.id, from, to } satisfies Wire;
+  });
+
+  return { schema: 'betterboard.circuit-design/0.1', name: root.name, components, wires };
+}
+
 function makeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -325,6 +372,7 @@ export default function CircuitLab({ onUseRecipe }: Props) {
     setDesign(bench01Design());
     setSelectedId('uno-1');
     setPendingPin(null);
+    setDrag(null);
     setNotice('Loaded the Bench 01 reference wiring. This is still design/rule-check mode only.');
   }
 
@@ -332,23 +380,32 @@ export default function CircuitLab({ onUseRecipe }: Props) {
     setDesign(blankDesign());
     setSelectedId('uno-1');
     setPendingPin(null);
+    setDrag(null);
     setNotice('Started a new design with one UNO-compatible board.');
   }
 
   function saveLocal() {
-    localStorage.setItem('betterboard.circuit-lab.design.v01', JSON.stringify(design));
-    setNotice('Saved this circuit design locally on this Mac.');
+    try {
+      localStorage.setItem('betterboard.circuit-lab.design.v01', JSON.stringify(design));
+      setNotice('Saved this circuit design locally on this Mac.');
+    } catch (error) {
+      setNotice(`Could not save design: ${error}`);
+    }
   }
 
   function loadLocal() {
     try {
       const raw = localStorage.getItem('betterboard.circuit-lab.design.v01');
       if (!raw) return setNotice('No locally saved circuit design was found.');
-      const parsed = JSON.parse(raw) as CircuitDesign;
-      if (parsed.schema !== 'betterboard.circuit-design/0.1' || !Array.isArray(parsed.components) || !Array.isArray(parsed.wires)) throw new Error('unsupported design schema');
-      setDesign(parsed); setSelectedId(parsed.components[0]?.id || ''); setPendingPin(null);
-      setNotice('Loaded the locally saved circuit design.');
-    } catch (error) { setNotice(`Could not load design: ${error}`); }
+      const parsed = parseStoredCircuitDesign(raw);
+      setDesign(parsed);
+      setSelectedId(parsed.components[0]?.id || '');
+      setPendingPin(null);
+      setDrag(null);
+      setNotice('Loaded and validated the locally saved circuit design.');
+    } catch (error) {
+      setNotice(`Could not load design: ${error}`);
+    }
   }
 
   async function copyJson() {
