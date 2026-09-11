@@ -10,6 +10,9 @@ RES = ROOT / 'src-tauri' / 'resources'
 LIB = ROOT / 'src-tauri' / 'src' / 'lib.rs'
 APP = ROOT / 'src' / 'App.tsx'
 ESP32_WORKSPACE = ROOT / 'src' / 'ESP32ResearchWorkspace.tsx'
+ESP32_CAMPAIGN = ROOT / 'src' / 'ESP32CampaignWorkspace.tsx'
+ESP32_CAMPAIGN_CORE = ROOT / 'src' / 'esp32Campaign.ts'
+ESP32_CAMPAIGN_EXPORT = ROOT / 'src' / 'esp32CampaignExport.ts'
 NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuite.tsx'
 MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuite.tsx'
 
@@ -67,8 +70,9 @@ def main() -> int:
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
     rust = LIB.read_text()
-    assert ESP32_WORKSPACE.is_file()
-    frontend = APP.read_text() + '\n' + ESP32_WORKSPACE.read_text() + '\n' + NUMERICAL_SUITE.read_text() + '\n' + MAGNET_SUITE.read_text()
+    for path in [ESP32_WORKSPACE, ESP32_CAMPAIGN, ESP32_CAMPAIGN_CORE, ESP32_CAMPAIGN_EXPORT]:
+        assert path.is_file(), path
+    frontend = '\n'.join(path.read_text() for path in [APP, ESP32_WORKSPACE, ESP32_CAMPAIGN, NUMERICAL_SUITE, MAGNET_SUITE])
     by_id = {r['id']: r for r in catalog}
 
     bench1 = by_id['analog_a0']
@@ -194,11 +198,23 @@ def main() -> int:
     for token in ['ESP32 numerical research', 'serial_exchange', 'metricSummary', 'Compile & upload', 'Research stream']:
         assert token in esp32_text, token
 
+    campaign_text = ESP32_CAMPAIGN.read_text()
+    for token in ['ESP32 condition campaign', 'Run campaign', 'Research package export', 'Archive JSON', 'Comparator capture', 'captureLines']:
+        assert token in campaign_text, token
+    campaign_core = ESP32_CAMPAIGN_CORE.read_text()
+    for token in ['buildEsp32CampaignPlan', 'rotatedConditions', 'aggregateCampaignObservations', 'ratioVsIdle']:
+        assert token in campaign_core, token
+    campaign_export = ESP32_CAMPAIGN_EXPORT.read_text()
+    for token in ['betterboard.esp32-campaign/1', 'campaignSummaryCsv', 'campaignComparatorCapture', 'capturedRows', 'Raw serial rows are preserved']:
+        assert token in campaign_export, token
+
     main = (ROOT / 'src' / 'main.tsx').read_text()
     assert 'Numerical Bench 01–03' in main
     assert 'Magnet Bench 01–03' in main
     assert "id: 'esp32'" in main
+    assert "id: 'campaign'" in main
     assert '<ESP32ResearchWorkspace />' in main
+    assert '<ESP32CampaignWorkspace />' in main
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
@@ -210,7 +226,8 @@ def main() -> int:
     print(f'- {len(CANONICAL_EXPECTED)} canonical recipes registered')
     print(f'- {len(ESP32_RESEARCH_EXPECTED)} ESP32 research recipes registered')
     print('- ESP32 / S3 / C3 explicit board profiles registered')
-    print('- dedicated ESP32 Research workspace registered')
+    print('- dedicated ESP32 Research + Campaign workspaces registered')
+    print('- ESP32 campaign raw-evidence JSON/CSV/comparator export path registered')
     print('- ESP32 research recipes are core-gated and command-driven')
     print('- system debug/Bluetooth serial ports are filtered in the backend')
     print('- frontend invoke / Rust handler contract consistent')
