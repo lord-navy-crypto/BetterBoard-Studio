@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / 'scripts' / 'esp32_build_manifest.py'
 VERIFY = ROOT / 'scripts' / 'esp32_verify_build_identity.py'
+FLASH_VERIFY = ROOT / 'scripts' / 'esp32_verify_flash.py'
 SOURCE = ROOT / 'src-tauri' / 'resources' / 'firmware' / 'ESP32NumericalResearchSuite' / 'ESP32NumericalResearchSuite.ino'
 
 
@@ -22,7 +23,12 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix='bb-build-manifest-test-') as tmp_raw:
         tmp = Path(tmp_raw)
         fake_cli = tmp / 'arduino-cli'
+        fake_esptool = tmp / 'esptool.py'
         upload_log = tmp / 'upload.log'
+        tamper_flag = tmp / 'tamper.flag'
+        out_dir = tmp / 'out'
+        build_dir = out_dir / 'build'
+
         fake_cli.write_text(
             '#!/usr/bin/env python3\n'
             'import json, pathlib, sys\n'
@@ -46,8 +52,11 @@ def main() -> int:
             '        raise SystemExit(4)\n'
             '    build.mkdir(parents=True, exist_ok=True)\n'
             '    payload = header.read_bytes() + sources[0].read_bytes()\n'
+            '    (build / "bootloader.bin").write_bytes(b"bootloader-test")\n'
+            '    (build / "partitions.bin").write_bytes(b"partition-test")\n'
             '    (build / "firmware.bin").write_bytes(b"fake-bin\\x00" + payload)\n'
             '    (build / "firmware.elf").write_bytes(b"fake-elf\\x02" + payload)\n'
+            '    (build / "flasher_args.json").write_text(json.dumps({"flash_files": {"0x1000":"bootloader.bin","0x8000":"partitions.bin","0x10000":"firmware.bin"}}))\n'
             '    print("fake compile ok")\n'
             'elif args and args[0] == "upload":\n'
             '    build = pathlib.Path(args[args.index("--input-dir") + 1])\n'
@@ -62,7 +71,33 @@ def main() -> int:
             '    raise SystemExit(2)\n'
         )
         fake_cli.chmod(0o755)
-        out_dir = tmp / 'out'
+
+        fake_esptool.write_text(
+            '#!/usr/bin/env python3\n'
+            'import pathlib, sys\n'
+            f'BUILD = pathlib.Path({str(build_dir)!r})\n'
+            f'TAMPER = pathlib.Path({str(tamper_flag)!r})\n'
+            'args = sys.argv[1:]\n'
+            'if "read_flash" not in args:\n'
+            '    print("unsupported fake esptool invocation", args, file=sys.stderr)\n'
+            '    raise SystemExit(2)\n'
+            'i = args.index("read_flash")\n'
+            'offset = int(args[i + 1], 0)\n'
+            'size = int(args[i + 2], 0)\n'
+            'dest = pathlib.Path(args[i + 3])\n'
+            'mapping = {0x1000: BUILD / "bootloader.bin", 0x8000: BUILD / "partitions.bin", 0x10000: BUILD / "firmware.bin"}\n'
+            'src = mapping.get(offset)\n'
+            'if src is None or not src.is_file():\n'
+            '    print("unknown flash region", hex(offset), file=sys.stderr)\n'
+            '    raise SystemExit(3)\n'
+            'data = bytearray(src.read_bytes()[:size])\n'
+            'if TAMPER.exists() and offset == 0x10000 and data:\n'
+            '    data[0] ^= 0x01\n'
+            'dest.write_bytes(bytes(data))\n'
+            'print(f"read {len(data)} bytes from {hex(offset)}")\n'
+        )
+        fake_esptool.chmod(0o755)
+
         subprocess.run([
             sys.executable,
             str(TOOL),
@@ -99,7 +134,10 @@ def main() -> int:
         assert 'Serial.print(F("#SOURCE_SHA256,")); Serial.println(BETTERBOARD_SOURCE_SHA256);' in stamped
         assert hashlib.sha256(stamped.encode()).hexdigest() == manifest['source']['stamped_source_sha256']
 
-        assert {item['path'] for item in manifest['artifacts']} == {'build/firmware.bin', 'build/firmware.elf'}
+        artifact_paths = {item['path'] for item in manifest['artifacts']}
+        assert artifact_paths == {
+            'build/bootloader.bin', 'build/partitions.bin', 'build/firmware.bin', 'build/firmware.elf'
+        }
         for item in manifest['artifacts']:
             artifact = out_dir / item['path']
             assert item['bytes'] == artifact.stat().st_size
@@ -113,7 +151,7 @@ def main() -> int:
         assert '--input-dir' in upload['command']
         logged = json.loads(upload_log.read_text())
         assert logged['port'] == '/dev/ttyTEST0'
-        assert Path(logged['build']).resolve() == (out_dir / 'build').resolve()
+        assert Path(logged['build']).resolve() == build_dir.resolve()
         assert 'self-report' in manifest['attestation_boundary']
 
         good_capture = tmp / 'good.txt'
@@ -133,6 +171,31 @@ def main() -> int:
         assert bad.returncode == 2
         mismatch = json.loads(bad.stdout)
         assert mismatch['matched'] is False
+
+        flash_good = subprocess.run([
+            sys.executable, str(FLASH_VERIFY),
+            '--manifest', str(manifest_path),
+            '--port', '/dev/ttyTEST0',
+            '--esptool', str(fake_esptool),
+        ], text=True, capture_output=True)
+        assert flash_good.returncode == 0, flash_good.stderr
+        flash_report = json.loads(flash_good.stdout)
+        assert flash_report['schema'] == 'betterboard.esp32-flash-verification/1'
+        assert flash_report['matched'] is True
+        assert [item['offset'] for item in flash_report['regions']] == [0x1000, 0x8000, 0x10000]
+        assert all(item['matched'] for item in flash_report['regions'])
+
+        tamper_flag.write_text('1')
+        flash_bad = subprocess.run([
+            sys.executable, str(FLASH_VERIFY),
+            '--manifest', str(manifest_path),
+            '--port', '/dev/ttyTEST0',
+            '--esptool', str(fake_esptool),
+        ], text=True, capture_output=True)
+        assert flash_bad.returncode == 2
+        flash_mismatch = json.loads(flash_bad.stdout)
+        assert flash_mismatch['matched'] is False
+        assert any(not item['matched'] for item in flash_mismatch['regions'])
 
     print('ESP32 build-manifest self-check: PASS')
     return 0
