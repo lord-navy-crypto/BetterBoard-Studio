@@ -42,6 +42,22 @@ function csvCell(value: unknown): string {
   return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
+function deviceBuildIdentity(provenance: CampaignProvenance | null) {
+  if (!provenance) return null;
+  const buildId = provenance.deviceInfo.BUILD_ID?.trim() || null;
+  const sourceSha256 = provenance.deviceInfo.SOURCE_SHA256?.trim() || null;
+  const identitySha256 = provenance.deviceInfo.BUILD_IDENTITY_SHA256?.trim() || null;
+  return {
+    reported: Boolean(buildId),
+    build_id: buildId,
+    source_sha256: sourceSha256,
+    build_identity_sha256: identitySha256,
+    meaning: buildId
+      ? 'Firmware self-reported a BetterBoard build identity. Match it against a betterboard.firmware-build/2 manifest before treating the build association as established.'
+      : 'No BUILD_ID was reported during campaign provenance collection; the running firmware is unstamped or predates the build-identity contract.',
+  };
+}
+
 export function campaignSummaryCsv(input: CampaignArchiveInput): string {
   const header = [
     'sequence', 'repeat', 'condition', 'command', 'status', 'primary_metric', 'primary_label',
@@ -107,6 +123,7 @@ export function campaignArchiveJson(input: CampaignArchiveInput): string {
       title: input.recipeTitle,
     },
     provenance: input.provenance,
+    device_build_identity: deviceBuildIdentity(input.provenance),
     plan: input.plan,
     summary: {
       aggregates: input.aggregates,
@@ -126,7 +143,8 @@ export function campaignArchiveJson(input: CampaignArchiveInput): string {
       'IDLE is a runtime baseline, not an externally calibrated reference.',
       'LOAD/WIFI ratios are meaningful only for matched campaign parameters on the tested board/build/environment.',
       'Raw serial rows are preserved so stronger host analyzers can be rerun independently.',
-      'The firmware SHA-256 in provenance identifies the source embedded in this BetterBoard build; it is not cryptographic attestation of the bytes currently flashed on the MCU.',
+      'The expected firmware SHA-256 in provenance identifies the source embedded in this BetterBoard build; it is not cryptographic attestation of the bytes currently flashed on the MCU.',
+      'A device-reported BUILD_ID is a firmware self-report. It should be compared with a betterboard.firmware-build/2 manifest and is still weaker than an independently measured flash digest or cryptographic attestation.',
       'Observed INFO/SCHEMA output is runtime evidence from the connected device and is archived separately from host-side source identity.',
     ],
   };
