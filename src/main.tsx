@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { CircuitBoard, Cpu, Magnet, Sigma } from 'lucide-react';
+import { CircuitBoard, Cpu, Magnet, Repeat2, Sigma } from 'lucide-react';
 import App from './App';
 import ESP32ResearchWorkspace from './ESP32ResearchWorkspace';
+import ESP32CampaignWorkspace from './ESP32CampaignWorkspace';
 import NumericalBenchSuite from './NumericalBenchSuite';
 import MagnetBenchSuite from './MagnetBenchSuite';
 import './styles.css';
 import './visual-system.css';
 
-type Workspace = 'studio' | 'numerical' | 'esp32' | 'magnet';
+type Workspace = 'studio' | 'numerical' | 'esp32' | 'esp32-campaign' | 'magnet';
 
 const WORKSPACES: Array<{
   id: Workspace;
@@ -19,6 +20,7 @@ const WORKSPACES: Array<{
   { id: 'studio', label: 'Studio', subtitle: 'hardware + data', icon: CircuitBoard },
   { id: 'numerical', label: 'Numerical', subtitle: 'Numerical Bench 01–03', icon: Sigma },
   { id: 'esp32', label: 'ESP32 Research', subtitle: 'timing + numerics', icon: Cpu },
+  { id: 'esp32-campaign', label: 'ESP32 Campaign', subtitle: 'repeat + compare', icon: Repeat2 },
   { id: 'magnet', label: 'Magnet', subtitle: 'Magnet Bench 01–03', icon: Magnet },
 ];
 
@@ -54,6 +56,7 @@ function Root() {
       {workspace === 'studio' && <App />}
       {workspace === 'numerical' && <NumericalBenchSuite />}
       {workspace === 'esp32' && <ESP32ResearchWorkspace />}
+      {workspace === 'esp32-campaign' && <ESP32CampaignWorkspace />}
       {workspace === 'magnet' && <MagnetBenchSuite />}
     </div>
   </div>;
