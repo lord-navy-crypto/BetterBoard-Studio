@@ -57,6 +57,9 @@ jobs:
       - name: Developer ecosystem target-state self-check
         run: python3 scripts/developer_ecosystem_state_self_check.py
 
+      - name: Developer Arduino uninstall target self-check
+        run: python3 scripts/developer_uninstall_spec_self_check.py
+
       - name: Numerical depth self-check
         run: python3 scripts/numerical_depth_self_check.py
 
