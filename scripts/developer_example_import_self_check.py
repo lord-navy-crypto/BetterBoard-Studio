@@ -19,6 +19,11 @@ backend_required = [
     '.importing-',
     'fs::rename(&staging, &dir)',
     'fs::remove_dir_all(&staging)',
+    'fn nested_example_source_paths',
+    'if file_type.is_symlink() { continue; }',
+    'scanned_entries > 4096',
+    'let nested_sources = nested_example_source_paths(&dir)?;',
+    'import was refused to avoid creating an incomplete project',
 ]
 frontend_required = [
     'Import to Sketchbook',
@@ -44,6 +49,10 @@ if 'declared_name != requested_name' not in backend:
     raise SystemExit('Example import must verify library.properties ownership')
 if 'file_type.is_file()' not in backend:
     raise SystemExit('Example preparation must only import regular files')
+if 'matches!(ext, "ino" | "h" | "hpp" | "c" | "cpp")' not in backend:
+    raise SystemExit('Nested-source inspection must recognize Arduino/C/C++ project source extensions')
+if 'nested_sources.join(", ")' not in backend:
+    raise SystemExit('Nested-source refusal must identify the source paths that made the import incomplete')
 if 'fs::create_dir(&staging)' not in backend or 'fs::rename(&staging, &dir)' not in backend:
     raise SystemExit('Imported project creation must stage before atomic commit')
 
