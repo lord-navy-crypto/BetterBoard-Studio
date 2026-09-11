@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Activity, Cable, Cpu, FlaskConical, Play, RefreshCw, Square, TerminalSquare } from 'lucide-react';
+import { Activity, Cable, Cpu, Download, FlaskConical, Play, RefreshCw, Square, TerminalSquare } from 'lucide-react';
 import {
   aggregateCampaignObservations,
   buildEsp32CampaignPlan,
@@ -9,6 +9,15 @@ import {
   type CampaignObservation,
   type CampaignRecipeId,
 } from './esp32Campaign';
+import {
+  campaignArchiveJson,
+  campaignBaseName,
+  campaignComparatorCapture,
+  campaignSummaryCsv,
+  downloadTextFile,
+  type CampaignArchiveInput,
+  type CampaignCapturedRow,
+} from './esp32CampaignExport';
 
 type BoardPort = { port: string; protocol: string; board_name?: string; fqbn?: string };
 type BoardProfile = { id: string; label: string; fqbn: string; core: string; default_baud: number; notes: string[] };
@@ -19,7 +28,12 @@ type RecipeSpec = {
   supported_cores?: string[];
   research_stage?: boolean;
 };
-type CaptureResult = { lines: string[]; numeric_rows: number; ignored_rows: number };
+type CaptureResult = {
+  lines: string[];
+  rows?: CampaignCapturedRow[];
+  numeric_rows: number;
+  ignored_rows: number;
+};
 type CampaignRun = {
   sequence: number;
   repeat: number;
@@ -30,6 +44,10 @@ type CampaignRun = {
   primaryLabel: string;
   rows: number;
   message?: string;
+  startedAtUtc?: string;
+  completedAtUtc?: string;
+  captureLines: string[];
+  capturedRows?: CampaignCapturedRow[];
 };
 
 const SUPPORTED: CampaignRecipeId[] = [
@@ -77,9 +95,6 @@ function parsePrimaryMetric(recipeId: CampaignRecipeId, lines: string[]): { valu
 function durationFor(command: string, periodUs: number, samples: number): number {
   const acquisitionMs = Math.ceil((periodUs * samples) / 1000);
   if (command.startsWith('IRREG')) {
-    // IRREG emits one CSV row per sample at 115200 baud, so serial drain often costs
-    // more wall time than acquisition. Keep a bounded margin without pretending this
-    // is a precise runtime estimate.
     return Math.min(300_000, Math.max(8_000, acquisitionMs + Math.ceil(samples * 8.5) + 3_000));
   }
   return Math.min(300_000, Math.max(3_500, acquisitionMs + 2_500));
@@ -110,6 +125,21 @@ export default function ESP32CampaignWorkspace() {
   const aggregates = useMemo(() => aggregateCampaignObservations(observations), [observations]);
   const loadRatio = useMemo(() => ratioVsIdle(aggregates, 'LOAD'), [aggregates]);
   const wifiRatio = useMemo(() => ratioVsIdle(aggregates, 'WIFI'), [aggregates]);
+  const archiveInput = useMemo<CampaignArchiveInput | null>(() => {
+    if (!recipe || !runs.length) return null;
+    return {
+      recipeId,
+      recipeTitle: recipe.title,
+      fqbn,
+      port: selectedPort,
+      baud: recipe.baud,
+      plan,
+      runs,
+      aggregates,
+      loadRatio,
+      wifiRatio,
+    };
+  }, [recipe, runs, recipeId, fqbn, selectedPort, plan, aggregates, loadRatio, wifiRatio]);
 
   async function refresh() {
     setStatus('Refreshing campaign environment…');
@@ -138,6 +168,27 @@ export default function ESP32CampaignWorkspace() {
     setStatus('Cancel requested · current serial exchange will finish before stopping');
   }
 
+  function exportArchiveJson() {
+    if (!archiveInput) return;
+    const base = campaignBaseName(archiveInput);
+    downloadTextFile(`${base}.json`, campaignArchiveJson(archiveInput), 'application/json;charset=utf-8');
+    setStatus('Campaign archive JSON prepared for download');
+  }
+
+  function exportSummaryCsv() {
+    if (!archiveInput) return;
+    const base = campaignBaseName(archiveInput);
+    downloadTextFile(`${base}-summary.csv`, campaignSummaryCsv(archiveInput), 'text/csv;charset=utf-8');
+    setStatus('Campaign summary CSV prepared for download');
+  }
+
+  function exportComparatorCapture() {
+    if (!archiveInput) return;
+    const base = campaignBaseName(archiveInput);
+    downloadTextFile(`${base}-condition-compare.txt`, campaignComparatorCapture(archiveInput));
+    setStatus('Condition-comparator capture prepared for download');
+  }
+
   async function runCampaign() {
     if (!recipe || !selectedPort || busy) return;
     cancelRef.current = false;
@@ -146,6 +197,7 @@ export default function ESP32CampaignWorkspace() {
     try {
       for (const item of plan.commands) {
         if (cancelRef.current) {
+          const now = new Date().toISOString();
           setRuns(previous => [...previous, {
             sequence: item.sequence,
             repeat: item.repeat,
@@ -155,11 +207,15 @@ export default function ESP32CampaignWorkspace() {
             primaryMetric: null,
             primaryLabel: recipeId === 'esp32_irregular_dt' ? 'Δt RMSE (µs)' : 'RMS lateness (µs)',
             rows: 0,
+            startedAtUtc: now,
+            completedAtUtc: now,
+            captureLines: [],
           }]);
           break;
         }
 
         setStatus(`Campaign ${item.sequence + 1}/${plan.commands.length} · repeat ${item.repeat}/${plan.repeats} · ${item.condition}`);
+        const startedAtUtc = new Date().toISOString();
         try {
           const result = await invoke<CaptureResult>('serial_exchange', {
             port: selectedPort,
@@ -168,6 +224,7 @@ export default function ESP32CampaignWorkspace() {
             durationMs: durationFor(item.command, plan.periodUs, plan.samples),
             maxLines: recipeId === 'esp32_irregular_dt' ? Math.min(25_000, plan.samples + 250) : 500,
           });
+          const completedAtUtc = new Date().toISOString();
           const metric = parsePrimaryMetric(recipeId, result.lines);
           const errorLine = result.lines.find(line => line.startsWith('#ERROR'));
           const record: CampaignRun = {
@@ -180,6 +237,10 @@ export default function ESP32CampaignWorkspace() {
             primaryLabel: metric.label,
             rows: metric.rows,
             message: errorLine,
+            startedAtUtc,
+            completedAtUtc,
+            captureLines: result.lines,
+            capturedRows: result.rows ?? [],
           };
           setRuns(previous => [...previous, record]);
           if (errorLine) {
@@ -197,12 +258,15 @@ export default function ESP32CampaignWorkspace() {
             primaryLabel: recipeId === 'esp32_irregular_dt' ? 'Δt RMSE (µs)' : 'RMS lateness (µs)',
             rows: 0,
             message: String(error),
+            startedAtUtc,
+            completedAtUtc: new Date().toISOString(),
+            captureLines: [],
           }]);
           setStatus(`Campaign stopped on serial error: ${String(error)}`);
           break;
         }
       }
-      if (!cancelRef.current) setStatus('Campaign sequence finished · review matched-condition statistics below');
+      if (!cancelRef.current) setStatus('Campaign sequence finished · review statistics or export the research package');
     } finally {
       setBusy(false);
     }
@@ -213,13 +277,14 @@ export default function ESP32CampaignWorkspace() {
       <div className="brand"><div className="brand-mark">C</div><div><b>ESP32 Campaign</b><span>Repeated condition studies</span></div></div>
       <div className="small-card"><span>Plan</span><b>{plan.commands.length} commands · {plan.repeats} repeats</b></div>
       <div className="small-card"><span>Completed</span><b>{runs.filter(run => run.status === 'ok').length} successful runs</b></div>
+      <div className="small-card"><span>Raw evidence</span><b>{runs.reduce((sum, run) => sum + run.captureLines.length, 0)} serial lines</b></div>
       <div className="sidebar-spacer"/>
       <div className="legal">IDLE is a runtime baseline<br/>Condition order rotates by repeat<br/>No hardware-validation claim without real board evidence</div>
     </aside>
 
     <main>
       <header>
-        <div><h1>ESP32 condition campaign.</h1><p>Run repeated matched-parameter IDLE / LOAD / WIFI studies and aggregate mean, spread, and ratios inside BetterBoard.</p></div>
+        <div><h1>ESP32 condition campaign.</h1><p>Run repeated matched-parameter IDLE / LOAD / WIFI studies, preserve raw evidence, and aggregate comparisons inside BetterBoard.</p></div>
         <button className="ghost" onClick={refresh} disabled={busy}><RefreshCw size={16}/> Refresh</button>
       </header>
 
@@ -286,12 +351,23 @@ export default function ESP32CampaignWorkspace() {
       </section>
 
       <section className="panel">
+        <div className="panel-title"><Download size={18}/> Research package export</div>
+        <div className="action-row">
+          <button className="ghost" disabled={!archiveInput || busy} onClick={exportArchiveJson}><Download size={15}/> Archive JSON</button>
+          <button className="ghost" disabled={!archiveInput || busy} onClick={exportSummaryCsv}><Download size={15}/> Summary CSV</button>
+          <button className="ghost" disabled={!archiveInput || busy} onClick={exportComparatorCapture}><Download size={15}/> Comparator capture</button>
+        </div>
+        <div className="schema-row"><span>manifest + plan + raw captures</span><span>run summary CSV</span><span>input for esp32_condition_compare.py</span></div>
+        <div className="hint">The JSON archive preserves the selected FQBN, port, baud, plan, aggregate statistics, every run status, raw serial lines, and host timestamps returned by BetterBoard. The comparator capture keeps successful raw runs in a comment-delimited text stream so the stronger Python analysis can be rerun independently.</div>
+      </section>
+
+      <section className="panel">
         <div className="panel-title"><TerminalSquare size={18}/> Campaign run log</div>
         {!runs.length ? <div className="empty">No campaign has run in this session.</div> : <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr><th align="left">#</th><th align="left">Repeat</th><th align="left">Condition</th><th align="left">Command</th><th align="left">Status</th><th align="left">Metric</th></tr></thead>
+            <thead><tr><th align="left">#</th><th align="left">Repeat</th><th align="left">Condition</th><th align="left">Command</th><th align="left">Status</th><th align="left">Metric</th><th align="left">Raw lines</th></tr></thead>
             <tbody>{runs.map(run => <tr key={`${run.sequence}-${run.repeat}-${run.condition}`}>
-              <td>{run.sequence + 1}</td><td>{run.repeat}</td><td>{run.condition}</td><td><code>{run.command}</code></td><td>{run.status}</td><td>{run.primaryMetric == null ? (run.message || '—') : `${run.primaryMetric.toFixed(4)} · ${run.primaryLabel}`}</td>
+              <td>{run.sequence + 1}</td><td>{run.repeat}</td><td>{run.condition}</td><td><code>{run.command}</code></td><td>{run.status}</td><td>{run.primaryMetric == null ? (run.message || '—') : `${run.primaryMetric.toFixed(4)} · ${run.primaryLabel}`}</td><td>{run.captureLines.length}</td>
             </tr>)}</tbody>
           </table>
         </div>}
@@ -300,7 +376,7 @@ export default function ESP32CampaignWorkspace() {
       <section className="panel">
         <div className="panel-title"><FlaskConical size={18}/> Scientific boundary</div>
         {plan.boundary.map(item => <p className="muted" key={item}>• {item}</p>)}
-        <div className="hint">This workspace automates repeated acquisition and first-pass statistics. The stronger Python condition comparator remains the archival/reproducible analysis layer.</div>
+        <div className="hint">This workspace automates repeated acquisition, preserves raw serial evidence, and performs first-pass statistics. Exported files remain research evidence; the stronger Python condition comparator is the archival/reproducible analysis layer.</div>
       </section>
     </main>
   </div>;
