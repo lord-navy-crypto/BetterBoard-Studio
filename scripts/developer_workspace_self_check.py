@@ -6,6 +6,7 @@ sketchbook = (root / 'src' / 'SketchbookExplorer.tsx').read_text()
 ecosystem = (root / 'src' / 'ArduinoEcosystemManager.tsx').read_text()
 hardware = (root / 'src' / 'HardwareSession.tsx').read_text()
 app = (root / 'src' / 'App.tsx').read_text()
+smart_editor = (root / 'src' / 'SmartArduinoEditor.tsx').read_text()
 
 checks = {
     'preserve unsaved edits on external recipe/source change': "unsaved Developer edits were preserved" in developer,
@@ -31,6 +32,10 @@ checks = {
     'detected-vs-selected board profile mismatch is explicit': 'const profileMismatch = Boolean(detectedFqbn && detectedFqbn !== fqbn);' in app and 'Board profile mismatch' in app,
     'mismatch warns before compile or upload': 'Confirm before compiling or uploading.' in app,
     'detected profile quick-fix never appears unless catalog supports it': 'detectedProfileAvailable' in app and 'profiles.some(profile => profile.fqbn === detectedFqbn)' in app and 'Use detected profile' in app and 'setFqbn(detectedFqbn)' in app,
+    'smart editor tracks language provider disposables': 'providerDisposablesRef' in smart_editor and 'Array<{ dispose: () => void }>' in smart_editor,
+    'smart editor disposes providers on unmount': 'useEffect(() => () =>' in smart_editor and 'disposable.dispose()' in smart_editor,
+    'smart editor clears prior providers before remount registration': 'function beforeMount(monaco: Monaco)' in smart_editor and 'for (const disposable of providerDisposablesRef.current) disposable.dispose();' in smart_editor,
+    'smart editor still registers completion definition and hover providers': "registerCompletionItemProvider('cpp'" in smart_editor and "registerDefinitionProvider('cpp'" in smart_editor and "registerHoverProvider('cpp'" in smart_editor,
 }
 
 failed = [name for name, ok in checks.items() if not ok]
