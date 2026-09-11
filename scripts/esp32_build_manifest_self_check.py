@@ -34,11 +34,16 @@ def main() -> int:
             '    build = pathlib.Path(args[args.index("--build-path") + 1])\n'
             '    sketch = pathlib.Path(args[-1])\n'
             '    header = sketch / "BetterBoardBuildProvenance.h"\n'
-            '    if not header.is_file():\n'
-            '        print("missing provenance header", file=sys.stderr)\n'
+            '    sources = list(sketch.glob("*.ino"))\n'
+            '    if not header.is_file() or len(sources) != 1:\n'
+            '        print("missing stamped provenance inputs", file=sys.stderr)\n'
             '        raise SystemExit(3)\n'
+            '    source_text = sources[0].read_text()\n'
+            '    if "#BUILD_ID," not in source_text or "BetterBoardBuildProvenance.h" not in source_text:\n'
+            '        print("source was not build-identity stamped", file=sys.stderr)\n'
+            '        raise SystemExit(4)\n'
             '    build.mkdir(parents=True, exist_ok=True)\n'
-            '    payload = header.read_bytes()\n'
+            '    payload = header.read_bytes() + sources[0].read_bytes()\n'
             '    (build / "firmware.bin").write_bytes(b"fake-bin\\x00" + payload)\n'
             '    (build / "firmware.elf").write_bytes(b"fake-elf\\x02" + payload)\n'
             '    print("fake compile ok")\n'
@@ -69,10 +74,20 @@ def main() -> int:
         build_id = manifest['build_identity']['build_id']
         assert build_id.startswith('bb-') and len(build_id) == 23
         assert len(manifest['build_identity']['identity_sha256']) == 64
+        assert manifest['build_identity']['device_info_contract'] == ['BUILD_ID', 'SOURCE_SHA256', 'BUILD_IDENTITY_SHA256']
+
         header_path = out_dir / manifest['build_identity']['generated_header']
         header = header_path.read_text()
         assert f'#define BETTERBOARD_BUILD_ID "{build_id}"' in header
         assert manifest['source']['sha256'] in header
+
+        stamped_path = out_dir / manifest['source']['stamped_source_path']
+        stamped = stamped_path.read_text()
+        assert '#include "BetterBoardBuildProvenance.h"' in stamped
+        assert 'Serial.print(F("#BUILD_ID,")); Serial.println(BETTERBOARD_BUILD_ID);' in stamped
+        assert 'Serial.print(F("#SOURCE_SHA256,")); Serial.println(BETTERBOARD_SOURCE_SHA256);' in stamped
+        assert hashlib.sha256(stamped.encode()).hexdigest() == manifest['source']['stamped_source_sha256']
+
         assert {item['path'] for item in manifest['artifacts']} == {'build/firmware.bin', 'build/firmware.elf'}
         for item in manifest['artifacts']:
             artifact = out_dir / item['path']
