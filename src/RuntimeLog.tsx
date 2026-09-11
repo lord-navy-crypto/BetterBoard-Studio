@@ -7,9 +7,9 @@ type Props = { tasks: BackgroundTask[] };
 
 export default function RuntimeLog({ tasks }: Props) {
   const [filter, setFilter] = useState('');
-  const lines = useMemo(() => tasks.flatMap(task => task.logs.map(line => ({
+  const lines = useMemo(() => tasks.flatMap(task => [...task.logs].reverse().map(line => ({
     line, category: task.category, title: task.title, state: task.state,
-  }))).filter(item => !filter || `${item.category} ${item.title} ${item.line}`.toLowerCase().includes(filter.toLowerCase())).slice(-300).reverse(), [tasks, filter]);
+  }))).filter(item => !filter || `${item.category} ${item.title} ${item.line}`.toLowerCase().includes(filter.toLowerCase())).slice(0, 300), [tasks, filter]);
   const copyText = useMemo(() => [...lines].reverse().map(item => `[${item.category}] ${item.title} · ${item.line}`).join('\n'), [lines]);
 
   return <div className="panel" style={{ marginTop: 14 }}>

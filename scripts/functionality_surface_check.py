@@ -197,6 +197,9 @@ for token in ['Load recipe template', 'Save to Library', 'OpenPenguinBridge']:
     assert token in developer, f'Developer template/library loop lost {token}'
 for token in ['Runtime log', 'Task Center / Arduino CLI / monitor / evidence operations']:
     assert token in runtime_log, f'Runtime log lost {token}'
+assert '[...task.logs].reverse()' in runtime_log, 'Runtime log no longer prioritizes newest lines inside each newest-first task'
+assert '.slice(0, 300)' in runtime_log, 'Runtime log must retain the newest 300-line window'
+assert '.slice(-300)' not in runtime_log, 'Runtime log regressed to retaining the oldest 300-line tail'
 for token in ['Connect OpenPenguin', '127.0.0.1:11435', 'Ask local AI']:
     assert token in openguin, f'OpenPenguin UI bridge lost {token}'
 for token in ['openguin_probe', 'openguin_generate', 'Ipv4Addr::LOCALHOST']:
@@ -238,4 +241,5 @@ print('- Observatory covers hardware, toolchain, acquisition, data, evidence, in
 print('- Numerical V2 supports capture-once, import and re-analysis workflows')
 print('- Magnet V2 preserves repeated-position evidence and historical scan re-analysis')
 print('- Developer, Task Center, Circuit, Monitor and IDE-parity capabilities protected')
+print('- Runtime Log retains the most recent 300 lines rather than the oldest tail')
 print('- simplification may move features, but cannot silently delete them')
