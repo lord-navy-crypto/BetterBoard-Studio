@@ -19,11 +19,16 @@ All four are marked `research_stage: true` and declare `supported_cores: ["esp32
 
 ## Studio behavior
 
-The Hardware workspace exposes the ESP32 profiles, core/recipe compatibility state, preflight warnings, firmware preparation, compile/upload and command presets. Research commands are sent through BetterBoard's own serial exchange path and the returned tagged output is displayed in Data Studio.
+BetterBoard exposes a dedicated ESP32 Research workspace in addition to the generic Hardware/Recipe path. The workspace filters to ESP32 research recipes and board profiles, performs preflight/compile/upload, sends command presets through BetterBoard's own `serial_exchange` path, keeps a bounded in-session run history, and parses tagged research rows.
+
+The live workspace now has two interpretation layers:
+
+1. MCU-reported summaries such as RMS lateness, grouping deltas and deadline misses.
+2. Lightweight independent desktop references for supported deterministic arithmetic, Taylor/sine and irregular-dt experiments.
 
 The backend filters known operating-system debug/Bluetooth serial devices from board discovery and ranks likely USB hardware ports ahead of generic serial entries. Upload retries once after a short delay when the tool reports a resource-busy condition, then reports that an external serial monitor must be closed rather than pretending BetterBoard can close another application's handle.
 
-Interactive research output is currently treated as a tagged research evidence stream, not canonical Measurement Evidence. Canonical numeric recipes continue to use the existing full CSV + metadata + Physical Lab compatibility package.
+Interactive research output is treated as a tagged research evidence stream, not canonical Measurement Evidence. Canonical numeric recipes continue to use the existing full CSV + metadata + Physical Lab compatibility package.
 
 ## Firmware review changes
 
@@ -36,23 +41,28 @@ The ESP32 research firmware was reviewed for failure behavior and protocol ambig
 - PSRAM experiments gated on actual PSRAM detection/allocation;
 - explicit two-pi constants rather than depending on `M_PI` availability;
 - irregular-dt acquisition keeps serial output out of the timing-critical acquisition loop;
-- concurrency and irregular-dt data rows now carry explicit `REDUCE` / `AFFINITY` / `JITTER` / `IRREG` row tags, so host analyzers do not infer row type from ambiguous numeric positions.
+- concurrency and irregular-dt data rows carry explicit `REDUCE` / `AFFINITY` / `JITTER` / `IRREG` row tags, so host analyzers do not infer row type from ambiguous numeric positions.
 
 ## Host analyzers
 
-The existing host analyzers remain separate scripts so reference calculations are independent of MCU arithmetic:
+The stronger host analyzers remain separate scripts so reference calculations are independent of MCU arithmetic:
 
 - `scripts/esp32_numerical_research_analyzer.py`
 - `scripts/esp32_concurrency_numerics_analyzer.py`
 - `scripts/esp32_irregular_dt_analyzer.py`
+- `scripts/esp32_condition_compare.py`
 
-The concurrency analyzer now consumes explicit row tags and retains a conservative fallback for older untagged captures. The irregular-dt analyzer accepts both current tagged rows and older schema-v2 captures.
+`esp32_condition_compare.py` is the condition-aware aggregation layer. It only compares runs when experiment parameters match. For timing runs it can produce LOAD/IDLE and WIFI/IDLE RMS-lateness ratios and deadline-miss-rate changes. For irregular-dt experiments it groups on the same nominal period and signal frequency, then compares timing RMSE, derivative RMSE, integral RMSE and measured-dt gains across IDLE, LOAD and WIFI conditions. A run at a different period or frequency is deliberately not folded into the ratio.
+
+The concurrency analyzer consumes explicit row tags and retains a conservative fallback for older untagged captures. The irregular-dt analyzer accepts both current tagged rows and older schema-v2 captures.
 
 ## Validation layers
 
-Repository self-check now validates 11 canonical recipes plus 4 ESP32 research recipes, the ESP32/S3/C3 board profiles, firmware/source registration, frontend-to-Rust command contracts and the legacy Physical Lab bridge invariants.
+Repository self-check validates 11 canonical recipes plus 4 ESP32 research recipes, the ESP32/S3/C3 board profiles, firmware/source registration, frontend-to-Rust command contracts and the legacy Physical Lab bridge invariants.
 
-A GitHub Actions quality workflow has also been added for repository self-check, frontend build and Rust `cargo check`. This is software/static validation only.
+`script/esp32_analyzer_self_check.py` (under `scripts/`) runs synthetic protocol fixtures through the numerical, concurrency, irregular-dt and condition-comparison paths. The condition comparison fixture specifically checks that same-parameter IDLE/LOAD/WIFI runs generate ratios while a mismatched period is excluded. These are offline software tests only and are not presented as hardware validation.
+
+The GitHub Actions quality workflow runs repository self-check, ESP32 analyzer contract checks, frontend production build and Rust `cargo check` with the required Linux Tauri/serial dependencies.
 
 The following evidence is still required before any ESP32 research recipe is called canonical:
 
@@ -60,10 +70,10 @@ The following evidence is still required before any ESP32 research recipe is cal
 2. install/verify the appropriate Arduino-ESP32 core in the actual BetterBoard environment;
 3. compile each recipe against the exact target;
 4. upload and verify `#READY`, `#SCHEMA`, `INFO` and representative commands;
-5. capture repeat runs and process them through the matching host analyzer;
+5. capture repeat runs and process them through the matching host analyzer and condition comparator;
 6. document chip model, core count, Arduino-ESP32 version, CPU frequency, PSRAM state and test environment;
 7. only then consider promotion from research-stage to canonical.
 
 ## Scientific boundary
 
-These experiments are designed to distinguish arithmetic precision, algorithmic stability, operation ordering, scheduling/timing irregularity, radio/background activity and memory/topology effects. They do not make universal performance claims about all ESP32 devices. MCU `sin`/`sinf` results are comparison implementations, not truth; high-precision or analytic host references remain the reference layer where applicable.
+These experiments are designed to distinguish arithmetic precision, algorithmic stability, operation ordering, scheduling/timing irregularity, radio/background activity and memory/topology effects. They do not make universal performance claims about all ESP32 devices. MCU `sin`/`sinf` results are comparison implementations, not truth; high-precision or analytic host references remain the reference layer where applicable. IDLE is a runtime baseline rather than an externally calibrated truth source, and LOAD/WIFI ratios are only meaningful for parameter-matched runs on the tested board/build/environment.
