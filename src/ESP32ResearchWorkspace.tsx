@@ -28,10 +28,20 @@ type PreflightResult = {
   warnings: string[];
 };
 type CaptureResult = { lines: string[]; numeric_rows: number; ignored_rows: number };
-
 type ParsedRow = { kind: string; fields: string[]; raw: string };
-
 type SummaryMetric = { label: string; value: string; detail: string };
+type RunRecord = {
+  id: number;
+  recipeId: string;
+  recipeTitle: string;
+  command: string;
+  fqbn: string;
+  port: string;
+  capturedAt: string;
+  lines: string[];
+  rows: ParsedRow[];
+  metrics: SummaryMetric[];
+};
 
 const TAGS = new Set(['SUM', 'SERIES', 'TAYLOR', 'JITTER', 'TIMER', 'DUALCORE', 'PSRAM', 'WIFIJITTER', 'REDUCE', 'AFFINITY', 'IRREG']);
 
@@ -64,12 +74,10 @@ function metricSummary(rows: ParsedRow[]): SummaryMetric[] {
   const f = last.fields;
   switch (last.kind) {
     case 'JITTER': {
-      // Suite format: run_id,mode,period,samples,min,max,mean,rms,misses,load
-      // Concurrency format: run_id,period,samples,mode,min,max,mean,rms,misses
       const suite = f.length >= 10;
       const period = num(f[suite ? 2 : 1]);
-      const rms = num(f[suite ? 7 : 7]);
-      const misses = num(f[suite ? 8 : 8]);
+      const rms = num(f[7]);
+      const misses = num(f[8]);
       const samples = num(f[suite ? 3 : 2]);
       return [
         { label: 'RMS lateness', value: rms == null ? '—' : `${rms.toFixed(3)} µs`, detail: period ? `${((rms ?? 0) / period * 100).toFixed(3)}% of period` : 'timing run' },
@@ -98,12 +106,11 @@ function metricSummary(rows: ParsedRow[]): SummaryMetric[] {
         { label: 'float64 grouping Δ', value: sd == null || gd == null ? '—' : (gd - sd).toExponential(4), detail: 'grouped − sequential' },
       ];
     }
-    case 'AFFINITY': {
+    case 'AFFINITY':
       return [
         { label: 'Reported cores', value: f[2] ?? '—', detail: `task cores ${f[3] ?? '—'} / ${f[4] ?? '—'}` },
         { label: 'Elapsed', value: f[8] ? `${f[8]} µs` : '—', detail: 'this run only' },
       ];
-    }
     case 'IRREG': {
       const dt = num(f[6]);
       const period = num(f[3]);
@@ -133,6 +140,36 @@ function metricSummary(rows: ParsedRow[]): SummaryMetric[] {
   }
 }
 
+function comparableValue(run: RunRecord): { label: string; value: number; unit: string } | null {
+  const last = run.rows.at(-1);
+  if (!last) return null;
+  const f = last.fields;
+  if (last.kind === 'JITTER') {
+    const v = num(f[7]);
+    return v == null ? null : { label: 'RMS lateness', value: v, unit: 'µs' };
+  }
+  if (last.kind === 'WIFIJITTER') {
+    const v = num(f[6]);
+    return v == null ? null : { label: 'Wi-Fi RMS lateness', value: v, unit: 'µs' };
+  }
+  if (last.kind === 'REDUCE') {
+    const sf = num(f[2]);
+    const gf = num(f[3]);
+    return sf == null || gf == null ? null : { label: '|float32 grouping Δ|', value: Math.abs(gf - sf), unit: '' };
+  }
+  if (last.kind === 'IRREG') {
+    const dConst = num(f[8]);
+    const dMeasured = num(f[9]);
+    return dConst == null || dMeasured == null ? null : { label: 'Derivative path gap', value: Math.abs(dMeasured - dConst), unit: '1/s' };
+  }
+  if (last.kind === 'TAYLOR') {
+    const a = num(f[3]);
+    const b = num(f[4]);
+    return a == null || b == null ? null : { label: 'Raw/reduced f32 gap', value: Math.abs(a - b), unit: '' };
+  }
+  return null;
+}
+
 export default function ESP32ResearchWorkspace() {
   const [ports, setPorts] = useState<BoardPort[]>([]);
   const [profiles, setProfiles] = useState<BoardProfile[]>([]);
@@ -144,6 +181,7 @@ export default function ESP32ResearchWorkspace() {
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
   const [sketchDir, setSketchDir] = useState('');
   const [lines, setLines] = useState<string[]>([]);
+  const [history, setHistory] = useState<RunRecord[]>([]);
   const [status, setStatus] = useState('Ready');
   const [busy, setBusy] = useState(false);
 
@@ -154,6 +192,8 @@ export default function ESP32ResearchWorkspace() {
   const comments = useMemo(() => lines.filter(line => line.startsWith('#')), [lines]);
   const selectedCore = coreFromFqbn(fqbn);
   const compatible = recipe ? (recipe.supported_cores?.length ? recipe.supported_cores.includes(selectedCore) : selectedCore !== 'esp32:esp32') : false;
+  const comparableRuns = useMemo(() => history.map(run => ({ run, metric: comparableValue(run) })).filter(item => item.metric != null).slice(0, 8), [history]);
+  const comparisonMax = useMemo(() => Math.max(0, ...comparableRuns.map(item => item.metric?.value ?? 0)), [comparableRuns]);
 
   async function refresh() {
     setStatus('Refreshing ESP32 research environment…');
@@ -230,8 +270,22 @@ export default function ESP32ResearchWorkspace() {
         durationMs: command.startsWith('IRREG') ? 12000 : 8000,
         maxLines: 10000,
       });
+      const tagged = parseTagged(result.lines);
+      const summary = metricSummary(tagged);
       setLines(result.lines);
-      setStatus(`${result.lines.length} lines captured · ${parseTagged(result.lines).length} tagged data rows`);
+      setHistory(previous => [{
+        id: Date.now(),
+        recipeId: recipe.id,
+        recipeTitle: recipe.title,
+        command: command.trim(),
+        fqbn,
+        port: selectedPort,
+        capturedAt: new Date().toLocaleTimeString(),
+        lines: result.lines,
+        rows: tagged,
+        metrics: summary,
+      }, ...previous].slice(0, 30));
+      setStatus(`${result.lines.length} lines captured · ${tagged.length} tagged data rows · run added to history`);
     } catch (e) { setStatus(String(e)); }
     finally { setBusy(false); }
   }
@@ -240,13 +294,14 @@ export default function ESP32ResearchWorkspace() {
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">E</div><div><b>ESP32 Research</b><span>Numerical evidence workspace</span></div></div>
       <div className="small-card"><span>Research boundary</span><b>MCU output is evidence, not ground truth.</b></div>
+      <div className="small-card"><span>Session history</span><b>{history.length} captured runs</b></div>
       <div className="sidebar-spacer"/>
       <div className="legal">Research-stage recipes<br/>Exact board profile required<br/>No GPIO assumed by these benches</div>
     </aside>
 
     <main>
       <header>
-        <div><h1>ESP32 numerical research, inside BetterBoard.</h1><p>Compile, upload, run tagged experiments, and inspect timing/numerical evidence without leaving Studio.</p></div>
+        <div><h1>ESP32 numerical research, inside BetterBoard.</h1><p>Compile, upload, run tagged experiments, and compare timing/numerical evidence without leaving Studio.</p></div>
         <button className="ghost" onClick={refresh} disabled={busy}><RefreshCw size={16}/> Refresh</button>
       </header>
 
@@ -311,6 +366,34 @@ export default function ESP32ResearchWorkspace() {
           </div>}
           {!!parsed.length && <div className="schema-row"><span>{parsed.length} tagged rows</span><span>latest: {parsed.at(-1)?.kind}</span><span>{comments.length} metadata/control lines</span></div>}
         </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-title"><Activity size={18}/> Session comparison</div>
+        {!history.length ? <div className="empty">Run history is empty. Each successful command capture will be preserved for this BetterBoard session.</div> : <>
+          <div className="action-row"><button className="ghost" onClick={() => setHistory([])}>Clear session history</button><span className="muted">Keeps up to 30 runs in memory; no claim of calibrated truth.</span></div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr><th align="left">Time</th><th align="left">Command</th><th align="left">Recipe</th><th align="left">Tagged rows</th><th align="left">Primary live metric</th></tr></thead>
+              <tbody>{history.slice(0, 12).map(run => <tr key={run.id}>
+                <td>{run.capturedAt}</td><td><code>{run.command}</code></td><td>{run.recipeTitle}</td><td>{run.rows.length}</td><td>{run.metrics[0] ? `${run.metrics[0].label}: ${run.metrics[0].value}` : 'metadata/control only'}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </>}
+      </section>
+
+      <section className="panel">
+        <div className="panel-title"><Database size={18}/> Comparable run magnitude</div>
+        {!comparableRuns.length ? <div className="empty">Run JITTER, WIFIJITTER, REDUCE, IRREG, or TAYLOR to build an in-session comparison.</div> : <div className="channels">
+          {comparableRuns.map(({ run, metric }) => metric && <div key={run.id}>
+            <span>{run.command}</span>
+            <b>{metric.value.toExponential(4)} {metric.unit}</b>
+            <small>{metric.label} · relative bar {comparisonMax > 0 ? `${(metric.value / comparisonMax * 100).toFixed(1)}%` : '0%'}</small>
+            <progress value={comparisonMax > 0 ? metric.value / comparisonMax : 0} max={1} style={{ width: '100%' }}/>
+          </div>)}
+        </div>}
+        <div className="hint">Bars compare only the selected MCU-reported magnitude within this session. Different metric families are not scientifically interchangeable; host analyzers remain required for reference-based accuracy comparisons.</div>
       </section>
 
       <section className="panel">
