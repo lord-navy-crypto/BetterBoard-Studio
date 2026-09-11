@@ -12,7 +12,7 @@ APP = ROOT / 'src' / 'App.tsx'
 NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuite.tsx'
 MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuite.tsx'
 
-EXPECTED = {
+CANONICAL_EXPECTED = {
     'blink': ('Blink_LED', 'Blink_LED.ino'),
     'synthetic': ('SyntheticSignal', 'SyntheticSignal.ino'),
     'analog_a0': ('AnalogDAQ', 'AnalogDAQ.ino'),
@@ -25,6 +25,15 @@ EXPECTED = {
     'random_walk_robot': ('RandomWalkRobot', 'RandomWalkRobot.ino'),
     'i2c_scanner': ('I2CScanner', 'I2CScanner.ino'),
 }
+
+ESP32_RESEARCH_EXPECTED = {
+    'esp32_readiness': ('ESP32ReadinessProbe', 'ESP32ReadinessProbe.ino'),
+    'esp32_numerical_suite': ('ESP32NumericalResearchSuite', 'ESP32NumericalResearchSuite.ino'),
+    'esp32_concurrency_numerics': ('ESP32ConcurrencyNumerics', 'ESP32ConcurrencyNumerics.ino'),
+    'esp32_irregular_dt': ('ESP32IrregularDtNumerics', 'ESP32IrregularDtNumerics.ino'),
+}
+
+EXPECTED = {**CANONICAL_EXPECTED, **ESP32_RESEARCH_EXPECTED}
 
 # These recipes remain byte-for-byte inherited from the archived Physical Lab v0.4 pack.
 # analog_a0 evolved into BetterBoard Bench 01; numerical_embedded is new; and
@@ -49,10 +58,13 @@ def main() -> int:
     boards = json.loads((RES / 'boards' / 'boards.json').read_text())
     devices = json.loads((RES / 'devices' / 'devices.json').read_text())
     units = json.loads((RES / 'devices' / 'units.json').read_text())
-    assert len(catalog) == 11, len(catalog)
-    assert len({r['id'] for r in catalog}) == 11
+    assert len(catalog) == len(EXPECTED), len(catalog)
+    assert len({r['id'] for r in catalog}) == len(EXPECTED)
     assert set(EXPECTED) == {r['id'] for r in catalog}
     assert any(b['fqbn'] == 'arduino:avr:uno' for b in boards)
+    assert any(b['fqbn'] == 'esp32:esp32:esp32' for b in boards)
+    assert any(b['fqbn'] == 'esp32:esp32:esp32s3' for b in boards)
+    assert any(b['fqbn'] == 'esp32:esp32:esp32c3' for b in boards)
     assert any(d['id'] == 'mlx90393' for d in devices)
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
@@ -94,6 +106,20 @@ def main() -> int:
     assert (ROOT / 'scripts' / 'magnet_bench_self_check.py').is_file()
     assert (ROOT / 'docs' / 'MAGNET_BENCH_01_03.md').is_file()
 
+    for rid in ESP32_RESEARCH_EXPECTED:
+        recipe = by_id[rid]
+        assert recipe['category'] == 'ESP32 Research'
+        assert recipe.get('research_stage') is True
+        assert recipe.get('supported_cores') == ['esp32:esp32']
+        assert recipe.get('interactive_commands')
+        assert recipe['capture_mode'] == 'text'
+        assert not recipe['columns'] and not recipe['units']
+
+    assert by_id['esp32_readiness']['interactive_commands'][0] == 'INFO'
+    assert any(cmd.startswith('WIFIJITTER ') for cmd in by_id['esp32_numerical_suite']['interactive_commands'])
+    assert any(cmd.startswith('AFFINITY ') for cmd in by_id['esp32_concurrency_numerics']['interactive_commands'])
+    assert any(cmd.endswith(' WIFI') for cmd in by_id['esp32_irregular_dt']['interactive_commands'])
+
     for recipe in catalog:
         rid = recipe['id']
         folder, filename = EXPECTED[rid]
@@ -108,6 +134,13 @@ def main() -> int:
             text = source.read_text()
             assert 'Serial.println' in text, source
 
+    for rid, (folder, filename) in ESP32_RESEARCH_EXPECTED.items():
+        text = (RES / 'firmware' / folder / filename).read_text()
+        assert 'ARDUINO_ARCH_ESP32' in text, rid
+        assert '#READY' in text, rid
+        assert '#SCHEMA' in text, rid
+        assert '#ERROR' in text, rid
+
     old = ROOT / 'archive' / 'physical-lab-hardware-packs'
     for name in [
         'PhysicalLab-Arduino-Measurement-Pack-v0.1.zip',
@@ -121,7 +154,7 @@ def main() -> int:
     import zipfile
     with zipfile.ZipFile(old / 'PhysicalLab-Hardware-Pack-v0.4.zip') as zf:
         for rid in sorted(V04_BYTE_IDENTICAL):
-            folder, filename = EXPECTED[rid]
+            folder, filename = CANONICAL_EXPECTED[rid]
             archived_name = f'PhysicalLab-Hardware-Pack-v0.4/firmware/{folder}/{filename}'
             archived = zf.read(archived_name)
             assert hashlib.sha256(archived).hexdigest() == sha(RES / 'firmware' / folder / filename), archived_name
@@ -141,7 +174,7 @@ def main() -> int:
     for token in ['a * (a + 1.0f)', 'cancellation_ratio', 'FLT_EPSILON', 'elapsed_us', 'runParameterScan', 'runConvergenceStudy']:
         assert token in bench3_source, token
 
-    for token in ['physical_lab_v1.csv', 'timestamp,value', 'betterboard.measurement/0.2', 'source_type']:
+    for token in ['physical_lab_v1.csv', 'timestamp,value', 'betterboard.measurement/0.2', 'source_type', 'serial_exchange', 'is_system_serial_port', 'compatible']:
         assert token in rust, token
     assert 'physical-lab-measurement-v1' in (ROOT / 'docs' / 'PHYSICAL_LAB_BRIDGE.md').read_text()
 
@@ -152,6 +185,10 @@ def main() -> int:
     handlers = {x.strip() for x in handler_match.group(1).split(',') if x.strip()}
     missing = invoke_names - handlers
     assert not missing, f'frontend invokes missing Rust handlers: {sorted(missing)}'
+
+    assert 'interactive_commands' in APP.read_text()
+    assert 'recipeCompatible' in APP.read_text()
+    assert "invoke<CaptureResult>('serial_exchange'" in APP.read_text()
 
     main = (ROOT / 'src' / 'main.tsx').read_text()
     assert 'Numerical Bench 01–03' in main
@@ -164,14 +201,15 @@ def main() -> int:
     assert '0.2.0-alpha.1' in (ROOT / 'src-tauri' / 'Cargo.toml').read_text()
 
     print('BetterBoard Studio v0.2 self-check: PASS')
-    print('- 11 canonical recipes registered')
-    print('- Numerical Bench 01 / 02 / 03 workflow registered')
-    print('- Magnet Bench 01 vector acquisition registered')
-    print('- Magnet Bench 02 characterization/spatial analyzer registered')
-    print('- Magnet Bench 03 RADIA/model validation analyzer registered')
+    print(f'- {len(CANONICAL_EXPECTED)} canonical recipes registered')
+    print(f'- {len(ESP32_RESEARCH_EXPECTED)} ESP32 research recipes registered')
+    print('- ESP32 / S3 / C3 explicit board profiles registered')
+    print('- ESP32 research recipes are core-gated and command-driven')
+    print('- system debug/Bluetooth serial ports are filtered in the backend')
+    print('- frontend invoke / Rust handler contract consistent')
+    print('- Numerical Bench 01 / 02 / 03 and Magnet Bench workflows preserved')
     print('- inherited Physical Lab v0.4 firmware hashes preserved where intended')
     print('- full multichannel + Physical Lab v1 compatibility bridge present')
-    print('- frontend invoke / Rust handler contract consistent')
     return 0
 
 if __name__ == '__main__':
