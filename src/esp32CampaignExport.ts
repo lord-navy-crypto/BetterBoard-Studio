@@ -1,4 +1,5 @@
 import type { CampaignAggregate, CampaignPlan, CampaignRecipeId, CampaignCondition } from './esp32Campaign';
+import type { CampaignProvenance } from './esp32Provenance';
 
 export type CampaignCapturedRow = {
   host_timestamp_ms: number;
@@ -33,6 +34,7 @@ export type CampaignArchiveInput = {
   aggregates: CampaignAggregate[];
   loadRatio: number | null;
   wifiRatio: number | null;
+  provenance: CampaignProvenance | null;
 };
 
 function csvCell(value: unknown): string {
@@ -71,6 +73,15 @@ export function campaignComparatorCapture(input: CampaignArchiveInput): string {
   blocks.push(`#PERIOD_US,${input.plan.periodUs}`);
   blocks.push(`#SAMPLES,${input.plan.samples}`);
   if (input.plan.freqHz != null) blocks.push(`#FREQ_HZ,${input.plan.freqHz}`);
+  if (input.provenance) {
+    blocks.push(`#PROVENANCE_COLLECTED_AT_UTC,${input.provenance.collectedAtUtc}`);
+    blocks.push(`#EXPECTED_SCHEMA_PREFIX,${input.provenance.expectedSchemaPrefix}`);
+    if (input.provenance.observedSchema) blocks.push(`#OBSERVED_SCHEMA,${input.provenance.observedSchema}`);
+    if (input.provenance.expectedFirmwareSha256) blocks.push(`#EXPECTED_FIRMWARE_SOURCE_SHA256,${input.provenance.expectedFirmwareSha256}`);
+    for (const [key, value] of Object.entries(input.provenance.deviceInfo)) {
+      blocks.push(`#DEVICE_${key},${value}`);
+    }
+  }
 
   for (const run of input.runs) {
     if (run.status !== 'ok') continue;
@@ -95,6 +106,7 @@ export function campaignArchiveJson(input: CampaignArchiveInput): string {
       id: input.recipeId,
       title: input.recipeTitle,
     },
+    provenance: input.provenance,
     plan: input.plan,
     summary: {
       aggregates: input.aggregates,
@@ -114,6 +126,8 @@ export function campaignArchiveJson(input: CampaignArchiveInput): string {
       'IDLE is a runtime baseline, not an externally calibrated reference.',
       'LOAD/WIFI ratios are meaningful only for matched campaign parameters on the tested board/build/environment.',
       'Raw serial rows are preserved so stronger host analyzers can be rerun independently.',
+      'The firmware SHA-256 in provenance identifies the source embedded in this BetterBoard build; it is not cryptographic attestation of the bytes currently flashed on the MCU.',
+      'Observed INFO/SCHEMA output is runtime evidence from the connected device and is archived separately from host-side source identity.',
     ],
   };
   return JSON.stringify(document, null, 2) + '\n';
