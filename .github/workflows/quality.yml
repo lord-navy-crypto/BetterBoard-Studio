@@ -35,6 +35,9 @@ jobs:
       - name: ESP32 security capability self-check
         run: python scripts/esp32_security_capability_self_check.py
 
+      - name: ESP32 attestation capability self-check
+        run: python scripts/esp32_attestation_capabilities_self_check.py
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
