@@ -36,6 +36,9 @@ jobs:
       - name: Monitor provenance and evidence-handling self-check
         run: python3 scripts/monitor_provenance_self_check.py
 
+      - name: Circuit Lab persisted-design correctness self-check
+        run: python3 scripts/circuit_local_design_self_check.py
+
       - name: Developer workspace correctness self-check
         run: python3 scripts/developer_workspace_self_check.py
 
