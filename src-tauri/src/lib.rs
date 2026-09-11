@@ -62,6 +62,12 @@ struct RecipeSpec {
     physical_lab_targets: Vec<String>,
     notes: Vec<String>,
     boundary: String,
+    #[serde(default)]
+    supported_cores: Vec<String>,
+    #[serde(default)]
+    interactive_commands: Vec<String>,
+    #[serde(default)]
+    research_stage: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,6 +86,7 @@ struct PreflightResult {
     cli_ready: bool,
     core: String,
     core_installed: bool,
+    compatible: bool,
     required_libraries: Vec<String>,
     missing_libraries: Vec<String>,
     warnings: Vec<String>,
@@ -172,6 +179,10 @@ fn embedded_recipe_source(id: &str) -> Result<&'static str, String> {
         "pulse_rpm" => Ok(include_str!("../resources/firmware/PulseRPM/PulseRPM.ino")),
         "random_walk_robot" => Ok(include_str!("../resources/firmware/RandomWalkRobot/RandomWalkRobot.ino")),
         "i2c_scanner" => Ok(include_str!("../resources/firmware/I2CScanner/I2CScanner.ino")),
+        "esp32_readiness" => Ok(include_str!("../resources/firmware/ESP32ReadinessProbe/ESP32ReadinessProbe.ino")),
+        "esp32_numerical_suite" => Ok(include_str!("../resources/firmware/ESP32NumericalResearchSuite/ESP32NumericalResearchSuite.ino")),
+        "esp32_concurrency_numerics" => Ok(include_str!("../resources/firmware/ESP32ConcurrencyNumerics/ESP32ConcurrencyNumerics.ino")),
+        "esp32_irregular_dt" => Ok(include_str!("../resources/firmware/ESP32IrregularDtNumerics/ESP32IrregularDtNumerics.ino")),
         _ => Err(format!("No embedded firmware source for recipe: {id}")),
     }
 }
@@ -231,6 +242,77 @@ fn run_cli_static(args: &[&str]) -> Result<String, String> {
     run_cli(&args.iter().map(|v| (*v).to_string()).collect::<Vec<_>>())
 }
 
+fn core_from_fqbn(fqbn: &str) -> String {
+    let mut parts = fqbn.split(':');
+    match (parts.next(), parts.next()) {
+        (Some(vendor), Some(arch)) => format!("{vendor}:{arch}"),
+        _ => fqbn.to_string(),
+    }
+}
+
+fn recipe_compatible_with_core(recipe: &RecipeSpec, core: &str) -> bool {
+    if !recipe.supported_cores.is_empty() {
+        return recipe.supported_cores.iter().any(|supported| supported == core);
+    }
+    // Existing canonical recipes were authored for AVR-style board assumptions. Until
+    // each recipe receives a board-capability adapter, fail closed on ESP32 rather than
+    // silently compiling a sketch with incorrect voltage/pin/timer assumptions.
+    core != "esp32:esp32"
+}
+
+fn is_system_serial_port(port: &str) -> bool {
+    let value = port.to_ascii_lowercase();
+    value.contains("debug-console")
+        || value.contains("bluetooth-incoming-port")
+        || value.contains("wireless") && value.contains("debug")
+}
+
+fn serial_port_rank(port: &BoardPort) -> i32 {
+    let lower = port.port.to_ascii_lowercase();
+    let mut score = 0;
+    if port.fqbn.is_some() || port.board_name.is_some() {
+        score += 100;
+    }
+    if lower.contains("usbmodem") || lower.contains("usbserial") || lower.contains("ttyacm") || lower.contains("ttyusb") {
+        score += 50;
+    }
+    if port.protocol.eq_ignore_ascii_case("serial") {
+        score += 10;
+    }
+    score
+}
+
+fn is_resource_busy_text(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    lower.contains("resource busy")
+        || lower.contains("device or resource busy")
+        || lower.contains("access is denied")
+        || lower.contains("permission denied") && lower.contains("serial")
+}
+
+fn validate_serial_port(port: &str) -> Result<(), String> {
+    if is_system_serial_port(port) {
+        return Err(format!("{port} looks like an operating-system debug/Bluetooth serial device, not a BetterBoard hardware target."));
+    }
+    if cfg!(target_os = "macos") && !(port.starts_with("/dev/cu.") || port.starts_with("/dev/tty.")) {
+        return Err("On macOS BetterBoard accepts serial devices under /dev/cu.* or /dev/tty.*.".into());
+    }
+    Ok(())
+}
+
+fn serial_open_error(port: &str, error: impl std::fmt::Display) -> String {
+    let message = error.to_string();
+    if is_resource_busy_text(&message) {
+        format!("Serial port {port} is busy. Close Arduino Serial Monitor, another terminal/IDE monitor, or another program using the port, then retry. BetterBoard cannot close an external application's serial handle.")
+    } else {
+        format!("Could not open serial port {port}: {message}")
+    }
+}
+
+fn line_is_numeric_csv(value: &str) -> bool {
+    !value.is_empty() && value.split(',').all(|part| part.trim().parse::<f64>().is_ok())
+}
+
 #[tauri::command]
 fn arduino_cli_discovery() -> CliInfo {
     match find_cli() {
@@ -280,7 +362,7 @@ fn board_list() -> Result<Vec<BoardPort>, String> {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string();
-        if port.is_empty() {
+        if port.is_empty() || is_system_serial_port(&port) {
             continue;
         }
         let protocol = port_obj
@@ -307,6 +389,7 @@ fn board_list() -> Result<Vec<BoardPort>, String> {
             fqbn,
         });
     }
+    result.sort_by(|a, b| serial_port_rank(b).cmp(&serial_port_rank(a)).then_with(|| a.port.cmp(&b.port)));
     Ok(result)
 }
 
@@ -376,21 +459,28 @@ fn upload_sketch(sketch_dir: String, fqbn: String, port: String) -> Result<Strin
     if !Path::new(&sketch_dir).exists() {
         return Err("Sketch directory does not exist".into());
     }
-    run_cli(&[
+    validate_serial_port(&port)?;
+    let args = vec![
         "upload".into(),
         "-p".into(),
-        port,
+        port.clone(),
         "--fqbn".into(),
         fqbn,
         sketch_dir,
-    ])
-}
-
-fn core_from_fqbn(fqbn: &str) -> String {
-    let mut parts = fqbn.split(':');
-    match (parts.next(), parts.next()) {
-        (Some(vendor), Some(arch)) => format!("{vendor}:{arch}"),
-        _ => fqbn.to_string(),
+    ];
+    match run_cli(&args) {
+        Ok(out) => Ok(out),
+        Err(first) if is_resource_busy_text(&first) => {
+            std::thread::sleep(Duration::from_millis(350));
+            run_cli(&args).map_err(|second| {
+                if is_resource_busy_text(&second) {
+                    format!("Serial port {port} is still busy after retry. Close Arduino Serial Monitor, another terminal/IDE monitor, or any other program using the port, then retry. BetterBoard cannot close an external application's serial handle.\n{second}")
+                } else {
+                    second
+                }
+            })
+        }
+        Err(error) => Err(error),
     }
 }
 
@@ -399,15 +489,21 @@ fn recipe_preflight(recipe_id: String, fqbn: String) -> Result<PreflightResult, 
     let recipe = recipe_by_id(&recipe_id)?;
     let cli_ready = find_cli().is_ok();
     let core = core_from_fqbn(&fqbn);
+    let compatible = recipe_compatible_with_core(&recipe, &core);
     let mut warnings = Vec::new();
+    if !compatible {
+        warnings.push(format!("{} is not declared compatible with board core {core}. Select a compatible recipe/profile before compile or upload.", recipe.title));
+    }
     if !cli_ready {
+        warnings.push("Arduino CLI is unavailable; BetterBoard will not attempt an automatic reinstall.".into());
         return Ok(PreflightResult {
             cli_ready,
             core,
             core_installed: false,
+            compatible,
             required_libraries: recipe.required_libraries.clone(),
             missing_libraries: recipe.required_libraries,
-            warnings: vec!["Arduino CLI is unavailable; BetterBoard will not attempt an automatic reinstall.".into()],
+            warnings,
         });
     }
 
@@ -439,11 +535,15 @@ fn recipe_preflight(recipe_id: String, fqbn: String) -> Result<PreflightResult, 
     if recipe.id == "acceleration_adxl345" {
         warnings.push("Do not assume the photographed XYZ module is ADXL345 until its exact marking/pinout is confirmed.".into());
     }
+    if recipe.research_stage {
+        warnings.push("Research-stage recipe: static integration does not replace compile, upload, protocol, and real-hardware validation on the selected board.".into());
+    }
 
     Ok(PreflightResult {
         cli_ready,
         core,
         core_installed,
+        compatible,
         required_libraries: recipe.required_libraries,
         missing_libraries,
         warnings,
@@ -463,16 +563,15 @@ fn capture_lines(
     if max_lines == 0 || max_lines > 100_000 {
         return Err("max_lines must be 1..100000".into());
     }
-    if !(port.starts_with("/dev/cu.") || port.starts_with("/dev/tty.") || cfg!(not(target_os = "macos"))) {
-        return Err("On macOS BetterBoard accepts serial devices under /dev/cu.* or /dev/tty.*.".into());
-    }
+    validate_serial_port(port)?;
 
     let serial = serialport::new(port, baud)
         .timeout(Duration::from_millis(120))
         .open()
-        .map_err(|e| format!("Could not open serial port {port}: {e}"))?;
+        .map_err(|e| serial_open_error(port, e))?;
 
-    // Many AVR USB-serial boards reset when the port opens.
+    // USB serial boards can reset when the port opens. Give AVR and native-USB ESP32
+    // targets a bounded boot window before capture begins.
     std::thread::sleep(Duration::from_millis(1600));
     let mut reader = BufReader::new(serial);
     let started = Instant::now();
@@ -488,9 +587,7 @@ fn capture_lines(
                 if value.is_empty() {
                     continue;
                 }
-                let numeric = value
-                    .split(',')
-                    .all(|part| part.trim().parse::<f64>().is_ok());
+                let numeric = line_is_numeric_csv(value);
                 if numeric_only && !numeric {
                     ignored += 1;
                     continue;
@@ -527,6 +624,69 @@ fn serial_capture(
     capture_lines(&port, baud, duration_ms, max_lines, numeric_only)
 }
 
+#[tauri::command]
+fn serial_exchange(
+    port: String,
+    baud: u32,
+    command: String,
+    duration_ms: u64,
+    max_lines: usize,
+) -> Result<CaptureResult, String> {
+    validate_serial_port(&port)?;
+    let command = command.trim();
+    if command.is_empty() || command.len() > 256 || command.contains('\n') || command.contains('\r') {
+        return Err("Interactive command must be one non-empty line up to 256 characters.".into());
+    }
+    if duration_ms == 0 || duration_ms > 300_000 {
+        return Err("duration_ms must be 1..300000".into());
+    }
+    if max_lines == 0 || max_lines > 100_000 {
+        return Err("max_lines must be 1..100000".into());
+    }
+
+    let mut serial = serialport::new(&port, baud)
+        .timeout(Duration::from_millis(120))
+        .open()
+        .map_err(|e| serial_open_error(&port, e))?;
+
+    std::thread::sleep(Duration::from_millis(1200));
+    serial
+        .write_all(format!("{command}\n").as_bytes())
+        .map_err(|e| format!("Could not send command to {port}: {e}"))?;
+    serial.flush().map_err(|e| format!("Could not flush command to {port}: {e}"))?;
+
+    let mut reader = BufReader::new(serial);
+    let started = Instant::now();
+    let mut rows = Vec::new();
+    while started.elapsed() < Duration::from_millis(duration_ms) && rows.len() < max_lines {
+        let mut line = String::new();
+        match reader.read_line(&mut line) {
+            Ok(0) => continue,
+            Ok(_) => {
+                let value = line.trim();
+                if value.is_empty() {
+                    continue;
+                }
+                rows.push(CapturedRow {
+                    host_timestamp_ms: Utc::now().timestamp_millis(),
+                    line: value.to_string(),
+                    numeric: line_is_numeric_csv(value),
+                });
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    let numeric_rows = rows.iter().filter(|row| row.numeric).count();
+    let lines = rows.iter().map(|row| row.line.clone()).collect::<Vec<_>>();
+    Ok(CaptureResult {
+        lines,
+        rows,
+        numeric_rows,
+        ignored_rows: 0,
+    })
+}
+
 fn measurement_base_dir() -> PathBuf {
     if let Ok(home) = std::env::var("HOME") {
         return PathBuf::from(home)
@@ -546,6 +706,10 @@ fn capture_measurement(
     recipe_id: String,
 ) -> Result<MeasurementResult, String> {
     let recipe = recipe_by_id(&recipe_id)?;
+    let core = core_from_fqbn(&board_profile);
+    if !recipe_compatible_with_core(&recipe, &core) {
+        return Err(format!("{} is not compatible with board core {core}.", recipe.title));
+    }
     if recipe.capture_mode != "numeric" {
         return Err("This recipe does not produce numeric Measurement Evidence.".into());
     }
@@ -578,9 +742,6 @@ fn capture_measurement(
         writeln!(csv, "{}", row.line).map_err(|e| e.to_string())?;
     }
 
-    // Physical Lab's current serial-capture contract consumes the last CSV field as the
-    // primary observable and stores timestamp,value. Preserve that compatibility export
-    // while the full BetterBoard CSV keeps every channel.
     let mut bridge_csv = fs::File::create(&physical_lab_csv_path).map_err(|e| e.to_string())?;
     writeln!(bridge_csv, "timestamp,value").map_err(|e| e.to_string())?;
     for row in &valid_rows {
@@ -657,6 +818,7 @@ pub fn run() {
             upload_sketch,
             recipe_preflight,
             serial_capture,
+            serial_exchange,
             capture_measurement,
         ])
         .run(tauri::generate_context!())
