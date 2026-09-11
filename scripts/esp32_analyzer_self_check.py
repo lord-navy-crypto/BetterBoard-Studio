@@ -10,6 +10,7 @@ import math
 import tempfile
 from pathlib import Path
 
+import esp32_condition_compare as condition_compare
 import esp32_concurrency_numerics_analyzer as concurrency
 import esp32_irregular_dt_analyzer as irregular
 import esp32_numerical_research_analyzer as numerical
@@ -61,10 +62,28 @@ def check_concurrency(tmp: Path) -> None:
     assert math.isclose(reduce_row["seq_float32_abs_error"], 0.0001, rel_tol=0, abs_tol=1e-12)
 
 
+def write_irregular_run(path: Path, run_id: int, mode: str, dt_offsets: list[int]) -> None:
+    omega = 2.0 * math.pi
+    t = 1_000_000
+    rows = [f"#READY,esp32_irregular_dt_v3"]
+    for index, offset in enumerate(dt_offsets):
+        if index == 0:
+            dt = 0
+        else:
+            dt = 1000 + offset
+            t += dt
+        ts = t * 1e-6
+        y = math.sin(omega * ts)
+        d = omega * math.cos(omega * ts)
+        integ = (math.cos(omega * 1.0) - math.cos(omega * ts)) / omega
+        rows.append(
+            f"IRREG,{run_id},{index},{mode},1000,1.0,{t},{dt},{y:.9f},{d:.9f},{d:.9f},{integ:.12f},{integ:.12f}"
+        )
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+
 def check_irregular(tmp: Path) -> None:
     capture = tmp / "irregular.txt"
-    # Two points are enough to exercise parsing and timing/reference summary paths.
-    # Values are deliberately not perfect; the analyzer should report error rather than hide it.
     capture.write_text(
         "\n".join([
             "#READY,esp32_irregular_dt_v3",
@@ -85,16 +104,53 @@ def check_irregular(tmp: Path) -> None:
     assert "integral_reference" in enriched[-1]
 
 
+def check_condition_compare(tmp: Path) -> None:
+    timing = tmp / "timing.txt"
+    timing.write_text(
+        "\n".join([
+            "JITTER,1,0,1000,100,0,5,1.0,2.0,1,0",
+            "JITTER,2,1,1000,100,0,15,3.0,6.0,4,50000",
+            "WIFIJITTER,3,1000,100,0,20,4.0,8.0,5,9",
+            # Different period must not be compared with the 1000-us baseline.
+            "WIFIJITTER,4,2000,100,0,20,4.0,4.0,1,9",
+        ]) + "\n",
+        encoding="utf-8",
+    )
+
+    idle = tmp / "irreg-idle.txt"
+    load = tmp / "irreg-load.txt"
+    wifi = tmp / "irreg-wifi.txt"
+    write_irregular_run(idle, 10, "IDLE", [0, 0, 0, 0])
+    write_irregular_run(load, 11, "LOAD", [0, 6, -4, 8])
+    write_irregular_run(wifi, 12, "WIFI", [0, 10, -8, 12])
+
+    report = condition_compare.build_report([timing, idle, load, wifi])
+    assert report["jitter_runs"] == 4
+    jitter = report["jitter_comparisons"]
+    assert len(jitter) == 2
+    by_condition = {row["condition"]: row for row in jitter}
+    assert math.isclose(by_condition["LOAD"]["rms_ratio_vs_idle"], 3.0)
+    assert math.isclose(by_condition["WIFI"]["rms_ratio_vs_idle"], 4.0)
+    assert all(row["period_us"] == 1000 for row in jitter)
+
+    irregular_rows = report["irregular_dt_comparisons"]
+    assert len(irregular_rows) == 2
+    assert {row["condition"] for row in irregular_rows} == {"LOAD", "WIFI"}
+    assert all(row["period_us"] == 1000 and row["freq_hz"] == 1.0 for row in irregular_rows)
+
+
 def main() -> int:
     check_numerical()
     with tempfile.TemporaryDirectory(prefix="betterboard-esp32-analyzer-check-") as directory:
         tmp = Path(directory)
         check_concurrency(tmp)
         check_irregular(tmp)
+        check_condition_compare(tmp)
     print("BetterBoard ESP32 analyzer self-check: PASS")
     print("- numerical tagged schema + host enrichment")
     print("- concurrency REDUCE/AFFINITY/JITTER classification + comparison")
     print("- irregular-dt analytic derivative/integral reference path")
+    print("- parameter-matched IDLE vs LOAD/WIFI condition ratios")
     print("- synthetic fixtures only; no hardware-validation claim")
     return 0
 
