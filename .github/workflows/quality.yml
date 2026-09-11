@@ -29,6 +29,9 @@ jobs:
       - name: ESP32 analyzer contract self-check
         run: python scripts/esp32_analyzer_self_check.py
 
+      - name: ESP32 build manifest self-check
+        run: python scripts/esp32_build_manifest_self_check.py
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
