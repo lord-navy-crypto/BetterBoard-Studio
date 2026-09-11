@@ -32,7 +32,10 @@ export default function SketchbookExplorer({ onOpenSource, onStatus, hasUnsavedE
       if (selectedDir && !rows.some(row => row.directory === selectedDir)) {
         setSelectedDir(''); setFiles([]);
       }
-    } catch (error) { onStatus(`Sketchbook refresh failed: ${error}`); }
+    } catch (error) {
+      setSketches([]); setSelectedDir(''); setFiles([]);
+      onStatus(`Sketchbook refresh failed: ${error}. Stale project state was cleared.`);
+    }
     finally { setBusy(false); }
   }
 
@@ -47,7 +50,9 @@ export default function SketchbookExplorer({ onOpenSource, onStatus, hasUnsavedE
       setFiles(projectFiles);
       return projectFiles;
     } catch (error) {
-      onStatus(`Project file refresh failed: ${error}`);
+      setFiles([]);
+      if (directory === selectedDir) setSelectedDir('');
+      onStatus(`Project file refresh failed: ${error}. Stale file state was cleared.`);
       return [];
     }
   }

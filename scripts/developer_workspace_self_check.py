@@ -18,6 +18,8 @@ checks = {
     'sketchbook mutations blocked while dirty': "Sketchbook mutations are blocked while the editor has unsaved edits" in sketchbook,
     'sketchbook open status depends on accepted switch': "if (!accepted)" in sketchbook and "Open project cancelled" in sketchbook,
     'mutation buttons disabled while dirty': 'disabled={busy || hasUnsavedEdits}' in sketchbook,
+    'sketchbook refresh failure clears stale project state': "setSketches([]); setSelectedDir(''); setFiles([]);" in sketchbook and 'Stale project state was cleared.' in sketchbook,
+    'project file refresh failure clears stale file state': "setFiles([]);\n      if (directory === selectedDir) setSelectedDir('');" in sketchbook and 'Stale file state was cleared.' in sketchbook,
     'package runner returns handled failure instead of throwing': 'Promise<T | null>' in ecosystem and 'return null;' in ecosystem,
     'package install refreshes only after success': 'if (result !== null) await refreshInstalled();' in ecosystem,
     'hardware port/profile refresh settles independently': 'Promise.allSettled' in hardware,
