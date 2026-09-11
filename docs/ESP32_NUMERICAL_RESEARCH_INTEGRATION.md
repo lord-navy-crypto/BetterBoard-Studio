@@ -30,11 +30,28 @@ BetterBoard also exposes a dedicated **ESP32 Campaign** workspace for repeated m
 
 The Campaign workspace executes one research command at a time through the same BetterBoard serial path, stops on protocol/serial errors instead of silently mixing invalid evidence into the campaign, and supports cancellation after the current exchange finishes. Its first-pass aggregation reports per-condition mean, sample standard deviation, min/max, and LOAD/IDLE or WIFI/IDLE ratios. JITTER campaigns use RMS lateness as their primary metric; IRREG campaigns currently use timestamp-spacing RMSE. Those metric families are deliberately not treated as interchangeable.
 
-Campaign runs now preserve the raw serial response and the host timestamps returned by BetterBoard. The workspace can export three complementary artifacts directly from the completed in-memory campaign:
+### Runtime provenance gate
 
-- **Archive JSON** — schema `betterboard.esp32-campaign/1`, target/FQBN/port/baud, campaign plan, aggregates, ratios, run status, start/end timestamps, raw serial lines, and captured host timestamps.
+Before any campaign condition command runs, BetterBoard now performs a provenance preflight:
+
+1. send `INFO` and require a complete `#INFO_BEGIN` / `#INFO_END` envelope;
+2. require at least a runtime `CHIP_MODEL` identity field;
+3. send `SCHEMA` and require the observed schema prefix to match the selected BetterBoard research recipe;
+4. fetch the source embedded in the running BetterBoard application and compute its host-side SHA-256;
+5. record the local Arduino CLI identity when available;
+6. archive all raw INFO and SCHEMA lines alongside the campaign evidence.
+
+A schema mismatch blocks the campaign before IDLE/LOAD/WIFI data collection. This prevents a user from selecting one campaign recipe while a different BetterBoard research firmware is actually responding on the serial port.
+
+The embedded-source SHA-256 has a deliberately narrow meaning: it identifies the firmware source shipped inside this BetterBoard build. It is **not device attestation** and does not prove that the MCU flash bytes equal that source. Runtime INFO/SCHEMA evidence and host-side source identity are therefore stored as separate provenance layers rather than collapsed into one stronger claim.
+
+Changing the selected recipe, FQBN, or serial device clears the in-memory provenance and campaign runs so evidence from different targets is not silently mixed.
+
+Campaign runs preserve the raw serial response and the host timestamps returned by BetterBoard. The workspace can export three complementary artifacts directly from the completed in-memory campaign:
+
+- **Archive JSON** — schema `betterboard.esp32-campaign/1`, runtime provenance, target/FQBN/port/baud, campaign plan, aggregates, ratios, run status, start/end timestamps, raw serial lines, and captured host timestamps.
 - **Summary CSV** — one row per attempted campaign command with condition, status, primary metric, timestamps, error message, and raw-line count.
-- **Comparator capture** — successful raw serial streams concatenated with comment delimiters so `scripts/esp32_condition_compare.py` and the existing analyzers can be rerun independently.
+- **Comparator capture** — successful raw serial streams concatenated with comment delimiters plus provenance metadata so `scripts/esp32_condition_compare.py` and the existing analyzers can be rerun independently.
 
 These exports are research evidence packages, not calibration certificates. Export is explicit and user initiated; BetterBoard does not silently upload campaign data anywhere.
 
@@ -68,21 +85,23 @@ The stronger host analyzers remain separate scripts so reference calculations ar
 
 The concurrency analyzer consumes explicit row tags and retains a conservative fallback for older untagged captures. The irregular-dt analyzer accepts both current tagged rows and older schema-v2 captures.
 
-## Campaign planning and export utilities
+## Campaign planning, provenance, and export utilities
 
 `src/esp32Campaign.ts` contains the campaign planner and first-pass aggregation helpers used by the BetterBoard campaign workspace. Campaign plans are bounded to 1–10 repeats. Numerical-suite plans generate matched `JITTER`, `LOADJITTER`, and `WIFIJITTER` commands; concurrency plans generate `JITTER` and `LOADJITTER`; irregular-dt plans generate `IRREG` IDLE/LOAD/WIFI commands with the same period, sample count, and signal frequency.
 
 The planner rotates condition order on successive repeats, aggregates only finite observations, computes sample standard deviation, and refuses to emit a condition/IDLE ratio when the baseline is missing or zero. The live UI is therefore a campaign-control and first-pass statistics layer rather than a replacement for the archival Python comparator.
 
-`src/esp32CampaignExport.ts` defines the research archive contract and deterministic text exports. It preserves raw serial evidence instead of storing only the derived metric, emits CSV with proper quoting, and produces a comment-delimited comparator stream that remains consumable by analyzers that ignore `#` metadata lines.
+`src/esp32Provenance.ts` owns the campaign runtime-identity contract: expected schema prefixes, INFO parsing, INFO envelope checks, observed schema extraction, host-side SHA-256, and conservative rendering of chip/core/CPU/heap/PSRAM fields. It is intentionally tolerant of differences between the three existing firmware INFO payloads while requiring the core identity envelope and schema match.
+
+`src/esp32CampaignExport.ts` defines the research archive contract and deterministic text exports. It preserves raw serial evidence instead of storing only the derived metric, emits CSV with proper quoting, includes the provenance object in archive JSON, and writes provenance comment lines into the comparator stream. The archive explicitly labels the firmware hash as host embedded-source identity rather than device attestation.
 
 ## Validation layers
 
-Repository self-check validates 11 canonical recipes plus 4 ESP32 research recipes, the ESP32/S3/C3 board profiles, firmware/source registration, the Research and Campaign workspaces, campaign export utilities, frontend-to-Rust command contracts and the legacy Physical Lab bridge invariants.
+Repository self-check validates 11 canonical recipes plus 4 ESP32 research recipes, the ESP32/S3/C3 board profiles, firmware/source registration, the Research and Campaign workspaces, campaign planning/provenance/export utilities, frontend-to-Rust command contracts and the legacy Physical Lab bridge invariants.
 
 `scripts/esp32_analyzer_self_check.py` runs synthetic protocol fixtures through the numerical, concurrency, irregular-dt and condition-comparison paths. The condition comparison fixture specifically checks that same-parameter IDLE/LOAD/WIFI runs generate ratios while a mismatched period is excluded. These are offline software tests only and are not presented as hardware validation.
 
-The GitHub Actions quality workflow runs repository self-check, ESP32 analyzer contract checks, frontend production build and Rust `cargo check` with the required Linux Tauri/serial dependencies. TypeScript compilation covers the campaign planner, Campaign workspace, and archive/export code in addition to the existing ESP32 Research workspace.
+The GitHub Actions quality workflow runs repository self-check, ESP32 analyzer contract checks, frontend production build and Rust `cargo check` with the required Linux Tauri/serial dependencies. TypeScript compilation covers the campaign planner, provenance utility, Campaign workspace, and archive/export code in addition to the existing ESP32 Research workspace.
 
 The following evidence is still required before any ESP32 research recipe is called canonical:
 
@@ -90,12 +109,13 @@ The following evidence is still required before any ESP32 research recipe is cal
 2. install/verify the appropriate Arduino-ESP32 core in the actual BetterBoard environment;
 3. compile each recipe against the exact target;
 4. upload and verify `#READY`, `#SCHEMA`, `INFO` and representative commands;
-5. capture repeat runs and process them through the matching host analyzer and condition comparator;
-6. execute repeated matched-condition campaigns to estimate run-to-run variation;
-7. archive raw captures, campaign metadata, summary outputs and environmental notes;
-8. document chip model, core count, Arduino-ESP32 version, CPU frequency, PSRAM state and test environment;
-9. only then consider promotion from research-stage to canonical.
+5. confirm the campaign provenance gate on the real board and archive its observed INFO/SCHEMA payload;
+6. capture repeat runs and process them through the matching host analyzer and condition comparator;
+7. execute repeated matched-condition campaigns to estimate run-to-run variation;
+8. archive raw captures, provenance, campaign metadata, summary outputs and environmental notes;
+9. document chip model, revision where reported, core count, Arduino-ESP32 version when available, CPU frequency, PSRAM state and test environment;
+10. only then consider promotion from research-stage to canonical.
 
 ## Scientific boundary
 
-These experiments are designed to distinguish arithmetic precision, algorithmic stability, operation ordering, scheduling/timing irregularity, radio/background activity and memory/topology effects. They do not make universal performance claims about all ESP32 devices. MCU `sin`/`sinf` results are comparison implementations, not truth; high-precision or analytic host references remain the reference layer where applicable. IDLE is a runtime baseline rather than an externally calibrated truth source, and LOAD/WIFI ratios are only meaningful for parameter-matched runs on the tested board/build/environment.
+These experiments are designed to distinguish arithmetic precision, algorithmic stability, operation ordering, scheduling/timing irregularity, radio/background activity and memory/topology effects. They do not make universal performance claims about all ESP32 devices. MCU `sin`/`sinf` results are comparison implementations, not truth; high-precision or analytic host references remain the reference layer where applicable. IDLE is a runtime baseline rather than an externally calibrated truth source, and LOAD/WIFI ratios are only meaningful for parameter-matched runs on the tested board/build/environment. Runtime schema verification establishes protocol compatibility, not cryptographic firmware identity; the host source SHA-256 establishes BetterBoard-side source identity, not flashed-device attestation.
