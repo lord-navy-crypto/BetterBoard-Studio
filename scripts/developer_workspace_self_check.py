@@ -27,6 +27,10 @@ checks = {
     'hardware refresh in-flight callers share same summary promise': 'useRef<Promise<string> | null>' in hardware,
     'global refresh captures hardware summary result': 'refreshedHardwareStatus] = await Promise.all' in app,
     'task log uses current refresh summary rather than stale render state': 'logTask(task, refreshedHardwareStatus)' in app and 'logTask(task, hardwareStatus)' not in app,
+    'detected board fqbn is surfaced from the active port': "const detectedFqbn = activePort?.fqbn ?? '';" in app,
+    'detected-vs-selected board profile mismatch is explicit': 'const profileMismatch = Boolean(detectedFqbn && detectedFqbn !== fqbn);' in app and 'Board profile mismatch' in app,
+    'mismatch warns before compile or upload': 'Confirm before compiling or uploading.' in app,
+    'detected profile quick-fix never appears unless catalog supports it': 'detectedProfileAvailable' in app and 'profiles.some(profile => profile.fqbn === detectedFqbn)' in app and 'Use detected profile' in app and 'setFqbn(detectedFqbn)' in app,
 }
 
 failed = [name for name, ok in checks.items() if not ok]

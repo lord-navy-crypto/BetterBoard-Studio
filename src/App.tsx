@@ -97,6 +97,9 @@ export default function App() {
     }
     return [...groups.entries()];
   }, [recipes]);
+  const detectedFqbn = activePort?.fqbn ?? '';
+  const profileMismatch = Boolean(detectedFqbn && detectedFqbn !== fqbn);
+  const detectedProfileAvailable = Boolean(detectedFqbn && profiles.some(profile => profile.fqbn === detectedFqbn));
 
   useEffect(() => {
     if (typeof localStorage === 'undefined') return;
@@ -288,7 +291,8 @@ export default function App() {
               {profiles.map(p => <option key={p.fqbn} value={p.fqbn}>{p.label}</option>)}
             </select></label>
             <div className="hint">This selection is shared across Studio and Experiments. Switching workspaces no longer creates a second board session.</div>
-            {activePort && <div className="device-line"><b>{activePort.port}</b><span>{activePort.protocol}</span></div>}
+            {activePort && <div className="device-line"><b>{activePort.port}</b><span>{activePort.protocol}{activePort.fqbn ? ` · detected ${activePort.fqbn}` : ''}</span></div>}
+            {profileMismatch && <div className="boundary"><CircleAlert size={15}/><span>Board profile mismatch · Arduino CLI detected <b>{detectedFqbn}</b> on {activePort?.port}, while BetterBoard is set to <b>{fqbn}</b>. Confirm before compiling or uploading.</span>{detectedProfileAvailable && <button className="ghost" onClick={() => setFqbn(detectedFqbn)}>Use detected profile</button>}</div>}
           </div>
           <div className="panel">
             <div className="panel-title"><ShieldCheck size={18}/> Recipe preflight</div>
