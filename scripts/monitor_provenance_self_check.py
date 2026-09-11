@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MONITOR = (ROOT / 'src' / 'MonitorDataStudio.tsx').read_text()
 PREPARATION = (ROOT / 'src' / 'EngineeringPreparationStudio.tsx').read_text()
 RUST = (ROOT / 'src-tauri' / 'src' / 'lib.rs').read_text()
+SERIAL = (ROOT / 'src-tauri' / 'src' / 'serial_stream.rs').read_text()
 
 # Live serial evidence must keep the context that was true when acquisition began.
 for token in [
@@ -25,6 +26,13 @@ start_block = MONITOR[MONITOR.index('async function startMonitor()'):MONITOR.ind
 assert 'setReplay(null)' in start_block, 'Starting Live no longer exits historical replay'
 assert 'setRows([])' in start_block, 'Starting Live no longer begins with a fresh acquisition buffer'
 assert 'disabled={historyBusy || live}' in MONITOR, 'Historical Replay can cover an active Live stream again'
+
+# If Stop is requested during the AVR USB-reset settling window, backend must not emit started afterward.
+wait_index = SERIAL.index('std::thread::sleep(Duration::from_millis(1600));')
+stop_guard_index = SERIAL.index('if stop.load(Ordering::SeqCst)', wait_index)
+started_index = SERIAL.index('emit(&on_event, "started"', wait_index)
+assert wait_index < stop_guard_index < started_index, 'Serial backend can still announce LIVE after Stop during reset wait'
+assert 'Do not announce LIVE after the user already stopped.' in SERIAL, 'Serial reset-wait stop intent is no longer explicit'
 
 # Rust already returns row timestamps; the frontend must preserve them instead of fabricating spacing.
 for token in ['struct CaptureResult', 'rows: Vec<CapturedRow>']:
@@ -55,6 +63,7 @@ for token in [
 
 print('Monitor provenance and evidence-handling self-check: PASS')
 print('- live acquisition context is locked for evidence provenance')
+print('- Stop during serial reset wait cannot announce LIVE afterward')
 print('- new Live exits Replay and starts a fresh buffer')
 print('- snapshot plotting preserves backend host timestamps')
 print('- Engineering Preparation exposes evidence-load failures and retry')
