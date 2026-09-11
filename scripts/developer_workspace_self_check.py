@@ -4,6 +4,7 @@ root = Path(__file__).resolve().parents[1]
 developer = (root / 'src' / 'DeveloperIDE.tsx').read_text()
 sketchbook = (root / 'src' / 'SketchbookExplorer.tsx').read_text()
 ecosystem = (root / 'src' / 'ArduinoEcosystemManager.tsx').read_text()
+hardware = (root / 'src' / 'HardwareSession.tsx').read_text()
 
 checks = {
     'preserve unsaved edits on external recipe/source change': "unsaved Developer edits were preserved" in developer,
@@ -17,6 +18,10 @@ checks = {
     'mutation buttons disabled while dirty': 'disabled={busy || hasUnsavedEdits}' in sketchbook,
     'package runner returns handled failure instead of throwing': 'Promise<T | null>' in ecosystem and 'return null;' in ecosystem,
     'package install refreshes only after success': 'if (result !== null) await refreshInstalled();' in ecosystem,
+    'hardware port/profile refresh settles independently': 'Promise.allSettled' in hardware,
+    'failed physical scan revokes stale selected port': "setSelectedPort('');" in hardware and 'stale non-empty selectedPort' in hardware,
+    'failed physical scan clears stale port inventory': 'setPorts([]);' in hardware,
+    'profile failure does not reuse stale profile catalog': 'setProfiles([]);' in hardware,
 }
 
 failed = [name for name, ok in checks.items() if not ok]
