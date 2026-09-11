@@ -148,7 +148,7 @@ export default function App() {
     setStatus('Refreshing toolchain, recipes, and shared hardware session…');
     const task = addTask('System', 'Refresh BetterBoard state', 'Detecting Arduino CLI, recipes, registries and USB boards…');
     try {
-      const [cliInfo, recipeCatalog, deviceCatalog, docs] = await Promise.all([
+      const [cliInfo, recipeCatalog, deviceCatalog, docs, refreshedHardwareStatus] = await Promise.all([
         invoke<CliInfo>('arduino_cli_discovery'),
         invoke<RecipeSpec[]>('recipe_catalog'),
         invoke<DeviceSpec[]>('device_catalog'),
@@ -158,7 +158,7 @@ export default function App() {
       setCli(cliInfo); setRecipes(recipeCatalog); setDevices(deviceCatalog); setBridgeDocs(docs);
       if (!recipeCatalog.some(r => r.id === recipeId) && recipeCatalog.length) setRecipeId(recipeCatalog[0].id);
       const detail = cliInfo.found ? `Ready · ${recipeCatalog.length} recipes · ${deviceCatalog.length} device profiles` : 'Arduino CLI not found';
-      setStatus(detail); logTask(task, hardwareStatus); finishTask(task, cliInfo.found ? 'done' : 'failed', detail);
+      setStatus(detail); logTask(task, refreshedHardwareStatus); finishTask(task, cliInfo.found ? 'done' : 'failed', detail);
     } catch (e) {
       setStatus(String(e)); logTask(task, String(e)); finishTask(task, 'failed', String(e));
     }
