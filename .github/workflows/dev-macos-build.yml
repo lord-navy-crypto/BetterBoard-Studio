@@ -1,0 +1,69 @@
+name: BetterBoard macOS development build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/dev-macos-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build BetterBoard development app
+        run: npm run desktop:build
+
+      - name: Record build identity
+        run: |
+          mkdir -p dev-build-info
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "runner_arch=$(uname -m)"
+            echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "version=$(node -p \"require('./package.json').version\")"
+          } > dev-build-info/build.txt
+
+      - name: Upload macOS app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: BetterBoard-Studio-dev-macOS-app
+          path: |
+            src-tauri/target/release/bundle/macos/*.app
+            dev-build-info/build.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: BetterBoard-Studio-dev-macOS-dmg
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            dev-build-info/build.txt
+          if-no-files-found: error
+          retention-days: 14
