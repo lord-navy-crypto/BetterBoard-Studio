@@ -26,6 +26,10 @@ The live workspace now has two interpretation layers:
 1. MCU-reported summaries such as RMS lateness, grouping deltas and deadline misses.
 2. Lightweight independent desktop references for supported deterministic arithmetic, Taylor/sine and irregular-dt experiments.
 
+BetterBoard now also exposes a dedicated **ESP32 Campaign** workspace for repeated matched-condition studies. It supports the Numerical Reliability Suite, Concurrency Numerics, and Irregular-dt Numerics. Campaign plans carry explicit period/sample/frequency parameters and rotate condition order between repeats instead of always running IDLE first. This reduces simple first-to-last drift bias while remaining deterministic; it is not randomized or blinded experimental design.
+
+The Campaign workspace executes one research command at a time through the same BetterBoard serial path, stops on protocol/serial errors instead of silently mixing invalid evidence into the campaign, and supports cancellation after the current exchange finishes. Its first-pass aggregation reports per-condition mean, sample standard deviation, min/max, and LOAD/IDLE or WIFI/IDLE ratios. JITTER campaigns use RMS lateness as their primary metric; IRREG campaigns currently use timestamp-spacing RMSE. Those metric families are deliberately not treated as interchangeable.
+
 The backend filters known operating-system debug/Bluetooth serial devices from board discovery and ranks likely USB hardware ports ahead of generic serial entries. Upload retries once after a short delay when the tool reports a resource-busy condition, then reports that an external serial monitor must be closed rather than pretending BetterBoard can close another application's handle.
 
 Interactive research output is treated as a tagged research evidence stream, not canonical Measurement Evidence. Canonical numeric recipes continue to use the existing full CSV + metadata + Physical Lab compatibility package.
@@ -56,13 +60,19 @@ The stronger host analyzers remain separate scripts so reference calculations ar
 
 The concurrency analyzer consumes explicit row tags and retains a conservative fallback for older untagged captures. The irregular-dt analyzer accepts both current tagged rows and older schema-v2 captures.
 
+## Campaign planning utilities
+
+`src/esp32Campaign.ts` contains the campaign planner and first-pass aggregation helpers used by the BetterBoard campaign workspace. Campaign plans are bounded to 1–10 repeats. Numerical-suite plans generate matched `JITTER`, `LOADJITTER`, and `WIFIJITTER` commands; concurrency plans generate `JITTER` and `LOADJITTER`; irregular-dt plans generate `IRREG` IDLE/LOAD/WIFI commands with the same period, sample count, and signal frequency.
+
+The planner rotates condition order on successive repeats, aggregates only finite observations, computes sample standard deviation, and refuses to emit a condition/IDLE ratio when the baseline is missing or zero. The live UI is therefore a campaign-control and first-pass statistics layer rather than a replacement for the archival Python comparator.
+
 ## Validation layers
 
 Repository self-check validates 11 canonical recipes plus 4 ESP32 research recipes, the ESP32/S3/C3 board profiles, firmware/source registration, frontend-to-Rust command contracts and the legacy Physical Lab bridge invariants.
 
 `script/esp32_analyzer_self_check.py` (under `scripts/`) runs synthetic protocol fixtures through the numerical, concurrency, irregular-dt and condition-comparison paths. The condition comparison fixture specifically checks that same-parameter IDLE/LOAD/WIFI runs generate ratios while a mismatched period is excluded. These are offline software tests only and are not presented as hardware validation.
 
-The GitHub Actions quality workflow runs repository self-check, ESP32 analyzer contract checks, frontend production build and Rust `cargo check` with the required Linux Tauri/serial dependencies.
+The GitHub Actions quality workflow runs repository self-check, ESP32 analyzer contract checks, frontend production build and Rust `cargo check` with the required Linux Tauri/serial dependencies. TypeScript compilation covers the campaign planner and Campaign workspace in addition to the existing ESP32 Research workspace.
 
 The following evidence is still required before any ESP32 research recipe is called canonical:
 
@@ -71,8 +81,9 @@ The following evidence is still required before any ESP32 research recipe is cal
 3. compile each recipe against the exact target;
 4. upload and verify `#READY`, `#SCHEMA`, `INFO` and representative commands;
 5. capture repeat runs and process them through the matching host analyzer and condition comparator;
-6. document chip model, core count, Arduino-ESP32 version, CPU frequency, PSRAM state and test environment;
-7. only then consider promotion from research-stage to canonical.
+6. execute repeated matched-condition campaigns to estimate run-to-run variation;
+7. document chip model, core count, Arduino-ESP32 version, CPU frequency, PSRAM state and test environment;
+8. only then consider promotion from research-stage to canonical.
 
 ## Scientific boundary
 
