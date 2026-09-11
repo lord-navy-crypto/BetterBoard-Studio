@@ -5,6 +5,7 @@ developer = (root / 'src' / 'DeveloperIDE.tsx').read_text()
 sketchbook = (root / 'src' / 'SketchbookExplorer.tsx').read_text()
 ecosystem = (root / 'src' / 'ArduinoEcosystemManager.tsx').read_text()
 hardware = (root / 'src' / 'HardwareSession.tsx').read_text()
+app = (root / 'src' / 'App.tsx').read_text()
 
 checks = {
     'preserve unsaved edits on external recipe/source change': "unsaved Developer edits were preserved" in developer,
@@ -22,6 +23,10 @@ checks = {
     'failed physical scan revokes stale selected port': "setSelectedPort('');" in hardware and 'stale non-empty selectedPort' in hardware,
     'failed physical scan clears stale port inventory': 'setPorts([]);' in hardware,
     'profile failure does not reuse stale profile catalog': 'setProfiles([]);' in hardware,
+    'hardware refresh returns exact-operation summary': 'refreshHardware: () => Promise<string>' in hardware and 'return summary;' in hardware,
+    'hardware refresh in-flight callers share same summary promise': 'useRef<Promise<string> | null>' in hardware,
+    'global refresh captures hardware summary result': 'refreshedHardwareStatus] = await Promise.all' in app,
+    'task log uses current refresh summary rather than stale render state': 'logTask(task, refreshedHardwareStatus)' in app and 'logTask(task, hardwareStatus)' not in app,
 }
 
 failed = [name for name, ok in checks.items() if not ok]
