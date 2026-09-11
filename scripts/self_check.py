@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / 'src-tauri' / 'resources'
 LIB = ROOT / 'src-tauri' / 'src' / 'lib.rs'
 APP = ROOT / 'src' / 'App.tsx'
+ESP32_WORKSPACE = ROOT / 'src' / 'ESP32ResearchWorkspace.tsx'
 NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuite.tsx'
 MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuite.tsx'
 
@@ -35,9 +36,6 @@ ESP32_RESEARCH_EXPECTED = {
 
 EXPECTED = {**CANONICAL_EXPECTED, **ESP32_RESEARCH_EXPECTED}
 
-# These recipes remain byte-for-byte inherited from the archived Physical Lab v0.4 pack.
-# analog_a0 evolved into BetterBoard Bench 01; numerical_embedded is new; and
-# magnetic_mlx90393 evolved into Magnet Bench 01. Those are intentionally excluded.
 V04_BYTE_IDENTICAL = {
     'synthetic',
     'acceleration_adxl345',
@@ -69,7 +67,8 @@ def main() -> int:
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
     rust = LIB.read_text()
-    frontend = APP.read_text() + '\n' + NUMERICAL_SUITE.read_text() + '\n' + MAGNET_SUITE.read_text()
+    assert ESP32_WORKSPACE.is_file()
+    frontend = APP.read_text() + '\n' + ESP32_WORKSPACE.read_text() + '\n' + NUMERICAL_SUITE.read_text() + '\n' + MAGNET_SUITE.read_text()
     by_id = {r['id']: r for r in catalog}
 
     bench1 = by_id['analog_a0']
@@ -186,13 +185,20 @@ def main() -> int:
     missing = invoke_names - handlers
     assert not missing, f'frontend invokes missing Rust handlers: {sorted(missing)}'
 
-    assert 'interactive_commands' in APP.read_text()
-    assert 'recipeCompatible' in APP.read_text()
-    assert "invoke<CaptureResult>('serial_exchange'" in APP.read_text()
+    app_text = APP.read_text()
+    assert 'interactive_commands' in app_text
+    assert 'recipeCompatible' in app_text
+    assert "invoke<CaptureResult>('serial_exchange'" in app_text
+
+    esp32_text = ESP32_WORKSPACE.read_text()
+    for token in ['ESP32 numerical research', 'serial_exchange', 'metricSummary', 'Compile & upload', 'Research stream']:
+        assert token in esp32_text, token
 
     main = (ROOT / 'src' / 'main.tsx').read_text()
     assert 'Numerical Bench 01–03' in main
     assert 'Magnet Bench 01–03' in main
+    assert "id: 'esp32'" in main
+    assert '<ESP32ResearchWorkspace />' in main
 
     package = json.loads((ROOT / 'package.json').read_text())
     tauri = json.loads((ROOT / 'src-tauri' / 'tauri.conf.json').read_text())
@@ -204,6 +210,7 @@ def main() -> int:
     print(f'- {len(CANONICAL_EXPECTED)} canonical recipes registered')
     print(f'- {len(ESP32_RESEARCH_EXPECTED)} ESP32 research recipes registered')
     print('- ESP32 / S3 / C3 explicit board profiles registered')
+    print('- dedicated ESP32 Research workspace registered')
     print('- ESP32 research recipes are core-gated and command-driven')
     print('- system debug/Bluetooth serial ports are filtered in the backend')
     print('- frontend invoke / Rust handler contract consistent')
