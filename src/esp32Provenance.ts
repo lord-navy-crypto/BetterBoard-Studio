@@ -85,12 +85,19 @@ export function inferArduinoEsp32Version(info: DeviceInfoMap): string | null {
   return info.ARDUINO_ESP32_VERSION ?? info.ESP_ARDUINO_VERSION ?? info.CORE_VERSION ?? null;
 }
 
+export function reportedBuildId(info: DeviceInfoMap): string | null {
+  const value = info.BUILD_ID?.trim();
+  return value || null;
+}
+
 export function provenanceDisplay(info: DeviceInfoMap): Array<{ label: string; value: string }> {
   const candidates: Array<[string, string]> = [
     ['Chip', info.CHIP_MODEL],
     ['Revision', info.CHIP_REVISION],
     ['Cores', info.CHIP_CORES],
     ['CPU', info.CPU_FREQ_MHZ ? `${info.CPU_FREQ_MHZ} MHz` : ''],
+    ['Build ID', info.BUILD_ID],
+    ['Source SHA', info.SOURCE_SHA256 ? `${info.SOURCE_SHA256.slice(0, 16)}…` : ''],
     ['PSRAM', info.PSRAM_FOUND != null ? (info.PSRAM_FOUND === '1' ? 'detected' : 'not detected') : (info.PSRAM_BYTES ? `${info.PSRAM_BYTES} bytes` : '')],
     ['Free heap', info.HEAP_FREE_BYTES ?? info.FREE_HEAP_BYTES ?? info.FREE_HEAP],
   ];
