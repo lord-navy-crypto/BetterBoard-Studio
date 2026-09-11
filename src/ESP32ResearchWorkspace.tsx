@@ -68,6 +68,15 @@ function num(value: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function rmse(values: number[]): number | null {
+  if (!values.length) return null;
+  return Math.sqrt(values.reduce((sum, v) => sum + v * v, 0) / values.length);
+}
+
+function deterministicReference(n: number, increment = 0.0001): number {
+  return n * increment;
+}
+
 function metricSummary(rows: ParsedRow[]): SummaryMetric[] {
   const last = rows.at(-1);
   if (!last) return [];
@@ -140,6 +149,108 @@ function metricSummary(rows: ParsedRow[]): SummaryMetric[] {
   }
 }
 
+function hostReferenceSummary(rows: ParsedRow[]): SummaryMetric[] {
+  const last = rows.at(-1);
+  if (!last) return [];
+
+  if (last.kind === 'REDUCE') {
+    const n = num(last.fields[1]);
+    const seq32 = num(last.fields[2]);
+    const grouped32 = num(last.fields[3]);
+    const seq64 = num(last.fields[4]);
+    const grouped64 = num(last.fields[5]);
+    if (n == null || seq32 == null || grouped32 == null || seq64 == null || grouped64 == null) return [];
+    const reference = deterministicReference(n);
+    return [
+      { label: 'Host ref · seq f32 error', value: Math.abs(seq32 - reference).toExponential(4), detail: `host reference = n×0.0001 = ${reference}` },
+      { label: 'Host ref · grouped f32 error', value: Math.abs(grouped32 - reference).toExponential(4), detail: 'independent host arithmetic reference' },
+      { label: 'Host ref · seq f64 error', value: Math.abs(seq64 - reference).toExponential(4), detail: 'independent host arithmetic reference' },
+      { label: 'Host ref · grouped f64 error', value: Math.abs(grouped64 - reference).toExponential(4), detail: 'independent host arithmetic reference' },
+    ];
+  }
+
+  if (last.kind === 'AFFINITY') {
+    const n = num(last.fields[1]);
+    const combined = num(last.fields[7]);
+    if (n == null || combined == null) return [];
+    const reference = deterministicReference(n);
+    return [{ label: 'Host ref · combined error', value: Math.abs(combined - reference).toExponential(4), detail: `host reference = ${reference}` }];
+  }
+
+  if (last.kind === 'TAYLOR') {
+    const x = num(last.fields[1]);
+    const raw32 = num(last.fields[3]);
+    const reduced32 = num(last.fields[4]);
+    const raw64 = num(last.fields[5]);
+    const reduced64 = num(last.fields[6]);
+    if (x == null || raw32 == null || reduced32 == null || raw64 == null || reduced64 == null) return [];
+    const reference = Math.sin(x);
+    const eRaw32 = Math.abs(raw32 - reference);
+    const eReduced32 = Math.abs(reduced32 - reference);
+    const eRaw64 = Math.abs(raw64 - reference);
+    const eReduced64 = Math.abs(reduced64 - reference);
+    const gain32 = eReduced32 > 0 ? eRaw32 / eReduced32 : Number.POSITIVE_INFINITY;
+    const gain64 = eReduced64 > 0 ? eRaw64 / eReduced64 : Number.POSITIVE_INFINITY;
+    return [
+      { label: 'Host f64 · reduced f32 error', value: eReduced32.toExponential(4), detail: `Math.sin(${x}) reference; stronger analyzer can use mpmath-80dps` },
+      { label: 'Host f64 · reduced f64 error', value: eReduced64.toExponential(4), detail: `range-reduction gain f32=${Number.isFinite(gain32) ? gain32.toFixed(3) : '∞'}× · f64=${Number.isFinite(gain64) ? gain64.toFixed(3) : '∞'}×` },
+    ];
+  }
+
+  if (last.kind === 'IRREG') {
+    const irreg = rows.filter(r => r.kind === 'IRREG');
+    if (irreg.length < 2) return [];
+    const first = irreg[0].fields;
+    const freq = num(first[4]);
+    const t0us = num(first[5]);
+    if (freq == null || t0us == null || freq === 0) return [];
+    const omega = 2 * Math.PI * freq;
+    const t0 = t0us * 1e-6;
+    const dtErrors: number[] = [];
+    const dConstErrors: number[] = [];
+    const dMeasuredErrors: number[] = [];
+    const iConstErrors: number[] = [];
+    const iMeasuredErrors: number[] = [];
+
+    for (const row of irreg) {
+      const f = row.fields;
+      const index = num(f[1]);
+      const period = num(f[3]);
+      const tus = num(f[5]);
+      const dt = num(f[6]);
+      const dConst = num(f[8]);
+      const dMeasured = num(f[9]);
+      const iConst = num(f[10]);
+      const iMeasured = num(f[11]);
+      if (tus == null) continue;
+      const t = tus * 1e-6;
+      const dRef = omega * Math.cos(omega * t);
+      const iRef = (Math.cos(omega * t0) - Math.cos(omega * t)) / omega;
+      if ((index ?? 0) > 0 && dt != null && period != null) dtErrors.push(dt - period);
+      if (dConst != null) dConstErrors.push(dConst - dRef);
+      if (dMeasured != null) dMeasuredErrors.push(dMeasured - dRef);
+      if (iConst != null) iConstErrors.push(iConst - iRef);
+      if (iMeasured != null) iMeasuredErrors.push(iMeasured - iRef);
+    }
+
+    const dtRmse = rmse(dtErrors);
+    const dConstRmse = rmse(dConstErrors);
+    const dMeasuredRmse = rmse(dMeasuredErrors);
+    const iConstRmse = rmse(iConstErrors);
+    const iMeasuredRmse = rmse(iMeasuredErrors);
+    const dGain = dConstRmse != null && dMeasuredRmse != null && dMeasuredRmse > 0 ? dConstRmse / dMeasuredRmse : null;
+    const iGain = iConstRmse != null && iMeasuredRmse != null && iMeasuredRmse > 0 ? iConstRmse / iMeasuredRmse : null;
+
+    return [
+      { label: 'Host ref · Δt RMSE', value: dtRmse == null ? '—' : `${dtRmse.toFixed(3)} µs`, detail: 'measured Δt − nominal period' },
+      { label: 'Host ref · derivative RMSE', value: dMeasuredRmse == null ? '—' : dMeasuredRmse.toExponential(4), detail: dConstRmse == null ? 'analytic sine derivative' : `measured-dt vs constant-dt gain ${dGain == null ? '—' : `${dGain.toFixed(3)}×`}` },
+      { label: 'Host ref · integral RMSE', value: iMeasuredRmse == null ? '—' : iMeasuredRmse.toExponential(4), detail: iConstRmse == null ? 'analytic sine integral' : `measured-dt vs constant-dt gain ${iGain == null ? '—' : `${iGain.toFixed(3)}×`}` },
+    ];
+  }
+
+  return [];
+}
+
 function comparableValue(run: RunRecord): { label: string; value: number; unit: string } | null {
   const last = run.rows.at(-1);
   if (!last) return null;
@@ -188,7 +299,7 @@ export default function ESP32ResearchWorkspace() {
   const recipe = useMemo(() => recipes.find(r => r.id === recipeId), [recipes, recipeId]);
   const espProfiles = useMemo(() => profiles.filter(p => p.core === 'esp32:esp32'), [profiles]);
   const parsed = useMemo(() => parseTagged(lines), [lines]);
-  const metrics = useMemo(() => metricSummary(parsed), [parsed]);
+  const metrics = useMemo(() => [...metricSummary(parsed), ...hostReferenceSummary(parsed)], [parsed]);
   const comments = useMemo(() => lines.filter(line => line.startsWith('#')), [lines]);
   const selectedCore = coreFromFqbn(fqbn);
   const compatible = recipe ? (recipe.supported_cores?.length ? recipe.supported_cores.includes(selectedCore) : selectedCore !== 'esp32:esp32') : false;
@@ -271,7 +382,7 @@ export default function ESP32ResearchWorkspace() {
         maxLines: 10000,
       });
       const tagged = parseTagged(result.lines);
-      const summary = metricSummary(tagged);
+      const summary = [...metricSummary(tagged), ...hostReferenceSummary(tagged)];
       setLines(result.lines);
       setHistory(previous => [{
         id: Date.now(),
@@ -285,7 +396,7 @@ export default function ESP32ResearchWorkspace() {
         rows: tagged,
         metrics: summary,
       }, ...previous].slice(0, 30));
-      setStatus(`${result.lines.length} lines captured · ${tagged.length} tagged data rows · run added to history`);
+      setStatus(`${result.lines.length} lines captured · ${tagged.length} tagged data rows · host-reference pass completed where supported`);
     } catch (e) { setStatus(String(e)); }
     finally { setBusy(false); }
   }
@@ -301,7 +412,7 @@ export default function ESP32ResearchWorkspace() {
 
     <main>
       <header>
-        <div><h1>ESP32 numerical research, inside BetterBoard.</h1><p>Compile, upload, run tagged experiments, and compare timing/numerical evidence without leaving Studio.</p></div>
+        <div><h1>ESP32 numerical research, inside BetterBoard.</h1><p>Compile, upload, run tagged experiments, and compare MCU evidence against independent host references.</p></div>
         <button className="ghost" onClick={refresh} disabled={busy}><RefreshCw size={16}/> Refresh</button>
       </header>
 
@@ -360,9 +471,9 @@ export default function ESP32ResearchWorkspace() {
         </div>
 
         <div className="panel">
-          <div className="panel-title"><Activity size={18}/> Latest evidence</div>
+          <div className="panel-title"><Activity size={18}/> Latest evidence + host reference</div>
           {!metrics.length ? <div className="empty">No tagged research rows yet. Upload a research recipe, then run a preset.</div> : <div className="channels">
-            {metrics.map(m => <div key={m.label}><span>{m.label}</span><b>{m.value}</b><small>{m.detail}</small></div>)}
+            {metrics.map((m, i) => <div key={`${m.label}-${i}`}><span>{m.label}</span><b>{m.value}</b><small>{m.detail}</small></div>)}
           </div>}
           {!!parsed.length && <div className="schema-row"><span>{parsed.length} tagged rows</span><span>latest: {parsed.at(-1)?.kind}</span><span>{comments.length} metadata/control lines</span></div>}
         </div>
@@ -393,7 +504,7 @@ export default function ESP32ResearchWorkspace() {
             <progress value={comparisonMax > 0 ? metric.value / comparisonMax : 0} max={1} style={{ width: '100%' }}/>
           </div>)}
         </div>}
-        <div className="hint">Bars compare only the selected MCU-reported magnitude within this session. Different metric families are not scientifically interchangeable; host analyzers remain required for reference-based accuracy comparisons.</div>
+        <div className="hint">Bars compare only the selected MCU-reported magnitude within this session. Different metric families are not scientifically interchangeable.</div>
       </section>
 
       <section className="panel">
@@ -404,7 +515,7 @@ export default function ESP32ResearchWorkspace() {
       <section className="panel">
         <div className="panel-title"><Database size={18}/> Interpretation boundary</div>
         <p className="muted">{recipe?.boundary || 'Select a research recipe.'}</p>
-        <div className="hint">The live cards summarize MCU-reported rows only. High-precision host analyzers remain the reference layer for accuracy, ULP, analytic derivative/integral, or truth claims.</div>
+        <div className="hint">The in-app host pass is intentionally lightweight: analytic sine references and deterministic arithmetic references are computed independently in the desktop UI. The Python analyzers remain the stronger layer for mpmath-80dps, Decimal-80, full CSV enrichment, and archival analysis.</div>
       </section>
     </main>
   </div>;
