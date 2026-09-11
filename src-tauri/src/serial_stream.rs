@@ -101,6 +101,11 @@ pub fn serial_stream_start(
             // Many AVR USB-serial boards reset when a port is opened. Open once,
             // wait once, then keep the same session alive until the user stops it.
             std::thread::sleep(Duration::from_millis(1600));
+            // Stop can be requested while the board is still inside its USB-reset
+            // settling window. Do not announce LIVE after the user already stopped.
+            if stop.load(Ordering::SeqCst) {
+                return Ok(());
+            }
             if !emit(&on_event, "started", format!("{port} @ {baud} baud"), false) {
                 return Ok(());
             }
