@@ -29,11 +29,16 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
 
-def run(cmd: list[str]) -> str:
+def run_status(cmd: list[str]) -> tuple[bool, str]:
     proc = subprocess.run(cmd, text=True, capture_output=True)
-    if proc.returncode != 0:
-        raise RuntimeError((proc.stdout + '\n' + proc.stderr).strip())
-    return (proc.stdout or proc.stderr).strip()
+    return proc.returncode == 0, (proc.stdout + ('\n' if proc.stdout and proc.stderr else '') + proc.stderr).strip()
+
+
+def run(cmd: list[str]) -> str:
+    ok, output = run_status(cmd)
+    if not ok:
+        raise RuntimeError(output)
+    return output
 
 
 def recipe_by_id(recipe_id: str) -> dict:
@@ -126,6 +131,7 @@ def main() -> int:
     ap.add_argument('--fqbn', required=True, help='Exact Arduino FQBN')
     ap.add_argument('--arduino-cli', default=shutil.which('arduino-cli') or 'arduino-cli')
     ap.add_argument('--out-dir', type=Path, required=True)
+    ap.add_argument('--port', help='Optional serial port. When supplied, upload the exact compiled build directory after manifestable compilation.')
     args = ap.parse_args()
 
     recipe = recipe_by_id(args.recipe)
@@ -192,6 +198,34 @@ def main() -> int:
     if not artifacts:
         raise RuntimeError('Compile succeeded but no .bin/.elf/.hex/.map build artifacts were found.')
 
+    upload_record = {
+        'attempted': False,
+        'success': None,
+        'port': args.port,
+        'command': None,
+        'completed_at_utc': None,
+        'output': None,
+        'association': 'not-requested',
+    }
+    if args.port:
+        upload_cmd = [
+            args.arduino_cli,
+            'upload',
+            '-p', args.port,
+            '--fqbn', args.fqbn,
+            '--input-dir', str(build_dir),
+        ]
+        upload_ok, upload_output = run_status(upload_cmd)
+        upload_record = {
+            'attempted': True,
+            'success': upload_ok,
+            'port': args.port,
+            'command': upload_cmd,
+            'completed_at_utc': datetime.now(timezone.utc).isoformat(),
+            'output': upload_output,
+            'association': 'arduino-cli upload invoked against the exact build directory recorded by this manifest',
+        }
+
     manifest = {
         'schema': 'betterboard.firmware-build/2',
         'created_at_utc': datetime.now(timezone.utc).isoformat(),
@@ -229,9 +263,11 @@ def main() -> int:
         },
         'artifacts': artifacts,
         'compile_output': compile_output,
+        'upload': upload_record,
         'attestation_boundary': (
-            'Build ID and artifact hashes identify this local compile output. When firmware built by this tool reports the same BUILD_ID '
-            'through INFO, BetterBoard can associate the running firmware self-report with this manifest. This remains weaker than '
+            'Build ID and artifact hashes identify this local compile output. An upload record associates a specific port with an '
+            'arduino-cli upload command using this exact build directory. When the running firmware then reports the same BUILD_ID '
+            'through INFO, BetterBoard can associate that firmware self-report with this manifest. This remains weaker than '
             'cryptographic device attestation or an independently read flash digest.'
         ),
     }
@@ -239,6 +275,8 @@ def main() -> int:
     manifest_path = args.out_dir / 'firmware_build_manifest.json'
     manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
     print(manifest_path)
+    if args.port and not upload_record['success']:
+        return 3
     return 0
 
 
