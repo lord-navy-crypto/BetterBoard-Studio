@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Box, Boxes, Download, ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react';
 
@@ -124,17 +124,22 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus, onImported }: 
   const [busy, setBusy] = useState(false);
   const [additionalUrl, setAdditionalUrl] = useState('');
   const [output, setOutput] = useState('Ready. BetterBoard delegates package operations to Arduino CLI.');
+  const requestEpochRef = useRef(0);
 
   const rows = useMemo(() => normalizeRows(tab, raw), [tab, raw]);
 
   useEffect(() => {
     if (tab !== 'examples') return;
+    requestEpochRef.current += 1;
+    setBusy(false);
     setRaw(null);
     setTarget('');
     setOutput(`Board profile is now ${fqbn}. Reload library examples for this board before importing.`);
   }, [fqbn, tab]);
 
   function switchTab(next: Tab) {
+    if (busy || next === tab) return;
+    requestEpochRef.current += 1;
     setTab(next);
     setRaw(null);
     setQuery('');
@@ -158,15 +163,40 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus, onImported }: 
     } finally { setBusy(false); }
   }
 
+  async function runRead<T>(epoch: number, label: string, command: string, args: Record<string, unknown> = {}): Promise<T | null> {
+    if (epoch !== requestEpochRef.current) return null;
+    setBusy(true);
+    setOutput(`${label}…`);
+    try {
+      const result = await invoke<T>(command, args);
+      if (epoch !== requestEpochRef.current) return null;
+      setOutput(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
+      onStatus(`${label} complete`);
+      return result;
+    } catch (error) {
+      if (epoch !== requestEpochRef.current) return null;
+      const detail = String(error);
+      setOutput(detail);
+      onStatus(`${label} failed: ${detail}`);
+      return null;
+    } finally {
+      if (epoch === requestEpochRef.current) setBusy(false);
+    }
+  }
+
   async function loadExamples(libraryName: string) {
     const library = libraryName.trim();
     if (!library) {
+      requestEpochRef.current += 1;
+      setBusy(false);
       setRaw(null); setTarget('');
       setOutput('Enter a library name to list examples.');
       return;
     }
+    const epoch = ++requestEpochRef.current;
     setRaw(null);
-    const result = await run<JsonValue>('List examples', 'arduino_library_examples', { name: library, fqbn, examplePath: null });
+    const result = await runRead<JsonValue>(epoch, 'List examples', 'arduino_library_examples', { name: library, fqbn, examplePath: null });
+    if (epoch !== requestEpochRef.current) return;
     if (result === null) {
       setTarget('');
       return;
@@ -180,9 +210,11 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus, onImported }: 
       await loadExamples(query.trim() || target.trim());
       return;
     }
+    const epoch = ++requestEpochRef.current;
+    setRaw(null);
     const command = tab === 'boards' ? 'arduino_core_list' : 'arduino_library_list';
-    const result = await run<JsonValue>('Refresh installed packages', command);
-    if (result !== null) setRaw(result);
+    const result = await runRead<JsonValue>(epoch, 'Refresh installed packages', command);
+    if (epoch === requestEpochRef.current && result !== null) setRaw(result);
   }
 
   async function search() {
@@ -193,21 +225,24 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus, onImported }: 
     }
     // A search changes the candidate set. Do not leave an old install target
     // armed while displaying results for a different query.
+    const epoch = ++requestEpochRef.current;
     setTarget('');
     setRaw(null);
     const command = tab === 'boards' ? 'arduino_core_search' : 'arduino_library_search';
-    const result = await run<JsonValue>('Search Arduino index', command, { query: query.trim() });
-    if (result !== null) setRaw(result);
+    const result = await runRead<JsonValue>(epoch, 'Search Arduino index', command, { query: query.trim() });
+    if (epoch === requestEpochRef.current && result !== null) setRaw(result);
   }
 
   async function importExample(row: PackageRow) {
     if (busy || !target.trim() || !row.examplePath) return;
+    const epoch = ++requestEpochRef.current;
     setBusy(true);
     setOutput(`Preparing ${row.title} for safe Sketchbook import…`);
     try {
       const prepared = await invoke<JsonValue>('arduino_library_examples', {
         name: target.trim(), fqbn, examplePath: row.examplePath,
       });
+      if (epoch !== requestEpochRef.current) return;
       const files = preparedExampleFiles(prepared);
       if (!files.length) throw new Error('Example could not be prepared as a bounded BetterBoard source project.');
       const mainCount = files.filter(file => file.main).length;
@@ -217,8 +252,10 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus, onImported }: 
         setOutput('Example import cancelled. The installed library example was not modified.');
         return;
       }
+      if (epoch !== requestEpochRef.current) return;
       const projectName = safeProjectName(requestedName);
       const entry = await invoke<SketchbookEntry>('developer_project_create', { name: projectName, files });
+      if (epoch !== requestEpochRef.current) return;
       const opened = onImported(entry);
       const detail = opened
         ? `Imported Arduino example · ${row.title} → ${entry.name}\n${entry.directory}\nOpened the imported main sketch in Developer Editor.`
@@ -226,10 +263,13 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus, onImported }: 
       setOutput(detail);
       onStatus(opened ? `Imported and opened example · ${entry.name}` : `Imported example to Sketchbook · ${entry.name}; current draft preserved`);
     } catch (error) {
+      if (epoch !== requestEpochRef.current) return;
       const detail = `Example import failed: ${error}`;
       setOutput(detail);
       onStatus(detail);
-    } finally { setBusy(false); }
+    } finally {
+      if (epoch === requestEpochRef.current) setBusy(false);
+    }
   }
 
   async function install() {
@@ -259,27 +299,27 @@ export default function ArduinoEcosystemManager({ fqbn, onStatus, onImported }: 
 
   return <section className="ide-manager">
     <div className="ide-subtabs">
-      <button className={tab === 'boards' ? 'active' : ''} onClick={() => switchTab('boards')}><Box size={15}/> Boards</button>
-      <button className={tab === 'libraries' ? 'active' : ''} onClick={() => switchTab('libraries')}><Boxes size={15}/> Libraries</button>
-      <button className={tab === 'examples' ? 'active' : ''} onClick={() => switchTab('examples')}><ExternalLink size={15}/> Examples</button>
+      <button disabled={busy} className={tab === 'boards' ? 'active' : ''} onClick={() => switchTab('boards')}><Box size={15}/> Boards</button>
+      <button disabled={busy} className={tab === 'libraries' ? 'active' : ''} onClick={() => switchTab('libraries')}><Boxes size={15}/> Libraries</button>
+      <button disabled={busy} className={tab === 'examples' ? 'active' : ''} onClick={() => switchTab('examples')}><ExternalLink size={15}/> Examples</button>
     </div>
 
     <div className="panel ide-manager-controls">
       <div className="manager-row">
-        <input value={query} onChange={e => setQuery(e.target.value)} placeholder={tab === 'boards' ? 'Search board platforms / cores' : tab === 'libraries' ? 'Search Arduino libraries' : 'Library name, e.g. Wire'} />
+        <input disabled={busy} value={query} onChange={e => setQuery(e.target.value)} placeholder={tab === 'boards' ? 'Search board platforms / cores' : tab === 'libraries' ? 'Search Arduino libraries' : 'Library name, e.g. Wire'} />
         <button className="ghost" disabled={busy || !query.trim()} onClick={() => void search()}><Search size={15}/> Search</button>
         <button className="ghost" disabled={busy || (tab === 'examples' && !query.trim() && !target.trim())} onClick={() => void refreshInstalled()}><RefreshCw size={15}/> {tab === 'examples' ? 'List examples' : 'Installed'}</button>
         {tab !== 'examples' && <button className="ghost" disabled={busy} onClick={() => void updateIndex()}><RefreshCw size={15}/> Update index</button>}
       </div>
 
       {tab !== 'examples' && <div className="manager-row">
-        <input value={target} onChange={e => setTarget(e.target.value)} placeholder={tab === 'boards' ? 'Install: arduino:avr or arduino:samd@1.8.14 · Uninstall strips @version' : 'Install: Adafruit MPU6050 or Name@version · Uninstall strips @version'} />
+        <input disabled={busy} value={target} onChange={e => setTarget(e.target.value)} placeholder={tab === 'boards' ? 'Install: arduino:avr or arduino:samd@1.8.14 · Uninstall strips @version' : 'Install: Adafruit MPU6050 or Name@version · Uninstall strips @version'} />
         <button className="primary" disabled={busy || !target.trim()} onClick={() => void install()}><Download size={15}/> Install</button>
         <button className="ghost danger" disabled={busy || !uninstallTarget(target)} onClick={() => void uninstall()}><Trash2 size={15}/> Uninstall</button>
       </div>}
 
       {tab === 'boards' && <div className="manager-row">
-        <input value={additionalUrl} onChange={e => setAdditionalUrl(e.target.value)} placeholder="Additional Boards Manager package index URL" />
+        <input disabled={busy} value={additionalUrl} onChange={e => setAdditionalUrl(e.target.value)} placeholder="Additional Boards Manager package index URL" />
         <button className="ghost" disabled={busy || !additionalUrl.trim()} onClick={() => void run<string>('Add Boards Manager URL', 'arduino_board_url_add', { url: additionalUrl.trim() })}>Add URL</button>
       </div>}
     </div>
