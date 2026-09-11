@@ -1,6 +1,6 @@
 # ESP32 firmware build provenance
 
-Status: **research-stage build provenance with firmware self-reported build identity and optional independent flash readback; not hardware-rooted cryptographic attestation**.
+Status: **research-stage build provenance with firmware self-reported build identity, optional independent flash readback, and security/readback capability probing; not hardware-rooted cryptographic attestation**.
 
 BetterBoard includes `scripts/esp32_build_manifest.py` to turn a reviewed embedded firmware source into a reproducible local build evidence package and to stamp the temporary compile copy with a deterministic build identity.
 
@@ -64,7 +64,7 @@ The verifier emits schema `betterboard.device-build-match/1` and exits successfu
 
 ## Independent flash readback
 
-For Arduino-ESP32 builds that emit `build/flasher_args.json`, BetterBoard now also provides an independent host-side readback verifier:
+For Arduino-ESP32 builds that emit `build/flasher_args.json`, BetterBoard provides an independent host-side readback verifier:
 
 ```bash
 python3 scripts/esp32_verify_flash.py \
@@ -76,9 +76,21 @@ The verifier does not ask the running firmware to identify itself. It reads the 
 
 The output schema is `betterboard.esp32-flash-verification/1`. It contains every verified offset, byte count, expected hash, observed hash, read command, and per-region match result. Any mismatch exits non-zero.
 
-The verifier deliberately fails closed when `flasher_args.json` is missing, the uploader layout is unsupported, or a referenced build image cannot be resolved. It does not guess ESP32 partition/application offsets from board names. This matters because classic ESP32, S3, C3, partition schemes, and core versions can use different layouts.
+The verifier deliberately fails closed when `flasher_args.json` is missing, the uploader layout is unsupported, or a referenced build image cannot be resolved. It does not guess ESP32 partition/application offsets from board names.
 
-Flash encryption, secure-boot configuration, read protection, or target-specific upload transformations can make byte-for-byte readback unavailable or inappropriate. In those cases the failure is evidence that this method cannot establish identity for that target; it is not permission to weaken the comparison.
+## Security / readback capability probe
+
+Before attempting independent flash verification on an unknown ESP32 variant, BetterBoard can record a conservative capability report:
+
+```bash
+python3 scripts/esp32_security_capability.py \
+  --port /dev/cu.usbmodemXXXX \
+  --out out/esp32-security-capability.json
+```
+
+This runs read-only `esptool` probes for chip identity, flash identity, and `security_info` where supported. The report schema is `betterboard.esp32-security-capability/1` and records raw command output plus conservative interpretations of secure boot, flash encryption, download-mode locking, and whether direct flash readback appears to be a candidate method.
+
+A `true` readback-candidate value is not proof that readback will work. It only means these probes did not reveal an obvious blocker. The actual `esp32_verify_flash.py` readback still has to succeed and its digests still have to match. Conversely, a locked/encrypted device is not treated as a failed identity check; it means this host-side readback method may be unavailable for that security configuration.
 
 This creates the following evidence chain:
 
@@ -99,6 +111,8 @@ device INFO self-reports BUILD_ID
         ↓
 host manifest/device BUILD_ID comparison
         ↓
+security/readback capability probe
+        ↓
 independent esptool flash readback using recorded flash offsets
         ↓
 per-region flash SHA-256 comparison
@@ -108,21 +122,12 @@ per-region flash SHA-256 comparison
 
 A build artifact digest answers **“what did this local compile produce?”** The optional upload record answers **“which recorded build directory did BetterBoard ask Arduino CLI to upload to this port?”** A matching runtime build id strengthens the operational association to **“the running firmware reports the identity assigned to this build.”** A complete independent flash-readback match is stronger still because it compares host-read flash bytes against the actual build images without relying on firmware self-report.
 
-This is still not the same thing as a hardware-rooted signed attestation. A host with control of the programming interface can replace firmware, secure-boot/read-protection policies can change what is readable, and this verifier does not establish a protected device key or certificate chain. BetterBoard therefore describes it as **independent flash verification**, not cryptographic device attestation.
-
-The Campaign provenance gate remains complementary:
-
-1. the local build manifest identifies source/toolchain/FQBN and compiled artifacts;
-2. the optional upload record associates that exact build directory with a serial target;
-3. runtime `INFO` identifies the connected chip/runtime and can expose the stamped build id;
-4. runtime `SCHEMA` verifies that the running firmware protocol family matches the selected recipe;
-5. the build-id verifier checks manifest/self-report association;
-6. the flash verifier independently compares recorded flash regions against the exact local build images when the target/toolchain layout supports it.
+This is still not the same thing as a hardware-rooted signed attestation. Secure boot can establish a boot policy without giving BetterBoard a remote attestation primitive; flash encryption can intentionally prevent meaningful host byte-for-byte comparison; and a programming host with enough privilege is outside a protected remote-verifier threat model. BetterBoard therefore distinguishes **build provenance**, **firmware self-report**, **independent flash verification**, and **hardware-rooted attestation** as separate evidence levels.
 
 ## Validation
 
-`scripts/esp32_build_manifest_self_check.py` uses a fake Arduino CLI and fake esptool in CI. It verifies that the temporary compile source is actually stamped, the generated header reaches the compile sketch, artifact hashes are recorded, upload is invoked against the same build directory when a port is supplied, a matching device capture passes the build-id verifier, and a mismatching capture fails.
+`scripts/esp32_build_manifest_self_check.py` uses a fake Arduino CLI and fake esptool in CI. It verifies stamped compilation, exact-build upload association, build-id matching/mismatch, and matching/tampered flash readback paths.
 
-The same self-check now creates a synthetic `flasher_args.json` with bootloader, partition-table, and application regions. It verifies that independent readback succeeds when all three flash regions match and exits non-zero when the application-region readback is intentionally corrupted.
+`scripts/esp32_security_capability_self_check.py` independently verifies that the security capability parser distinguishes an unlocked/plaintext synthetic target from a secure-boot + flash-encryption + locked-download synthetic target, without labeling either case as attestation.
 
-Before canonical promotion, the complete chain must still be exercised with the user's exact ESP32 FQBN, real Arduino-ESP32 toolchain, real `flasher_args.json`, actual upload, `INFO` capture, and actual flash readback on hardware that permits it.
+Before canonical promotion, the complete chain must still be exercised with the user's exact ESP32 FQBN, real Arduino-ESP32 toolchain, real upload, real `INFO` capture, actual `security_info`, and actual flash readback where the hardware security policy permits it.
