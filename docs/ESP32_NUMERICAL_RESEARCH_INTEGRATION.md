@@ -1,0 +1,69 @@
+# BetterBoard ESP32 Numerical Research Integration
+
+Status: **integrated on the research branch; real-board validation still required before canonical promotion**.
+
+This document records the reviewed subset promoted from `docs/drafts/` into BetterBoard Studio. The draft files remain in place as design history and backlog; they are not all claims of implemented functionality.
+
+## What is now integrated
+
+BetterBoard Studio now carries explicit board profiles for generic classic ESP32, ESP32-S3, and ESP32-C3 Arduino-core targets. Profile selection remains explicit because USB serial identity is not a reliable substitute for exact board identification. ESP32 GPIO is treated as a 3.3 V logic domain and board-specific pin maps remain outside these no-GPIO numerical recipes.
+
+The Recipe Library now registers four research-stage recipes:
+
+- `esp32_readiness` — toolchain/runtime/precision/timing readiness probe.
+- `esp32_numerical_suite` — precision, Kahan summation, summation order, Taylor range reduction, jitter, Wi-Fi interference, timer overhead, grouping/multicore and optional PSRAM studies.
+- `esp32_concurrency_numerics` — reduction grouping, FreeRTOS task/core placement and load-jitter studies.
+- `esp32_irregular_dt` — constant-dt versus measured-dt differentiation/integration under IDLE, LOAD and WIFI conditions.
+
+All four are marked `research_stage: true` and declare `supported_cores: ["esp32:esp32"]`. Canonical AVR recipes are deliberately blocked when an ESP32 core is selected until a recipe-specific capability/pin adapter is reviewed.
+
+## Studio behavior
+
+The Hardware workspace exposes the ESP32 profiles, core/recipe compatibility state, preflight warnings, firmware preparation, compile/upload and command presets. Research commands are sent through BetterBoard's own serial exchange path and the returned tagged output is displayed in Data Studio.
+
+The backend filters known operating-system debug/Bluetooth serial devices from board discovery and ranks likely USB hardware ports ahead of generic serial entries. Upload retries once after a short delay when the tool reports a resource-busy condition, then reports that an external serial monitor must be closed rather than pretending BetterBoard can close another application's handle.
+
+Interactive research output is currently treated as a tagged research evidence stream, not canonical Measurement Evidence. Canonical numeric recipes continue to use the existing full CSV + metadata + Physical Lab compatibility package.
+
+## Firmware review changes
+
+The ESP32 research firmware was reviewed for failure behavior and protocol ambiguity. Important corrections include:
+
+- explicit task-creation failure handling and bounded waits;
+- no silent claim of multicore execution on single-core variants;
+- explicit 64-bit timer output handling;
+- Wi-Fi scan startup checked and failed closed;
+- PSRAM experiments gated on actual PSRAM detection/allocation;
+- explicit two-pi constants rather than depending on `M_PI` availability;
+- irregular-dt acquisition keeps serial output out of the timing-critical acquisition loop;
+- concurrency and irregular-dt data rows now carry explicit `REDUCE` / `AFFINITY` / `JITTER` / `IRREG` row tags, so host analyzers do not infer row type from ambiguous numeric positions.
+
+## Host analyzers
+
+The existing host analyzers remain separate scripts so reference calculations are independent of MCU arithmetic:
+
+- `scripts/esp32_numerical_research_analyzer.py`
+- `scripts/esp32_concurrency_numerics_analyzer.py`
+- `scripts/esp32_irregular_dt_analyzer.py`
+
+The concurrency analyzer now consumes explicit row tags and retains a conservative fallback for older untagged captures. The irregular-dt analyzer accepts both current tagged rows and older schema-v2 captures.
+
+## Validation layers
+
+Repository self-check now validates 11 canonical recipes plus 4 ESP32 research recipes, the ESP32/S3/C3 board profiles, firmware/source registration, frontend-to-Rust command contracts and the legacy Physical Lab bridge invariants.
+
+A GitHub Actions quality workflow has also been added for repository self-check, frontend build and Rust `cargo check`. This is software/static validation only.
+
+The following evidence is still required before any ESP32 research recipe is called canonical:
+
+1. identify the user's exact ESP32 board/profile and confirm its FQBN;
+2. install/verify the appropriate Arduino-ESP32 core in the actual BetterBoard environment;
+3. compile each recipe against the exact target;
+4. upload and verify `#READY`, `#SCHEMA`, `INFO` and representative commands;
+5. capture repeat runs and process them through the matching host analyzer;
+6. document chip model, core count, Arduino-ESP32 version, CPU frequency, PSRAM state and test environment;
+7. only then consider promotion from research-stage to canonical.
+
+## Scientific boundary
+
+These experiments are designed to distinguish arithmetic precision, algorithmic stability, operation ordering, scheduling/timing irregularity, radio/background activity and memory/topology effects. They do not make universal performance claims about all ESP32 devices. MCU `sin`/`sinf` results are comparison implementations, not truth; high-precision or analytic host references remain the reference layer where applicable.
