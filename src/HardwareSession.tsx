@@ -18,6 +18,7 @@ type HardwareSessionValue = {
 };
 
 const HardwareSessionContext = createContext<HardwareSessionValue | null>(null);
+const NO_BOARD_RESCAN_MS = 3500;
 
 const SYSTEM_SERIAL_NAMES = [
   'bluetooth-incoming-port',
@@ -36,13 +37,13 @@ function isLikelyPhysicalBoardPort(port: BoardPort) {
 
 function noBoardDiagnostic(rawPorts: BoardPort[]) {
   if (!rawPorts.length) {
-    return 'No serial devices reported by Arduino CLI · check the USB data cable, connector, hub, and driver, then Refresh';
+    return 'No serial devices reported by Arduino CLI · check the USB data cable, connector, hub, and driver · BetterBoard will keep watching for a board';
   }
   const systemOnly = rawPorts.every(port => !isLikelyPhysicalBoardPort(port));
   if (systemOnly) {
-    return 'No USB serial board detected · only macOS system ports are visible · check the USB data cable/connector first, then Refresh';
+    return 'No USB serial board detected · only macOS system ports are visible · check the USB data cable/connector · BetterBoard will reconnect automatically when a board appears';
   }
-  return 'No usable USB serial board detected · reconnect the board with a known data cable, then Refresh';
+  return 'No usable USB serial board detected · reconnect with a known data cable · BetterBoard will keep scanning automatically';
 }
 
 export function HardwareSessionProvider({ children }: { children: ReactNode }) {
@@ -55,19 +56,14 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
   const refreshInFlight = useRef<Promise<string> | null>(null);
 
   function refreshHardware(): Promise<string> {
-    // Root and Studio can request a refresh at the same time during startup.
-    // Coalesce those requests so board_list / board_profiles are not raced or
-    // multiplied by React StrictMode development mounts. Every caller receives
-    // the summary produced by this exact refresh operation.
+    // Root, Studio, focus recovery, and background hot-plug polling can all ask
+    // for a refresh. Coalesce them into one board_list / board_profiles operation.
     if (refreshInFlight.current) return refreshInFlight.current;
 
     const operation = (async () => {
       setRefreshing(true);
       setHardwareStatus('Detecting USB serial devices and board profiles…');
       try {
-        // The physical-port scan and static board-profile catalog are independent
-        // resources. Settle them independently so one failure never discards a
-        // successful result from the other.
         const [portsResult, profilesResult] = await Promise.allSettled([
           invoke<BoardPort[]>('board_list'),
           invoke<BoardProfile[]>('board_profiles'),
@@ -88,8 +84,7 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
             ? `${boardPorts.length} USB serial board(s) detected`
             : noBoardDiagnostic(rawPorts));
         } else {
-          // A failed scan must revoke the previous physical-port selection. A
-          // stale non-empty selectedPort could otherwise leave Run / Upload armed.
+          // Never retain a stale physical port after a failed scan.
           setPorts([]);
           setSelectedPort('');
           status.push(`Hardware scan failed: ${String(portsResult.reason)}`);
@@ -98,16 +93,25 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
         if (profilesResult.status === 'fulfilled') {
           boardProfiles = profilesResult.value;
           setProfiles(boardProfiles);
-          const detectedFqbn = boardPorts.find(port => port.fqbn && boardProfiles.some(profile => profile.fqbn === port.fqbn))?.fqbn;
+          const detectedFqbn = boardPorts.find(port =>
+            port.fqbn && boardProfiles.some(profile => profile.fqbn === port.fqbn),
+          )?.fqbn;
+          const unidentifiedBoard = boardPorts.some(port => !port.fqbn);
+
           setFqbn(current => {
             if (detectedFqbn) return detectedFqbn;
             return boardProfiles.some(profile => profile.fqbn === current)
               ? current
               : (boardProfiles[0]?.fqbn ?? current);
           });
-          status.push(detectedFqbn
-            ? `profile matched automatically: ${detectedFqbn}`
-            : `${boardProfiles.length} board profile(s) available`);
+
+          if (detectedFqbn) {
+            status.push(`profile matched automatically: ${detectedFqbn}`);
+          } else if (boardPorts.length && unidentifiedBoard) {
+            status.push(`${boardProfiles.length} board profile(s) available · board model was not identified automatically; choose the profile explicitly before compile/upload`);
+          } else {
+            status.push(`${boardProfiles.length} board profile(s) available`);
+          }
         } else {
           setProfiles([]);
           status.push(`Board profile load failed: ${String(profilesResult.reason)}`);
@@ -128,7 +132,35 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
     return operation;
   }
 
+  // Initial discovery.
   useEffect(() => { void refreshHardware(); }, []);
+
+  // When no usable board is present, keep watching for USB hot-plug. This turns
+  // cable replacement/reconnection into an automatic recovery rather than a
+  // mandatory manual Refresh loop.
+  useEffect(() => {
+    if (ports.length > 0) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshHardware();
+    }, NO_BOARD_RESCAN_MS);
+    return () => window.clearInterval(timer);
+  }, [ports.length]);
+
+  // A board is often connected while BetterBoard is behind another app. Refresh
+  // immediately when the window becomes active again instead of waiting for the
+  // next polling interval.
+  useEffect(() => {
+    const onFocus = () => { void refreshHardware(); };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshHardware();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
 
   const activePort = useMemo(
     () => ports.find(port => port.port === selectedPort),
