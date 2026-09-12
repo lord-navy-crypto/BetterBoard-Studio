@@ -19,6 +19,7 @@ type HardwareSessionValue = {
 
 const HardwareSessionContext = createContext<HardwareSessionValue | null>(null);
 const NO_BOARD_RESCAN_MS = 3500;
+const CONNECTED_BOARD_RESCAN_MS = 8000;
 
 const SYSTEM_SERIAL_NAMES = [
   'bluetooth-incoming-port',
@@ -84,7 +85,8 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
             ? `${boardPorts.length} USB serial board(s) detected`
             : noBoardDiagnostic(rawPorts));
         } else {
-          // Never retain a stale physical port after a failed scan.
+          // A failed physical scan must revoke a stale non-empty selectedPort;
+          // otherwise compile/upload controls could continue targeting old hardware.
           setPorts([]);
           setSelectedPort('');
           status.push(`Hardware scan failed: ${String(portsResult.reason)}`);
@@ -135,14 +137,16 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
   // Initial discovery.
   useEffect(() => { void refreshHardware(); }, []);
 
-  // When no usable board is present, keep watching for USB hot-plug. This turns
-  // cable replacement/reconnection into an automatic recovery rather than a
-  // mandatory manual Refresh loop.
+  // Keep the hardware session live in both directions. Missing boards are polled
+  // quickly so cable replacement recovers promptly; connected boards are still
+  // checked at a lower cadence so hot-unplug is detected even if the app remains
+  // focused the entire time. Coalescing prevents this timer from racing a manual
+  // refresh or another lifecycle-triggered scan.
   useEffect(() => {
-    if (ports.length > 0) return;
+    const intervalMs = ports.length > 0 ? CONNECTED_BOARD_RESCAN_MS : NO_BOARD_RESCAN_MS;
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshHardware();
-    }, NO_BOARD_RESCAN_MS);
+    }, intervalMs);
     return () => window.clearInterval(timer);
   }, [ports.length]);
 
