@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://betterboard.local/schemas/labbridge/measurement-asset-v1.json",
+  "title": "LabBridge v1 MeasurementAsset",
+  "type": "object",
+  "required": [
+    "schema", "bridge_version", "packet_type", "source_app", "created_at_utc",
+    "dataset", "device", "acquisition", "intended_consumer", "packet_id", "content_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "labbridge.measurement-asset/v1"},
+    "bridge_version": {"const": "1.0"},
+    "packet_type": {"const": "measurement_asset"},
+    "source_app": {
+      "type": "object",
+      "required": ["name", "role"],
+      "properties": {
+        "name": {"const": "BetterBoard"},
+        "product": {"type": "string"},
+        "version": {"type": "string"},
+        "role": {"const": "real-world-ingress"}
+      },
+      "additionalProperties": true
+    },
+    "created_at_utc": {"type": "string"},
+    "dataset": {
+      "type": "object",
+      "required": ["path", "format", "sha256", "rows", "columns"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "format": {"enum": ["text/csv", "csv"]},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "rows": {"type": "integer", "minimum": 1},
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "unit", "role"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "unit": {"type": "string"},
+              "role": {"enum": ["coordinate", "observable", "primary-observable", "quality-flag"]}
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "device": {
+      "type": "object",
+      "required": ["board_profile", "port", "baud", "firmware_sha256"],
+      "properties": {
+        "board_profile": {"type": "string"},
+        "port": {"type": "string"},
+        "baud": {"type": "integer", "minimum": 1},
+        "firmware_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": true
+    },
+    "acquisition": {
+      "type": "object",
+      "required": ["mode", "recipe_id", "recipe_title"],
+      "properties": {
+        "mode": {"type": "string"},
+        "recipe_id": {"type": "string"},
+        "recipe_title": {"type": "string"},
+        "sample_rate_hz": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "recipe_parameters": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "primary_observable": {"type": ["string", "null"]},
+    "provenance": {"type": "object"},
+    "compatibility": {"type": "object"},
+    "intended_consumer": {
+      "type": "object",
+      "required": ["name", "role"],
+      "properties": {
+        "name": {"const": "Engineering Lab"},
+        "role": {"const": "scientific-computation-and-evidence-core"}
+      },
+      "additionalProperties": true
+    },
+    "scientific_boundary": {"type": "string"},
+    "packet_id": {"type": "string", "pattern": "^measurement-[0-9a-f]{20}$"},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": true
+}

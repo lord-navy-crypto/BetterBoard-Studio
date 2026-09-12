@@ -1,0 +1,36 @@
+name: LabBridge live link integrity
+
+on:
+  push:
+    branches:
+      - feature/labbridge-v1
+      - integration/labbridge-link-v1
+    paths:
+      - 'src-tauri/src/main.rs'
+      - 'src-tauri/src/labbridge_v1.rs'
+      - 'src-tauri/src/labbridge_native_watch.rs'
+      - 'scripts/labbridge_v1_export.py'
+      - 'scripts/labbridge_live_export.py'
+      - 'scripts/labbridge_live_export_validation.py'
+      - '.github/workflows/labbridge-live-link.yml'
+  pull_request:
+    paths:
+      - 'src-tauri/src/main.rs'
+      - 'src-tauri/src/labbridge_v1.rs'
+      - 'src-tauri/src/labbridge_native_watch.rs'
+      - 'scripts/labbridge_v1_export.py'
+      - 'scripts/labbridge_live_export.py'
+      - 'scripts/labbridge_live_export_validation.py'
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate additive LabBridge export
+        run: python3 scripts/labbridge_live_export_validation.py
+      - name: Compile native LabBridge exporter
+        run: cargo check --manifest-path src-tauri/Cargo.toml

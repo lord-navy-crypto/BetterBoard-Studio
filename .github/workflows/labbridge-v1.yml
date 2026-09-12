@@ -1,0 +1,24 @@
+name: LabBridge v1 Integrity
+
+on:
+  pull_request:
+    paths:
+      - 'docs/LABBRIDGE_V1.md'
+      - 'docs/labbridge/measurement_asset.schema.json'
+      - 'scripts/labbridge_v1_export.py'
+      - 'scripts/labbridge_v1_self_check.py'
+      - '.github/workflows/labbridge-v1.yml'
+  workflow_dispatch:
+
+jobs:
+  labbridge-v1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile LabBridge exporter
+        run: python -m py_compile scripts/labbridge_v1_export.py scripts/labbridge_v1_self_check.py
+      - name: Validate LabBridge role and packet semantics
+        run: python scripts/labbridge_v1_self_check.py
