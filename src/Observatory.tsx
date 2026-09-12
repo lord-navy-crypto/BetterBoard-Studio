@@ -46,18 +46,34 @@ function latestNumericStats(replay: MeasurementReplay | null) {
   let min: number | null = null;
   let max: number | null = null;
   let last: number | null = null;
+  let validPrimaryRows = 0;
   for (const row of numeric) {
     const value = Number(row.line.split(',')[primary]?.trim());
     if (!Number.isFinite(value)) continue;
+    validPrimaryRows += 1;
     min = min === null ? value : Math.min(min, value);
     max = max === null ? value : Math.max(max, value);
     last = value;
   }
-  return { durationS, observedHz, min, max, last, numericRows: numeric.length, primary: replay.columns[primary] || `channel_${primary+1}`, unit: replay.units[primary] || '' };
+  return {
+    durationS, observedHz, min, max, last, numericRows: numeric.length, totalRows: replay.rows.length,
+    validPrimaryRows, primary: replay.columns[primary] || `channel_${primary+1}`, unit: replay.units[primary] || '',
+  };
+}
+function rateDeviationPercent(declaredHz: number | null | undefined, observedHz: number | null) {
+  if (!declaredHz || declaredHz <= 0 || observedHz === null) return null;
+  return Math.abs(observedHz - declaredHz) / declaredHz * 100;
+}
+function ageLabel(ms: number) {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
 }
 
 export default function Observatory() {
-  const { selectedPort, activePort, fqbn, hardwareStatus, refreshing, refreshHardware } = useHardwareSession();
+  const { selectedPort, activePort, fqbn, hardwareStatus, diagnosis, refreshing, refreshHardware } = useHardwareSession();
   const [cli, setCli] = useState<CliInfo | null>(null);
   const [sessions, setSessions] = useState<MeasurementSessionSummary[]>([]);
   const [recipes, setRecipes] = useState<RecipeSpec[]>([]);
@@ -66,6 +82,7 @@ export default function Observatory() {
   const [latestReplay, setLatestReplay] = useState<MeasurementReplay | null>(null);
   const [tasks, setTasks] = useState<BackgroundTask[]>(readTaskMemory);
   const [lastRefresh, setLastRefresh] = useState(Date.now());
+  const [clock, setClock] = useState(Date.now());
   const [refreshingRuntime, setRefreshingRuntime] = useState(false);
   const [runtimeErrors, setRuntimeErrors] = useState<string[]>([]);
 
@@ -132,9 +149,27 @@ export default function Observatory() {
 
   useEffect(() => {
     void refreshRuntime();
-    const fast = window.setInterval(() => { setTasks(readTaskMemory()); }, 1500);
-    const slow = window.setInterval(() => void refreshRuntime(), 7000);
-    return () => { window.clearInterval(fast); window.clearInterval(slow); };
+    const fast = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        setTasks(readTaskMemory());
+        setClock(Date.now());
+      }
+    }, 1500);
+    const slow = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshRuntime();
+    }, 7000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setClock(Date.now());
+        void refreshRuntime();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(fast);
+      window.clearInterval(slow);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
   const runningTasks = useMemo(() => tasks.filter(task => task.state === 'running'), [tasks]);
@@ -145,12 +180,36 @@ export default function Observatory() {
   const stats = latestNumericStats(latestReplay);
   const totalSamples = sessions.reduce((sum, s) => sum + s.sample_count, 0);
   const userRecipes = recipes.filter(r => r.user_defined).length;
+  const snapshotAgeMs = Math.max(0, clock - lastRefresh);
+  const snapshotStale = snapshotAgeMs > 20_000;
+  const rateDeviation = rateDeviationPercent(latestReplay?.sample_rate_hz, stats?.observedHz ?? null);
+  const numericCoverage = stats ? stats.numericRows / Math.max(stats.totalRows, 1) : null;
+  const primaryCoverage = stats ? stats.validPrimaryRows / Math.max(stats.numericRows, 1) : null;
+  const bridgeReady = Boolean(latestSession?.physical_lab_csv_path && latestSession?.physical_lab_bridge_path);
+  const evidenceReplayComplete = Boolean(latestSession && latestReplay && latestReplay.rows.length === latestSession.sample_count);
+  const operationalIssues = [
+    diagnosis.severity === 'error',
+    !cli?.found,
+    runtimeErrors.length > 0,
+    snapshotStale,
+  ].filter(Boolean).length;
+  const operationalWarnings = [
+    diagnosis.severity === 'warning',
+    failedTasks.length > 0,
+    Boolean(latestSession && !bridgeReady),
+    rateDeviation !== null && rateDeviation > 10,
+  ].filter(Boolean).length;
+  const operationalState = operationalIssues > 0 ? 'Needs attention' : operationalWarnings > 0 ? 'Usable with warnings' : 'Nominal';
+
   const warnings = [
     runtimeErrors.length ? `Observatory could not refresh: ${runtimeErrors.join(', ')}.` : null,
-    !selectedPort ? 'No hardware board is selected.' : null,
+    diagnosis.code !== 'ready' ? `Hardware Doctor: ${diagnosis.title}. ${diagnosis.action}` : null,
     !cli?.found ? 'Arduino CLI is unavailable.' : null,
+    snapshotStale ? `Runtime snapshot is stale (${ageLabel(snapshotAgeMs)}).` : null,
     failedTasks.length ? `${failedTasks.length} failed background task(s) are retained in Task Center history.` : null,
     !latestSession ? 'No Measurement Evidence package has been saved yet.' : null,
+    latestSession && !bridgeReady ? 'Latest evidence package is missing one or more Engineering Lab bridge outputs.' : null,
+    rateDeviation !== null && rateDeviation > 10 ? `Latest observed sample rate differs from the declared rate by ${rateDeviation.toFixed(1)}%.` : null,
     ai && !ai.found ? 'OpenPenguin local runtime is not currently reachable.' : null,
   ].filter(Boolean) as string[];
 
@@ -161,7 +220,8 @@ export default function Observatory() {
     </section>
 
     <section className="observatory-kpis">
-      <div className="runtime-kpi"><Cpu size={17}/><span>Board</span><b>{activePort?.board_name || (selectedPort ? 'Connected board' : 'No board')}</b><small>{selectedPort || hardwareStatus}</small></div>
+      <div className="runtime-kpi"><ShieldCheck size={17}/><span>Operational state</span><b>{operationalState}</b><small>{operationalIssues} issue(s) · {operationalWarnings} warning(s)</small></div>
+      <div className="runtime-kpi"><Cpu size={17}/><span>Board</span><b>{diagnosis.title}</b><small>{selectedPort || diagnosis.action}</small></div>
       <div className="runtime-kpi"><RadioTower size={17}/><span>Acquisition</span><b>{liveTask ? 'LIVE' : 'Idle'}</b><small>{rxRows === null ? liveTask?.detail || 'No live serial task' : `${rxRows.toLocaleString()} RX rows observed`}</small></div>
       <div className="runtime-kpi"><Database size={17}/><span>Evidence</span><b>{sessions.length} session(s)</b><small>{totalSamples.toLocaleString()} saved samples</small></div>
       <div className="runtime-kpi"><Bot size={17}/><span>OpenPenguin</span><b>{ai?.found ? 'Local AI ready' : 'Not connected'}</b><small>{ai?.found ? `${ai.models.length} model(s)` : ai?.endpoint || '127.0.0.1:11435'}</small></div>
@@ -170,11 +230,12 @@ export default function Observatory() {
     {warnings.length > 0 && <section className="panel observatory-alerts"><div className="panel-title"><CircleAlert size={18}/> Attention</div>{warnings.map(item => <div key={item} className="boundary compact"><CircleAlert size={14}/>{item}</div>)}</section>}
 
     <section className="observatory-grid">
-      <div className="panel observatory-panel"><div className="panel-title"><Gauge size={18}/> Hardware & toolchain</div><div className="observatory-facts">
-        <span>Hardware state</span><b>{hardwareStatus}</b><span>Serial port</span><b>{selectedPort || '—'}</b><span>Board profile</span><b>{fqbn}</b>
+      <div className="panel observatory-panel"><div className="panel-title"><Gauge size={18}/> Hardware Doctor & toolchain</div><div className="observatory-facts">
+        <span>Diagnosis</span><b>{diagnosis.title}</b><span>Severity</span><b>{diagnosis.severity}</b><span>Serial port</span><b>{selectedPort || '—'}</b><span>Board profile</span><b>{fqbn}</b>
+        <span>Detected target</span><b>{activePort?.fqbn || activePort?.board_name || '—'}</b><span>Upload gate</span><b>{diagnosis.canUpload ? 'ready' : 'blocked'}</b>
         <span>Arduino CLI</span><b>{cli?.found ? cli.version || 'ready' : cli?.error || 'unavailable'}</b><span>CLI path</span><b>{cli?.path || '—'}</b>
-        <span>Runtime snapshot</span><b>{new Date(lastRefresh).toLocaleTimeString([], { hour12: false })}</b>
-      </div></div>
+        <span>Runtime snapshot</span><b>{new Date(lastRefresh).toLocaleTimeString([], { hour12: false })} · {ageLabel(snapshotAgeMs)}</b>
+      </div><div className={`boundary compact ${diagnosis.severity === 'success' ? 'ok' : ''}`}><ShieldCheck size={14}/><span><b>{diagnosis.detail}</b> {diagnosis.action}</span></div></div>
 
       <div className="panel observatory-panel"><div className="panel-title"><Layers3 size={18}/> Recipe & device inventory</div><div className="observatory-facts">
         <span>Recipes available</span><b>{recipes.length}</b><span>My Library recipes</span><b>{userRecipes}</b><span>Device definitions</span><b>{devices.length}</b>
@@ -183,9 +244,10 @@ export default function Observatory() {
 
       <div className="panel observatory-panel wide"><div className="panel-title"><Waves size={18}/> Latest data observation</div>
         {!latestSession ? <div className="empty compact">No saved measurement session yet.</div> : <>
-          <div className="observatory-facts four"><span>Recipe</span><b>{latestSession.recipe_title}</b><span>Rows</span><b>{latestSession.sample_count.toLocaleString()}</b><span>Channels</span><b>{latestReplay?.columns.length ?? '—'}</b><span>Declared rate</span><b>{latestReplay?.sample_rate_hz ? `${latestReplay.sample_rate_hz} Hz` : '—'}</b>
-          {stats && <><span>Observed rate</span><b>{stats.observedHz ? `${stats.observedHz.toFixed(3)} Hz` : '—'}</b><span>Duration</span><b>{stats.durationS.toFixed(3)} s</b><span>Primary</span><b>{stats.primary}</b><span>Latest</span><b>{stats.last === null ? '—' : `${stats.last.toFixed(5)} ${stats.unit}`}</b><span>Min / max</span><b>{stats.min === null ? '—' : `${stats.min.toFixed(5)} / ${stats.max?.toFixed(5)} ${stats.unit}`}</b><span>Numeric rows</span><b>{stats.numericRows}</b></>}
+          <div className="observatory-facts four"><span>Recipe</span><b>{latestSession.recipe_title}</b><span>Saved rows</span><b>{latestSession.sample_count.toLocaleString()}</b><span>Replay rows</span><b>{latestReplay?.rows.length.toLocaleString() ?? '—'}</b><span>Channels</span><b>{latestReplay?.columns.length ?? '—'}</b><span>Declared rate</span><b>{latestReplay?.sample_rate_hz ? `${latestReplay.sample_rate_hz} Hz` : '—'}</b>
+          {stats && <><span>Observed rate</span><b>{stats.observedHz ? `${stats.observedHz.toFixed(3)} Hz` : '—'}</b><span>Rate deviation</span><b>{rateDeviation === null ? '—' : `${rateDeviation.toFixed(2)}%`}</b><span>Duration</span><b>{stats.durationS.toFixed(3)} s</b><span>Primary</span><b>{stats.primary}</b><span>Latest</span><b>{stats.last === null ? '—' : `${stats.last.toFixed(5)} ${stats.unit}`}</b><span>Min / max</span><b>{stats.min === null ? '—' : `${stats.min.toFixed(5)} / ${stats.max?.toFixed(5)} ${stats.unit}`}</b><span>Numeric coverage</span><b>{numericCoverage === null ? '—' : `${(numericCoverage * 100).toFixed(1)}%`}</b><span>Primary parse coverage</span><b>{primaryCoverage === null ? '—' : `${(primaryCoverage * 100).toFixed(1)}%`}</b></>}
           </div>
+          <div className="boundary compact"><Database size={14}/><span>Replay completeness: <b>{evidenceReplayComplete ? 'saved row count matches loaded replay' : 'saved/replay row counts differ or replay unavailable'}</b>. This is an evidence-integrity check, not a calibration claim.</span></div>
           <div className="action-row"><CopyButton text={latestReplay?.rows.map(row => row.line).join('\n') || ''} label="Copy latest data"/><CopyButton text={latestSession.csv_path} label="Copy CSV path"/><CopyButton text={latestSession.physical_lab_bridge_path} label="Copy bridge path"/></div>
         </>}
       </div>
@@ -196,7 +258,7 @@ export default function Observatory() {
       </div>
 
       <div className="panel observatory-panel"><div className="panel-title"><ShieldCheck size={18}/> Engineering Lab bridge readiness</div>
-        {latestSession ? <div className="observatory-facts"><span>Physical Lab CSV</span><b>{latestSession.physical_lab_csv_path ? 'ready' : 'missing'}</b><span>Bridge manifest</span><b>{latestSession.physical_lab_bridge_path ? 'ready' : 'missing'}</b><span>Workflow</span><b>BetterBoard measurement → Engineering Lab independent validation</b></div> : <div className="empty compact">Record Measurement Evidence first; Experiments can then hand the package into Engineering Lab workflows.</div>}
+        {latestSession ? <><div className="observatory-facts"><span>Physical Lab CSV</span><b>{latestSession.physical_lab_csv_path ? 'ready' : 'missing'}</b><span>Bridge manifest</span><b>{latestSession.physical_lab_bridge_path ? 'ready' : 'missing'}</b><span>Package state</span><b>{bridgeReady ? 'handoff ready' : 'incomplete'}</b><span>Workflow</span><b>BetterBoard measurement → Engineering Lab independent validation</b></div><div className="boundary compact"><ShieldCheck size={14}/>{bridgeReady ? 'Both handoff artifacts are present.' : 'Record or regenerate a complete Measurement Evidence package before Engineering Lab handoff.'}</div></> : <div className="empty compact">Record Measurement Evidence first; Experiments can then hand the package into Engineering Lab workflows.</div>}
       </div>
 
       <div className="panel observatory-panel wide"><div className="panel-title"><TerminalSquare size={18}/> Background operations</div>
@@ -204,10 +266,10 @@ export default function Observatory() {
       </div>
 
       <div className="panel observatory-panel wide"><div className="panel-title"><Clock3 size={18}/> Recent measurement evidence</div>
-        {!sessions.length ? <div className="empty compact">No saved Measurement Sessions yet.</div> : <div className="observatory-session-list">{sessions.slice(0,10).map(session => <div key={session.directory}><span>{session.recipe_title}</span><b>{session.sample_count.toLocaleString()} samples</b><small>{new Date(session.created_at_utc).toLocaleString()} · {session.acquisition_mode}</small></div>)}</div>}
+        {!sessions.length ? <div className="empty compact">No saved Measurement Sessions yet.</div> : <div className="observatory-session-list">{sessions.slice(0,10).map(session => <div key={session.directory}><span>{session.recipe_title}</span><b>{session.sample_count.toLocaleString()} samples</b><small>{new Date(session.created_at_utc).toLocaleString()} · {session.acquisition_mode} · {session.board_profile || 'profile unavailable'} · {session.port || 'port unavailable'}</small></div>)}</div>}
       </div>
 
-      <div className="panel observatory-panel wide"><div className="panel-title"><HardDrive size={18}/> Scientific boundaries</div><div className="boundary"><CircleAlert size={14}/> Measurement error, numerical error and model error remain separate questions. Observatory reports evidence and operational state; it does not turn a connected sensor, a clean graph, or a matching model into a calibration/validation claim.</div></div>
+      <div className="panel observatory-panel wide"><div className="panel-title"><HardDrive size={18}/> Scientific boundaries</div><div className="boundary"><CircleAlert size={14}/> Operational readiness, evidence integrity, sample-rate consistency, measurement error, numerical error and model error are separate questions. Observatory reports evidence and system state; it does not turn a connected sensor, a clean graph, a nominal sample rate, or a matching model into a calibration/validation claim.</div></div>
     </section>
   </div>;
 }
