@@ -13,6 +13,7 @@ CATALOG_DIR = ROOT / "sensor-suite"
 FIRMWARE_ROOT = CATALOG_DIR / "firmware"
 DEFAULT_LIBRARY = Path.home() / "Documents" / "BetterBoard" / "library"
 SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+MANAGED_GLOB = "sensor-suite-*.json"
 
 
 def catalog_paths() -> list[Path]:
@@ -139,7 +140,16 @@ def install(destination: Path, *, dry_run: bool = False) -> list[Path]:
 def verify_installation(destination: Path) -> list[str]:
     destination = destination.expanduser().resolve()
     problems: list[str] = []
-    for target, expected in expected_payloads(destination).items():
+    payloads = expected_payloads(destination)
+    expected_paths = set(payloads)
+
+    if destination.exists():
+        for candidate in sorted(destination.glob(MANAGED_GLOB)):
+            resolved = candidate.resolve()
+            if resolved not in expected_paths:
+                problems.append(f"unexpected managed recipe: {candidate}")
+
+    for target, expected in payloads.items():
         if not target.is_file():
             problems.append(f"missing: {target}")
             continue
@@ -158,7 +168,7 @@ def main() -> int:
     parser.add_argument("--destination", type=Path, default=DEFAULT_LIBRARY)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="show the exact managed targets without writing them")
-    mode.add_argument("--verify", action="store_true", help="verify installed managed recipes exactly match this checkout")
+    mode.add_argument("--verify", action="store_true", help="verify the exact managed recipe set and contents match this checkout")
     args = parser.parse_args()
 
     if args.verify:
@@ -168,7 +178,7 @@ def main() -> int:
             for problem in problems:
                 print(f"  {problem}")
             return 1
-        print(f"Sensor Suite verification PASS: {len(load_entries())} managed recipes match this checkout.")
+        print(f"Sensor Suite verification PASS: {len(load_entries())} managed recipes exactly match this checkout.")
         return 0
 
     paths = install(args.destination, dry_run=args.dry_run)
