@@ -92,7 +92,7 @@ fn active_runtime() -> Result<(u16, Vec<String>), String> {
     ))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn openguin_probe() -> OpenPenguinStatus {
     match active_runtime() {
         Ok((port, models)) => OpenPenguinStatus {
@@ -110,7 +110,7 @@ pub fn openguin_probe() -> OpenPenguinStatus {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn openguin_generate(model: String, prompt: String, context: String) -> Result<String, String> {
     let model = model.trim();
     if model.is_empty() || model.len() > 200 { return Err("Select a valid local model.".into()); }

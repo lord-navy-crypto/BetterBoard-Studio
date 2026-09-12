@@ -12,6 +12,8 @@ required = [
     'models.iter().any(|available| available == model)',
     'The selected local model is no longer available on the active runtime.',
     'Ipv4Addr::LOCALHOST',
+    '#[tauri::command(async)]\npub fn openguin_probe()',
+    '#[tauri::command(async)]\npub fn openguin_generate(',
 ]
 
 missing = [token for token in required if token not in text]
@@ -24,4 +26,5 @@ if 'stream.read_to_end(&mut raw)' in text:
 print('OpenPenguin bridge boundary self-check: PASS')
 print('- local HTTP response bytes are bounded before parsing')
 print('- generation is restricted to models reported by the active runtime')
+print('- blocking local-runtime commands are dispatched off the Tauri main thread')
 print('- loopback-only runtime addressing remains intact')
