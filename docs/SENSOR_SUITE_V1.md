@@ -27,7 +27,7 @@ BetterBoard already loads that directory as its user recipe library. Refresh the
 
 ## Program museum
 
-The suite now ships **36 installable experiments** across acquisition, dynamics, numerical methods, V&V, mechanics, timing, electrical power, environment, magnetics, calibration, sensor fusion, reliability, and low-voltage control.
+The suite now ships **46 installable experiments** across acquisition, dynamics, numerical methods, V&V, mechanics, timing, electrical power, environment, magnetics, calibration, sensor fusion, reliability, low-voltage control, and advanced measurement methods.
 
 ### Core acquisition and systems programs
 
@@ -85,6 +85,21 @@ The suite now ships **36 installable experiments** across acquisition, dynamics,
 | Motor Ramp Hysteresis + Encoder + Power | ascending/descending PWM response comparison |
 | IMU + ToF Motion Trigger | synchronized distance and acceleration-change trigger evidence |
 
+### Advanced measurement expansion
+
+| Recipe | Main purpose |
+|---|---|
+| Photogate Known-Width Speed | derive speed from measured flag width and optical dwell time |
+| Encoder / Gyro Cross-Check | compare encoder angle with integrated gyro angle |
+| ADXL345 Jerk Monitor | finite-difference acceleration derivative for transient studies |
+| VL53L1X Free-Decay Tracker | baseline-relative displacement magnitude for damping/free-decay runs |
+| MLX90393 Field Direction Stability | field-vector angle change relative to startup orientation |
+| BME280 Thermal Stability | windowed temperature mean/std with humidity and pressure context |
+| INA219 Load Transient | electrical threshold trigger with time-since-event capture |
+| HX711 Raw Zero Drift | raw bridge/amplifier zero drift without pretending to calibrated force |
+| ADC Step Detector | configurable sample-to-sample analog-code step detection |
+| LSM6DSOX Rotation Repeatability | gyro mean/std/peak windows for repeated rotational trials |
+
 ## Existing BetterBoard hardware remains first-class
 
 Sensor Suite complements rather than replaces the existing recipes:
@@ -114,23 +129,7 @@ For motion experiments, keep direct displacement and inertial measurements separ
 
 ## Scientific boundaries
 
-The program museum is designed around evidence-first measurement:
-
-- HX711 force depends on measured offset and scale using reference loads;
-- ToF velocity/acceleration are numerical derivatives of measured distance and amplify noise;
-- IMU acceleration includes gravity, bias, alignment and mounting effects;
-- accelerometer-only tilt is primarily a static/slow-motion estimate;
-- complementary-filter orientation remains model-dependent and can drift or be distorted by motion;
-- gyro integration drifts and should be cross-checked with encoder/optical angle evidence;
-- ADC statistics and oversampling do not by themselves establish calibrated voltage accuracy;
-- photogate dwell time is not speed unless object width and geometry are measured;
-- INA219 energy is a numerical integral of sampled sensor power;
-- INA219 rolling variability describes the measured electrical path, not a calibrated spectrum analyzer;
-- BME280 drift and relative altitude are relative/model-derived environmental quantities, not reference standards;
-- MLX90393 baseline subtraction does not automatically remove every background or sensor offset;
-- magnetic stability windows do not establish calibration traceability;
-- dual-accelerometer disagreement does not identify which instrument is correct;
-- PWM command, encoder RPM and electrical input do not by themselves establish torque or mechanical efficiency.
+The program museum is designed around evidence-first measurement. Derived speed requires measured photogate geometry; finite-difference jerk amplifies accelerometer noise; encoder/gyro disagreement combines errors from both channels; ToF free-decay displacement is not automatically a fitted damping coefficient; field-direction change depends on coordinate alignment and background field; ADC thresholds are code-domain evidence rather than calibrated voltage events; raw HX711 zero drift does not identify its physical cause; and electrical transient timing remains limited by INA219 bandwidth and the assembled wiring path.
 
 Engineering Lab should own calibration metadata, uncertainty, model-to-measurement comparison, V&V, and final scientific interpretation.
 
@@ -146,21 +145,12 @@ LSM6DSOX + VL53L1X + photogate + quadrature encoder
         -> Engineering Lab Oscillation / Chaos comparison
 ```
 
-### Pendulum / rotational dynamics bench
+### Cross-sensor rotational V&V
 
 ```text
 LSM6DSOX + quadrature encoder
-        -> theta(t) + a(t) + gyro(t)
-        -> cross-sensor rotational dynamics evidence
-        -> Engineering Lab Oscillation / Chaos
-```
-
-### Cross-sensor V&V bench
-
-```text
-ADXL345 + LSM6DSOX on one rigid fixture
-        -> two independent acceleration streams
-        -> disagreement vector
+        -> gyro angle + encoder angle
+        -> disagreement(t)
         -> Engineering Lab calibration / V&V evidence
 ```
 
@@ -168,37 +158,18 @@ ADXL345 + LSM6DSOX on one rigid fixture
 
 ```text
 MLX90393 + controlled non-magnetic positioning fixture
-        -> raw B(position)
-        -> baseline delta + repeatability statistics
+        -> B vector + magnitude + direction stability
         -> BetterBoard Magnet Bench
         -> Engineering Lab RADIA / Digital Twin residuals
 ```
 
-### Robotics / control bench
+### Reliability / drift bench
 
 ```text
-TB6612 + encoder gearmotor + INA219 + ToF
-        -> step/ramp command + RPM + electrical input + displacement
+BME280 + HX711 + INA219
+        -> thermal context + raw zero drift + electrical transient/stability evidence
         -> BetterBoard
-        -> Engineering Lab control / quality / reliability evidence
-```
-
-### Structural vibration bench
-
-```text
-ADXL345 / LSM6DSOX + bounded actuator
-        -> raw acceleration + RMS/peak + event triggers
-        -> frequency-domain analysis on host
-        -> Engineering Lab Oscillation / Honeycomb mechanical analogue
-```
-
-### Calibration / ADC bench
-
-```text
-stable analog source + A0
-        -> raw codes + noise windows + oversampling comparison
-        -> BetterBoard
-        -> Engineering Lab numerical / measurement reliability evidence
+        -> Engineering Lab quality / reliability evidence
 ```
 
 ## Libraries and CI
@@ -214,4 +185,4 @@ Expected Arduino Library Manager names include:
 - `Adafruit MLX90393`
 - `HX711`
 
-`Sensor Suite v1 Integrity` validates all expansion catalogs, proves installer materialization, installs the declared libraries, and compiles all **36** firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`.
+`Sensor Suite v1 Integrity` validates all expansion catalogs, proves installer materialization, installs the declared libraries, and compiles all **46** firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`.
