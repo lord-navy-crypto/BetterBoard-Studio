@@ -1,0 +1,27 @@
+name: LabBridge live link integrity
+
+on:
+  push:
+    branches:
+      - integration/labbridge-link-v1
+    paths:
+      - 'scripts/labbridge_v1_export.py'
+      - 'scripts/labbridge_live_export.py'
+      - 'scripts/labbridge_live_export_validation.py'
+      - '.github/workflows/labbridge-live-link.yml'
+  pull_request:
+    paths:
+      - 'scripts/labbridge_v1_export.py'
+      - 'scripts/labbridge_live_export.py'
+      - 'scripts/labbridge_live_export_validation.py'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate additive LabBridge export
+        run: python3 scripts/labbridge_live_export_validation.py
