@@ -24,7 +24,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -50,6 +50,7 @@ jobs:
           arduino-cli lib install "Adafruit INA219"
           arduino-cli lib install "Adafruit BME280 Library"
           arduino-cli lib install "Adafruit ADXL345"
+          arduino-cli lib install "Adafruit MLX90393"
           arduino-cli lib install "HX711"
 
       - name: Compile Sensor Suite firmware for UNO reference target
@@ -59,7 +60,9 @@ jobs:
             MotionFusion_LSM6DSOX_VL53L1X MotorPowerBench_TB6612_INA219 \
             LSM6DSOX_VibrationStats LSM6DSOX_GyroIntegration VL53L1X_Kinematics INA219_Energy \
             BME280_DriftMonitor HX711_ForceDynamics EncoderKinematics PhotogatePeriodStats \
-            DualAccelerometerCrossCheck MotorEncoderPowerBench; do
+            DualAccelerometerCrossCheck MotorEncoderPowerBench \
+            MLX90393_FieldStatistics MLX90393_BaselineDelta ADXL345_TiltEstimate LSM6DSOX_BiasSurvey \
+            Pendulum_IMU_Encoder Oscillator_ToF_ADXL345 HX711_CreepMonitor INA219_PowerStability; do
             arduino-cli compile --fqbn arduino:avr:uno "sensor-suite/firmware/$sketch"
           done
 
@@ -70,6 +73,8 @@ jobs:
             MotionFusion_LSM6DSOX_VL53L1X MotorPowerBench_TB6612_INA219 \
             LSM6DSOX_VibrationStats LSM6DSOX_GyroIntegration VL53L1X_Kinematics INA219_Energy \
             BME280_DriftMonitor HX711_ForceDynamics EncoderKinematics PhotogatePeriodStats \
-            DualAccelerometerCrossCheck MotorEncoderPowerBench; do
+            DualAccelerometerCrossCheck MotorEncoderPowerBench \
+            MLX90393_FieldStatistics MLX90393_BaselineDelta ADXL345_TiltEstimate LSM6DSOX_BiasSurvey \
+            Pendulum_IMU_Encoder Oscillator_ToF_ADXL345 HX711_CreepMonitor INA219_PowerStability; do
             arduino-cli compile --fqbn esp32:esp32:esp32s3 "sensor-suite/firmware/$sketch"
           done
