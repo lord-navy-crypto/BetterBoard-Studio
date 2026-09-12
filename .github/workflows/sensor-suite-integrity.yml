@@ -24,7 +24,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 70
+    timeout-minutes: 85
     steps:
       - uses: actions/checkout@v4
 
@@ -68,7 +68,10 @@ jobs:
             MotorStepResponse_EncoderPower MotorRampHysteresis_EncoderPower IMU_ToF_MotionTrigger \
             Photogate_KnownWidthSpeed EncoderGyro_CrossCheck ADXL345_JerkMonitor VL53L1X_FreeDecay \
             MLX90393_FieldDirection BME280_ThermalStability INA219_LoadTransient HX711_ZeroDrift \
-            ADC_StepDetector LSM6DSOX_RotationRepeatability; do
+            ADC_StepDetector LSM6DSOX_RotationRepeatability \
+            ADC_RCStepResponse Encoder_ReversalDeadband LSM6DSOX_ShockPeakHold VL53L1X_StabilityWindow \
+            MLX90393_ManualFieldIntegralScan BME280_DewPointEstimate HX711_LoadCycleMarker \
+            Photogate_EnergyPerMass EncoderGyro_AngularConsistency INA219_CurrentStepDetector; do
             arduino-cli compile --fqbn arduino:avr:uno "sensor-suite/firmware/$sketch"
           done
 
@@ -87,6 +90,9 @@ jobs:
             MotorStepResponse_EncoderPower MotorRampHysteresis_EncoderPower IMU_ToF_MotionTrigger \
             Photogate_KnownWidthSpeed EncoderGyro_CrossCheck ADXL345_JerkMonitor VL53L1X_FreeDecay \
             MLX90393_FieldDirection BME280_ThermalStability INA219_LoadTransient HX711_ZeroDrift \
-            ADC_StepDetector LSM6DSOX_RotationRepeatability; do
+            ADC_StepDetector LSM6DSOX_RotationRepeatability \
+            ADC_RCStepResponse Encoder_ReversalDeadband LSM6DSOX_ShockPeakHold VL53L1X_StabilityWindow \
+            MLX90393_ManualFieldIntegralScan BME280_DewPointEstimate HX711_LoadCycleMarker \
+            Photogate_EnergyPerMass EncoderGyro_AngularConsistency INA219_CurrentStepDetector; do
             arduino-cli compile --fqbn esp32:esp32:esp32s3 "sensor-suite/firmware/$sketch"
           done
