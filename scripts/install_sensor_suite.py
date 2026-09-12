@@ -6,15 +6,25 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CATALOG = ROOT / "sensor-suite" / "catalog.json"
+CATALOG_DIR = ROOT / "sensor-suite"
 DEFAULT_LIBRARY = Path.home() / "Documents" / "BetterBoard" / "library"
 
 
+def catalog_paths() -> list[Path]:
+    paths = sorted(CATALOG_DIR.glob("catalog*.json"))
+    if not paths:
+        raise SystemExit("no sensor-suite/catalog*.json files found")
+    return paths
+
+
 def load_entries() -> list[dict]:
-    data = json.loads(CATALOG.read_text(encoding="utf-8"))
-    if not isinstance(data, list):
-        raise SystemExit("sensor-suite/catalog.json must contain a JSON array")
-    return data
+    entries: list[dict] = []
+    for path in catalog_paths():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            raise SystemExit(f"{path.relative_to(ROOT)} must contain a JSON array")
+        entries.extend(data)
+    return entries
 
 
 def install(destination: Path, *, dry_run: bool = False) -> list[Path]:
@@ -43,7 +53,7 @@ def install(destination: Path, *, dry_run: bool = False) -> list[Path]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Install BetterBoard Sensor Suite v1 into the BetterBoard user recipe library.")
+    parser = argparse.ArgumentParser(description="Install BetterBoard Sensor Suite program library into the BetterBoard user recipe library.")
     parser.add_argument("--destination", type=Path, default=DEFAULT_LIBRARY)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -54,7 +64,7 @@ def main() -> int:
     for path in paths:
         print(f"  {path}")
     if not args.dry_run:
-        print("Refresh BetterBoard Recipe Library; the recipes appear under Sensor Suite.")
+        print("Refresh BetterBoard Recipe Library; the recipes appear under Sensor Suite categories.")
     return 0
 
 
