@@ -1,0 +1,59 @@
+name: Sensor Suite v1 Integrity
+
+on:
+  pull_request:
+    paths:
+      - 'sensor-suite/**'
+      - 'scripts/install_sensor_suite.py'
+      - 'scripts/sensor_suite_self_check.py'
+      - 'docs/SENSOR_SUITE_V1.md'
+      - 'INSTALL_SENSOR_SUITE.command'
+      - '.github/workflows/sensor-suite-integrity.yml'
+  push:
+    branches:
+      - 'feature/sensor-suite-v1'
+    paths:
+      - 'sensor-suite/**'
+      - 'scripts/install_sensor_suite.py'
+      - 'scripts/sensor_suite_self_check.py'
+      - 'docs/SENSOR_SUITE_V1.md'
+      - 'INSTALL_SENSOR_SUITE.command'
+      - '.github/workflows/sensor-suite-integrity.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sensor Suite structural validation
+        run: python3 scripts/sensor_suite_self_check.py
+
+      - name: Prove dry-run installation
+        run: python3 scripts/install_sensor_suite.py --dry-run
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install AVR core and Sensor Suite libraries
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+          arduino-cli lib install "Adafruit Unified Sensor"
+          arduino-cli lib install "Adafruit LSM6DS"
+          arduino-cli lib install "Adafruit VL53L1X"
+          arduino-cli lib install "Adafruit INA219"
+          arduino-cli lib install "Adafruit BME280 Library"
+          arduino-cli lib install "HX711"
+
+      - name: Compile Sensor Suite firmware for UNO reference target
+        run: |
+          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/LSM6DSOX_Motion
+          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/VL53L1X_Displacement
+          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/INA219_Power
+          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/BME280_Environment
+          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/HX711_Force
+          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/MotionFusion_LSM6DSOX_VL53L1X
+          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/MotorPowerBench_TB6612_INA219
