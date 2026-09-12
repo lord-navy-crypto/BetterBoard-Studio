@@ -24,7 +24,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
 
@@ -65,7 +65,10 @@ jobs:
             Pendulum_IMU_Encoder Oscillator_ToF_ADXL345 HX711_CreepMonitor INA219_PowerStability \
             ADC_NoiseStatistics ADC_OversamplingComparison LSM6DSOX_ImpactTrigger ADXL345_VibrationRMS \
             Photogate_GateTiming LSM6DSOX_ComplementaryTilt BME280_RelativeAltitude HX711_LoadRepeatability \
-            MotorStepResponse_EncoderPower MotorRampHysteresis_EncoderPower IMU_ToF_MotionTrigger; do
+            MotorStepResponse_EncoderPower MotorRampHysteresis_EncoderPower IMU_ToF_MotionTrigger \
+            Photogate_KnownWidthSpeed EncoderGyro_CrossCheck ADXL345_JerkMonitor VL53L1X_FreeDecay \
+            MLX90393_FieldDirection BME280_ThermalStability INA219_LoadTransient HX711_ZeroDrift \
+            ADC_StepDetector LSM6DSOX_RotationRepeatability; do
             arduino-cli compile --fqbn arduino:avr:uno "sensor-suite/firmware/$sketch"
           done
 
@@ -81,6 +84,9 @@ jobs:
             Pendulum_IMU_Encoder Oscillator_ToF_ADXL345 HX711_CreepMonitor INA219_PowerStability \
             ADC_NoiseStatistics ADC_OversamplingComparison LSM6DSOX_ImpactTrigger ADXL345_VibrationRMS \
             Photogate_GateTiming LSM6DSOX_ComplementaryTilt BME280_RelativeAltitude HX711_LoadRepeatability \
-            MotorStepResponse_EncoderPower MotorRampHysteresis_EncoderPower IMU_ToF_MotionTrigger; do
+            MotorStepResponse_EncoderPower MotorRampHysteresis_EncoderPower IMU_ToF_MotionTrigger \
+            Photogate_KnownWidthSpeed EncoderGyro_CrossCheck ADXL345_JerkMonitor VL53L1X_FreeDecay \
+            MLX90393_FieldDirection BME280_ThermalStability INA219_LoadTransient HX711_ZeroDrift \
+            ADC_StepDetector LSM6DSOX_RotationRepeatability; do
             arduino-cli compile --fqbn esp32:esp32:esp32s3 "sensor-suite/firmware/$sketch"
           done
