@@ -22,11 +22,21 @@ def catalog_paths() -> list[Path]:
     return paths
 
 
+def _load_json(path: Path):
+    def reject_constant(value: str):
+        raise ValueError(f"non-finite JSON number {value}")
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"), parse_constant=reject_constant)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise SystemExit(f"invalid JSON in {path.relative_to(ROOT)}: {exc}") from exc
+
+
 def load_entries() -> list[dict]:
     entries: list[dict] = []
     seen_ids: set[str] = set()
     for path in catalog_paths():
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = _load_json(path)
         if not isinstance(data, list):
             raise SystemExit(f"{path.relative_to(ROOT)} must contain a JSON array")
         for entry in data:
@@ -39,7 +49,7 @@ def load_entries() -> list[dict]:
                 raise SystemExit(f"duplicate recipe id: {recipe_id}")
             seen_ids.add(recipe_id)
             entries.append(entry)
-    return entries
+    return sorted(entries, key=lambda entry: str(entry["id"]))
 
 
 def _firmware_path(entry: dict) -> Path:
@@ -55,9 +65,38 @@ def _firmware_path(entry: dict) -> Path:
     return resolved
 
 
-def _atomic_write_json(target: Path, payload: dict) -> None:
+def _render_wrapper(entry: dict) -> str:
+    firmware_path = _firmware_path(entry)
+    source = firmware_path.read_text(encoding="utf-8")
+    spec = {k: v for k, v in entry.items() if k != "firmware_path"}
+    spec["user_defined"] = True
+    spec["base_recipe_id"] = None
+    spec["parameter_values"] = {}
+    wrapper = {"spec": spec, "source": source}
+    return json.dumps(wrapper, indent=2, ensure_ascii=False, sort_keys=False, allow_nan=False) + "\n"
+
+
+def _fsync_directory(directory: Path) -> None:
+    flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
+    try:
+        fd = os.open(directory, flags)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _atomic_write_text(target: Path, text: str) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+    if target.is_file():
+        try:
+            if target.read_text(encoding="utf-8") == text:
+                return
+        except UnicodeDecodeError:
+            pass
+
     temp_name: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -73,42 +112,67 @@ def _atomic_write_json(target: Path, payload: dict) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, target)
+        _fsync_directory(target.parent)
     finally:
         if temp_name:
             Path(temp_name).unlink(missing_ok=True)
 
 
+def expected_payloads(destination: Path) -> dict[Path, str]:
+    destination = destination.expanduser().resolve()
+    return {
+        destination / f"sensor-suite-{entry['id']}.json": _render_wrapper(entry)
+        for entry in load_entries()
+    }
+
+
 def install(destination: Path, *, dry_run: bool = False) -> list[Path]:
     destination = destination.expanduser().resolve()
-    entries = load_entries()
-    written: list[Path] = []
+    payloads = expected_payloads(destination)
     if not dry_run:
         destination.mkdir(parents=True, exist_ok=True)
+        for target, text in payloads.items():
+            _atomic_write_text(target, text)
+    return list(payloads)
 
-    for entry in entries:
-        recipe_id = str(entry["id"])
-        firmware_path = _firmware_path(entry)
-        source = firmware_path.read_text(encoding="utf-8")
-        spec = {k: v for k, v in entry.items() if k != "firmware_path"}
-        spec["user_defined"] = True
-        spec["base_recipe_id"] = None
-        spec["parameter_values"] = {}
-        wrapper = {"spec": spec, "source": source}
-        target = destination / f"sensor-suite-{recipe_id}.json"
-        if not dry_run:
-            _atomic_write_json(target, wrapper)
-        written.append(target)
-    return written
+
+def verify_installation(destination: Path) -> list[str]:
+    destination = destination.expanduser().resolve()
+    problems: list[str] = []
+    for target, expected in expected_payloads(destination).items():
+        if not target.is_file():
+            problems.append(f"missing: {target}")
+            continue
+        try:
+            actual = target.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            problems.append(f"not UTF-8: {target}")
+            continue
+        if actual != expected:
+            problems.append(f"content mismatch: {target}")
+    return problems
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Install BetterBoard Sensor Suite program library into the BetterBoard user recipe library.")
+    parser = argparse.ArgumentParser(description="Install or verify the BetterBoard Sensor Suite user recipe library.")
     parser.add_argument("--destination", type=Path, default=DEFAULT_LIBRARY)
-    parser.add_argument("--dry-run", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true", help="show the exact managed targets without writing them")
+    mode.add_argument("--verify", action="store_true", help="verify installed managed recipes exactly match this checkout")
     args = parser.parse_args()
 
+    if args.verify:
+        problems = verify_installation(args.destination)
+        if problems:
+            print(f"Sensor Suite verification FAILED with {len(problems)} problem(s):")
+            for problem in problems:
+                print(f"  {problem}")
+            return 1
+        print(f"Sensor Suite verification PASS: {len(load_entries())} managed recipes match this checkout.")
+        return 0
+
     paths = install(args.destination, dry_run=args.dry_run)
-    action = "Would install" if args.dry_run else "Installed"
+    action = "Would install" if args.dry_run else "Installed/verified"
     print(f"{action} {len(paths)} Sensor Suite recipes:")
     for path in paths:
         print(f"  {path}")
