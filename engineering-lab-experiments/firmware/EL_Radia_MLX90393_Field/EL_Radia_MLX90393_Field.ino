@@ -23,7 +23,7 @@ void setup() {
   Serial.begin(115200);
   Wire.begin();
   if (!mag.begin_I2C()) failSensor();
-  sampler.arm(micros());
+  sampler.reset(micros());
   stream.begin("el-radia-mlx90393-field",
                betterboard::experiments::target::RADIA_MAGNET_STUDIO,
                "time_us,bx_uT,by_uT,bz_uT,bmag_uT",
