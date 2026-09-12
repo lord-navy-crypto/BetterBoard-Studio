@@ -1,6 +1,6 @@
 # BetterBoard Sensor Suite v1
 
-Sensor Suite v1 turns the planned BetterBoard / Engineering Lab hardware set into installable BetterBoard user recipes without changing the canonical built-in catalog. The suite is intentionally additive: the existing MLX90393, ADXL345, photogate, quadrature encoder, RPM, numerical, and random-walk recipes remain unchanged.
+Sensor Suite v1 turns the planned BetterBoard / Engineering Lab hardware set into an installable BetterBoard program library without changing the canonical built-in catalog. The suite is intentionally additive: the existing MLX90393, ADXL345, photogate, quadrature encoder, RPM, numerical, and random-walk recipes remain unchanged.
 
 ## Install
 
@@ -17,27 +17,46 @@ python3 scripts/sensor_suite_self_check.py
 python3 scripts/install_sensor_suite.py
 ```
 
-The installer writes stable recipe files to:
+The installer reads every `sensor-suite/catalog*.json` expansion catalog and writes stable recipe files to:
 
 ```text
 ~/Documents/BetterBoard/library/
 ```
 
-BetterBoard already loads that directory as its user recipe library. Refresh the Recipe Library and select **Sensor Suite**.
+BetterBoard already loads that directory as its user recipe library. Refresh the Recipe Library after installation.
 
-## Included experiments
+## Program museum
 
-| Recipe | Hardware | Measured outputs | Engineering Lab use |
+The suite now ships **17 installable experiments** across acquisition, dynamics, numerical methods, V&V, mechanics, timing, electrical power, environment, and control.
+
+### Core acquisition and systems programs
+
+| Recipe | Hardware | Main outputs | Engineering Lab use |
 |---|---|---|---|
 | LSM6DSOX Motion IMU | LSM6DSOX | 3-axis acceleration, 3-axis angular velocity, temperature | Oscillation, Chaos, mechanical analogue |
 | VL53L1X Displacement | VL53L1X | direct range / displacement | Oscillation, Chaos, robot range |
-| INA219 Electrical Power | INA219 | voltage, current, power | engineering evidence, actuator efficiency/reliability |
-| BME280 Environment | BME280 | temperature, pressure, humidity | environmental provenance and drift context |
-| HX711 Force / Load | load cell + HX711 | raw counts, calibrated force estimate | force/structure/oscillation studies |
+| INA219 Electrical Power | INA219 | voltage, current, power | engineering evidence, actuator characterization |
+| BME280 Environment | BME280 | temperature, pressure, humidity | environmental provenance |
+| HX711 Force / Load | load cell + HX711 | raw counts, calibrated force estimate | mechanics / structure / oscillation |
 | Motion Fusion IMU + ToF | LSM6DSOX + VL53L1X | synchronized x(t), a(t), angular rate | measured/model dynamics validation |
-| TB6612 + INA219 Motor Power Bench | small DC motor + TB6612 + INA219 | PWM command + electrical input | robotics/control/engineering characterization |
+| TB6612 + INA219 Motor Power Bench | motor + driver + INA219 | PWM command + electrical input | robotics/control characterization |
 
-## Existing BetterBoard hardware that remains first-class
+### Expanded analysis programs
+
+| Recipe | Main purpose |
+|---|---|
+| LSM6DSOX Vibration Statistics | rolling acceleration/gyro variability for vibration and structural studies |
+| LSM6DSOX Gyro Integration Methods | rectangle vs trapezoidal integration on real gyro samples |
+| VL53L1X Discrete Kinematics | direct x(t) plus finite-difference velocity and acceleration |
+| INA219 Energy Integration | sampled electrical power plus cumulative trapezoidal energy |
+| BME280 Environmental Drift Monitor | relative environmental drift from a session baseline |
+| HX711 Force Dynamics | calibrated force, filtered force, and force-rate estimate |
+| Encoder Angular Kinematics | count -> angle -> angular velocity -> angular acceleration |
+| Photogate Period Statistics | repeated period/frequency with rolling repeatability statistics |
+| ADXL345 / LSM6DSOX Cross-Check | simultaneous two-sensor acceleration disagreement |
+| Motor Encoder + Power Characterization | PWM + encoder RPM + voltage/current/power on one timeline |
+
+## Existing BetterBoard hardware remains first-class
 
 Sensor Suite complements rather than replaces the existing recipes:
 
@@ -47,41 +66,75 @@ Sensor Suite complements rather than replaces the existing recipes:
 - Quadrature Encoder -> count / angle -> rotational dynamics.
 - Random Walk Robot -> bounded motor commands; actual trajectory still requires independent position evidence.
 
+The expanded programs deliberately reuse these same instruments in richer combinations rather than requiring a new sensor for every experiment.
+
 ## First-day checkout sequence
 
 For every new I2C module:
 
 1. verify the exact breakout and supported supply/logic voltage;
-2. connect only the documented power, ground, SDA and SCL pins;
+2. connect only documented power, ground, SDA and SCL pins;
 3. run BetterBoard **I2C Scanner** first;
-4. run Recipe Preflight and install only the reported missing Arduino libraries;
+4. run Recipe Preflight and install only reported missing Arduino libraries;
 5. compile and upload the relevant Sensor Suite recipe;
 6. preview a short serial capture before recording evidence;
 7. record a BetterBoard measurement package;
 8. ingest through LabBridge / Engineering Lab only after the raw stream looks physically plausible.
 
-For motion experiments, keep direct displacement and inertial measurements separate in interpretation. An IMU measures acceleration and angular velocity; integrating it does not create reliable absolute position without bias characterization and an external reference.
+For motion experiments, keep direct displacement and inertial measurements separate in interpretation. An IMU measures acceleration and angular velocity; integration does not create reliable absolute position without bias characterization and an external reference.
 
-## Calibration boundary
+## Scientific boundaries
 
-Sensor Suite deliberately preserves raw or minimally transformed observables. Engineering Lab should own calibration metadata and model-to-measurement validation. In particular:
+The program museum is designed around evidence-first measurement:
 
-- HX711 `counts_per_newton` and zero offset must be measured using known reference loads;
-- ToF range depends on geometry and target properties;
-- IMU acceleration includes gravity, bias and alignment effects;
-- INA219 measurements require the actual breakout/load range to be respected;
-- BME280 is experiment context unless independently calibrated;
-- PWM command is not motor speed, torque, displacement, or efficiency.
+- HX711 force depends on measured offset and scale using reference loads;
+- ToF velocity/acceleration are numerical derivatives of measured distance and amplify noise;
+- IMU acceleration includes gravity, bias, alignment and mounting effects;
+- gyro integration drifts and should be cross-checked with encoder/optical angle evidence;
+- INA219 energy is a numerical integral of sampled sensor power;
+- BME280 drift is relative to startup, not a calibrated environmental reference;
+- dual-accelerometer disagreement does not identify which instrument is correct;
+- PWM command, encoder RPM and electrical input do not by themselves establish torque or mechanical efficiency.
 
-## Recommended physical experiment bundles
+Engineering Lab should own calibration metadata, uncertainty, model-to-measurement comparison, V&V, and final scientific interpretation.
+
+## Recommended experiment bundles
 
 ### Motion / dynamics bench
 
 ```text
 LSM6DSOX + VL53L1X + photogate + quadrature encoder
         -> x(t), a(t), omega(t), events, theta(t)
+        -> direct + derived kinematics + repeatability statistics
         -> BetterBoard measurement package
         -> Engineering Lab Oscillation / Chaos comparison
+```
+
+### Cross-sensor V&V bench
+
+```text
+ADXL345 + LSM6DSOX on one rigid fixture
+        -> two independent acceleration streams
+        -> disagreement vector
+        -> Engineering Lab calibration / V&V evidence
+```
+
+### Robotics / control bench
+
+```text
+TB6612 + encoder gearmotor + INA219 + ToF
+        -> command + RPM + electrical input + measured displacement
+        -> BetterBoard
+        -> Engineering Lab control / quality / reliability evidence
+```
+
+### Structural vibration bench
+
+```text
+ADXL345 / LSM6DSOX + bounded actuator
+        -> raw acceleration + window statistics
+        -> frequency-domain analysis on host
+        -> Engineering Lab Oscillation / Honeycomb mechanical analogue
 ```
 
 ### Magnetic digital-twin bench
@@ -93,26 +146,7 @@ MLX90393 + controlled non-magnetic positioning fixture
         -> Engineering Lab RADIA / Digital Twin residuals
 ```
 
-### Robotics / control bench
-
-```text
-TB6612 + encoder gearmotor + INA219 + ToF
-        -> command + electrical input + measured motion
-        -> BetterBoard
-        -> Engineering Lab Random Walk / engineering evidence
-```
-
-### Structural vibration bench
-
-```text
-2x ADXL345 or ADXL345 + LSM6DSOX + bounded actuator
-        -> multi-point vibration response
-        -> Engineering Lab Oscillation / Honeycomb mechanical analogue
-```
-
-## Libraries
-
-The recipes declare their dependencies so BetterBoard Preflight can report missing libraries. The suite does not silently reinstall packages.
+## Libraries and CI
 
 Expected Arduino Library Manager names include:
 
@@ -121,6 +155,7 @@ Expected Arduino Library Manager names include:
 - `Adafruit VL53L1X`
 - `Adafruit INA219`
 - `Adafruit BME280 Library`
+- `Adafruit ADXL345`
 - `HX711`
 
-Run `scripts/sensor_suite_self_check.py` after changes to prove the catalog, firmware paths, column/unit contracts, and generated BetterBoard user-recipe wrappers remain internally consistent.
+`Sensor Suite v1 Integrity` validates all expansion catalogs, proves installer materialization, installs the declared libraries, and compiles all 17 firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`.
