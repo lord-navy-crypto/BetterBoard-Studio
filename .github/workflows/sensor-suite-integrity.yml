@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'sensor-suite/**'
+      - 'firmware/betterboard-core/**'
       - 'scripts/install_sensor_suite.py'
       - 'scripts/sensor_suite_self_check.py'
       - 'docs/SENSOR_SUITE_V1.md'
@@ -12,8 +13,10 @@ on:
   push:
     branches:
       - 'feature/sensor-suite-v1'
+      - 'feature/betterboard-cpp-core-v1'
     paths:
       - 'sensor-suite/**'
+      - 'firmware/betterboard-core/**'
       - 'scripts/install_sensor_suite.py'
       - 'scripts/sensor_suite_self_check.py'
       - 'docs/SENSOR_SUITE_V1.md'
@@ -85,11 +88,11 @@ jobs:
       - name: Compile Sensor Suite firmware for UNO reference target
         run: |
           while IFS= read -r sketch; do
-            arduino-cli compile --fqbn arduino:avr:uno "sensor-suite/firmware/$sketch"
+            arduino-cli compile --fqbn arduino:avr:uno --library firmware/betterboard-core "sensor-suite/firmware/$sketch"
           done < /tmp/sensor-suite-sketches.txt
 
       - name: Compile Sensor Suite firmware for ESP32-S3 target
         run: |
           while IFS= read -r sketch; do
-            arduino-cli compile --fqbn esp32:esp32:esp32s3 "sensor-suite/firmware/$sketch"
+            arduino-cli compile --fqbn esp32:esp32:esp32s3 --library firmware/betterboard-core "sensor-suite/firmware/$sketch"
           done < /tmp/sensor-suite-sketches.txt

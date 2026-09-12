@@ -1,0 +1,67 @@
+name: BetterBoard C++ Core
+
+on:
+  pull_request:
+    paths:
+      - 'firmware/betterboard-core/**'
+      - 'sensor-suite/firmware/**'
+      - 'docs/BETTERBOARD_CPP_ARCHITECTURE.md'
+      - 'docs/CPP_FIRMWARE_DEVELOPER_GUIDE.md'
+      - '.github/workflows/betterboard-cpp-core.yml'
+  push:
+    branches:
+      - 'feature/betterboard-cpp-core-v1'
+    paths:
+      - 'firmware/betterboard-core/**'
+      - 'sensor-suite/firmware/**'
+      - 'docs/BETTERBOARD_CPP_ARCHITECTURE.md'
+      - 'docs/CPP_FIRMWARE_DEVELOPER_GUIDE.md'
+      - '.github/workflows/betterboard-cpp-core.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Native C++ unit tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            firmware/betterboard-core/tests/test_core.cpp \
+            firmware/betterboard-core/src/core/PeriodicSampler.cpp \
+            firmware/betterboard-core/src/math/OnlineStatistics.cpp \
+            firmware/betterboard-core/src/math/RmsAccumulator.cpp \
+            firmware/betterboard-core/src/math/TrapezoidIntegrator.cpp \
+            firmware/betterboard-core/src/math/FiniteDifference.cpp \
+            firmware/betterboard-core/src/math/LinearRegression.cpp \
+            firmware/betterboard-core/src/signal/ExponentialMovingAverage.cpp \
+            firmware/betterboard-core/src/signal/PeakHold.cpp \
+            firmware/betterboard-core/src/signal/ThresholdTrigger.cpp \
+            firmware/betterboard-core/src/signal/HysteresisLatch.cpp \
+            -o /tmp/betterboard-core-tests
+          /tmp/betterboard-core-tests
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install Arduino cores
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+          arduino-cli core install esp32:esp32
+
+      - name: Compile C++ core example for UNO
+        run: arduino-cli compile --fqbn arduino:avr:uno --library firmware/betterboard-core firmware/betterboard-core/examples/ADCNoiseCore
+
+      - name: Compile C++ core example for ESP32-S3
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3 --library firmware/betterboard-core firmware/betterboard-core/examples/ADCNoiseCore
+
+      - name: Compile migrated Sensor Suite sketch for UNO
+        run: arduino-cli compile --fqbn arduino:avr:uno --library firmware/betterboard-core sensor-suite/firmware/ADC_NoiseStatistics
+
+      - name: Compile migrated Sensor Suite sketch for ESP32-S3
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3 --library firmware/betterboard-core sensor-suite/firmware/ADC_NoiseStatistics
