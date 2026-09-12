@@ -20,6 +20,14 @@ export const BRIDGE_CAPABILITIES = {
   ],
 } as const;
 
+export type EngineeringLabArtifactRef = {
+  id: string;
+  kind: string;
+  path?: string;
+  uri?: string;
+  sha256?: string;
+};
+
 export type EngineeringLabResultEnvelopeV1 = {
   schema: typeof ENGINEERING_RESULT_SCHEMA;
   source_bridge_schema: typeof RESEARCH_BRIDGE_SCHEMA;
@@ -27,13 +35,7 @@ export type EngineeringLabResultEnvelopeV1 = {
   created_at_utc: string;
   producer: string;
   results: ResearchBridgeEvent[];
-  artifacts?: Array<{
-    id: string;
-    kind: string;
-    path?: string;
-    uri?: string;
-    sha256?: string;
-  }>;
+  artifacts?: EngineeringLabArtifactRef[];
   warnings?: string[];
 };
 
@@ -92,10 +94,10 @@ export function parseEngineeringLabResultEnvelope(raw: string, expectedSessionId
     return event;
   });
 
-  const artifacts = Array.isArray(value.artifacts) ? value.artifacts.slice(0, 100).map((entry, index) => {
+  const artifacts: EngineeringLabArtifactRef[] | undefined = Array.isArray(value.artifacts) ? value.artifacts.slice(0, 100).map((entry, index) => {
     const artifact = record(entry);
-    if (!artifact || typeof artifact.id !== 'string' || typeof artifact.kind !== 'string') throw new Error(`Engineering Lab artifact ${index + 1} is invalid.`);
-    const result: EngineeringLabResultEnvelopeV1['artifacts'][number] = { id: artifact.id.slice(0, 300), kind: artifact.kind.slice(0, 120) };
+    if (!artifact || typeof artifact.id !== 'string' || !artifact.id.trim() || typeof artifact.kind !== 'string' || !artifact.kind.trim()) throw new Error(`Engineering Lab artifact ${index + 1} is invalid.`);
+    const result: EngineeringLabArtifactRef = { id: artifact.id.trim().slice(0, 300), kind: artifact.kind.trim().slice(0, 120) };
     if (typeof artifact.path === 'string') result.path = artifact.path.slice(0, 2_000);
     if (typeof artifact.uri === 'string') result.uri = artifact.uri.slice(0, 2_000);
     if (typeof artifact.sha256 === 'string') result.sha256 = artifact.sha256.slice(0, 128);
