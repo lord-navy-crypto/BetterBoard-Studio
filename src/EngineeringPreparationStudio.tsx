@@ -1,13 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowRight, Bot, CircleAlert, Database, FileCheck2, Magnet, RefreshCw, Sigma, UploadCloud, Wrench } from 'lucide-react';
+import { ArrowRight, Bot, CircleAlert, Database, FileCheck2, Magnet, Plus, RefreshCw, Sigma, UploadCloud, Wrench } from 'lucide-react';
 import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
 import NumericalBenchAdvanced from './NumericalBenchAdvanced';
 import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
 import MagnetBenchAdvanced from './MagnetBenchAdvanced';
 import StudioAdvanced from './StudioAdvanced';
 import CopyButton from './CopyButton';
-import { bridgeForOpenPenguin, buildResearchBridge } from './ResearchBridge';
+import { bridgeForOpenPenguin, buildResearchBridge, researchSessionId } from './ResearchBridge';
+import { emptyResearchContext, loadResearchContext, makeResearchEvent, saveResearchContext, type ResearchContextState } from './ResearchContextStore';
 
 type MeasurementSessionSummary = {
   directory: string;
@@ -32,6 +33,7 @@ type OpenPenguinStatus = {
 };
 
 type Lane = 'numerical' | 'magnet';
+type ContextLane = 'notebook' | 'annotation' | 'journey';
 
 const CAMPAIGN_ANALYZER = 'scripts/numeric_error_campaign_analyzer.py';
 const CAMPAIGN_SELF_CHECK = 'scripts/numeric_error_campaign_self_check.py';
@@ -45,6 +47,9 @@ export default function EngineeringPreparationStudio() {
   const [loaded, setLoaded] = useState(false);
   const [loadingEvidence, setLoadingEvidence] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [researchContext, setResearchContext] = useState<ResearchContextState>(emptyResearchContext());
+  const [contextLane, setContextLane] = useState<ContextLane>('notebook');
+  const [contextDraft, setContextDraft] = useState('');
   const [aiStatus, setAiStatus] = useState<OpenPenguinStatus | null>(null);
   const [aiModel, setAiModel] = useState('');
   const [aiPrompt, setAiPrompt] = useState('Review this experiment handoff. Identify evidence-quality concerns, useful Engineering Lab analyses, and one next experiment. Keep measurement facts separate from suggestions.');
@@ -71,6 +76,35 @@ export default function EngineeringPreparationStudio() {
     }
   }
 
+  const currentSessionId = useMemo(() => selected ? researchSessionId(selected) : '', [selected]);
+
+  useEffect(() => {
+    setResearchContext(currentSessionId ? loadResearchContext(currentSessionId) : emptyResearchContext());
+    setAiAnswer('');
+  }, [currentSessionId]);
+
+  function persistContext(next: ResearchContextState) {
+    setResearchContext(next);
+    if (currentSessionId) saveResearchContext(currentSessionId, next);
+  }
+
+  function patchContext(patch: Partial<ResearchContextState>) {
+    persistContext({ ...researchContext, ...patch });
+  }
+
+  function addContextEntry() {
+    const text = contextDraft.trim();
+    if (!text || !selected) return;
+    if (contextLane === 'notebook') {
+      patchContext({ notebook: [...researchContext.notebook, makeResearchEvent('human', 'observation', text, [selected.metadata_path])] });
+    } else if (contextLane === 'annotation') {
+      patchContext({ annotations: [...researchContext.annotations, makeResearchEvent('human', 'annotation', text, [selected.csv_path])] });
+    } else {
+      patchContext({ lab_journey: [...researchContext.lab_journey, makeResearchEvent('human', 'decision', text, [selected.metadata_path])] });
+    }
+    setContextDraft('');
+  }
+
   async function refreshOpenPenguin() {
     setAiError('');
     try {
@@ -83,7 +117,7 @@ export default function EngineeringPreparationStudio() {
     }
   }
 
-  const researchBridge = useMemo(() => selected ? buildResearchBridge(selected) : null, [selected]);
+  const researchBridge = useMemo(() => selected ? buildResearchBridge(selected, researchContext) : null, [selected, researchContext]);
   const researchBridgeJson = useMemo(() => researchBridge ? JSON.stringify(researchBridge, null, 2) : '', [researchBridge]);
   const openPenguinContext = useMemo(() => researchBridge ? bridgeForOpenPenguin(researchBridge) : '', [researchBridge]);
 
@@ -99,6 +133,8 @@ export default function EngineeringPreparationStudio() {
         context: openPenguinContext,
       });
       setAiAnswer(answer);
+      const suggestion = makeResearchEvent('openguin', 'suggestion', answer, [researchBridge.session_id]);
+      persistContext({ ...researchContext, ai_suggestions: [...researchContext.ai_suggestions, suggestion] });
     } catch (error) {
       setAiError(`OpenPenguin bridge failed: ${error}`);
     } finally {
@@ -115,6 +151,7 @@ export default function EngineeringPreparationStudio() {
     `legacy physical_lab_v1.csv compatibility: ${selected.physical_lab_csv_path}`,
     `Engineering Lab bridge: ${selected.physical_lab_bridge_path}`,
     researchBridge ? `Research Bridge schema: ${researchBridge.schema}` : '',
+    researchBridge ? `Research session: ${researchBridge.session_id}` : '',
   ].filter(Boolean).join('\n') : '', [selected, researchBridge]);
 
   return <section className="panel" style={{ maxWidth: 1420, margin: '18px auto 52px' }}>
@@ -158,7 +195,7 @@ export default function EngineeringPreparationStudio() {
 
     <section className="panel engineering-handoff" style={{ marginTop: 18 }}>
       <div className="panel-title"><UploadCloud size={18}/> BetterBoard Research Bridge</div>
-      <p className="muted">One provenance-aware contract connects BetterBoard evidence, future Notebook / Annotation / Lab Journey entries, Engineering Lab derived analysis, and OpenPenguin advisory reasoning. Raw measurement remains immutable evidence; downstream analysis and AI suggestions remain separate layers.</p>
+      <p className="muted">One provenance-aware contract connects BetterBoard evidence, Notebook / Annotation / Lab Journey context, Engineering Lab derived analysis, and OpenPenguin advisory reasoning. Raw measurement remains immutable evidence; downstream analysis and AI suggestions remain separate layers.</p>
       <button className="ghost" disabled={loadingEvidence} onClick={() => void loadEvidence()}><Database size={15}/> {loadingEvidence ? 'Loading evidence…' : loaded ? 'Refresh saved evidence' : 'Load saved evidence'}</button>
       {loadError && <div className="boundary" style={{ marginTop: 10 }}><CircleAlert size={14}/>{loadError}</div>}
       {!loaded ? <div className="empty compact">Load evidence to create a Research Bridge package.</div> : !loadError && !sessions.length ? <div className="empty compact">No saved measurement sessions yet.</div> : !loadError && <>
@@ -167,6 +204,7 @@ export default function EngineeringPreparationStudio() {
         </select>
         {selected && <div className="measurement big">
           <b>{selected.recipe_title}</b>
+          <span>Research session · {currentSessionId}</span>
           <span>data.csv · {selected.csv_path}</span>
           <span>metadata.json · {selected.metadata_path}</span>
           <span>Engineering Lab compatibility · {selected.physical_lab_csv_path}</span>
@@ -183,9 +221,31 @@ export default function EngineeringPreparationStudio() {
       <div className="boundary"><FileCheck2 size={14}/> Handoff success means evidence and provenance are traceable. It does not prove calibration, physical correctness, model validity, or an AI conclusion.</div>
     </section>
 
+    {selected && <section className="panel" style={{ marginTop: 18 }}>
+      <div className="panel-title"><Database size={18}/> Research context bridge</div>
+      <p className="muted">Notebook, annotations and Lab Journey entries are persisted per measurement session and are embedded into every Research Bridge export. They remain human context, never raw sensor evidence.</p>
+      <div className="engineering-model-grid">
+        <label className="panel">Research question<textarea rows={3} value={researchContext.question} onChange={e => patchContext({ question: e.target.value })} placeholder="What are you trying to determine?" /></label>
+        <label className="panel">Hypothesis<textarea rows={3} value={researchContext.hypothesis} onChange={e => patchContext({ hypothesis: e.target.value })} placeholder="What result do you expect, and why?" /></label>
+      </div>
+      <div className="action-row">
+        <select value={contextLane} onChange={e => setContextLane(e.target.value as ContextLane)}><option value="notebook">Experiment Notebook</option><option value="annotation">Annotation</option><option value="journey">Lab Journey</option></select>
+        <input value={contextDraft} onChange={e => setContextDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addContextEntry(); }} placeholder="Add a traceable research entry" />
+        <button className="primary" disabled={!contextDraft.trim()} onClick={addContextEntry}><Plus size={15}/> Add entry</button>
+      </div>
+      <div className="observatory-facts">
+        <span>Notebook entries</span><b>{researchContext.notebook.length}</b>
+        <span>Annotations</span><b>{researchContext.annotations.length}</b>
+        <span>Journey events</span><b>{researchContext.lab_journey.length}</b>
+        <span>Engineering results</span><b>{researchContext.engineering_results.length}</b>
+        <span>OpenPenguin suggestions</span><b>{researchContext.ai_suggestions.length}</b>
+      </div>
+      {[...researchContext.notebook, ...researchContext.annotations, ...researchContext.lab_journey].slice(-8).reverse().map(event => <div className="boundary compact" key={event.id}><b>{event.origin} · {event.kind}</b> · {event.text}</div>)}
+    </section>}
+
     <section className="panel" style={{ marginTop: 18 }}>
       <div className="panel-title"><Bot size={18}/> OpenPenguin bridge</div>
-      <p className="muted">OpenPenguin receives the structured Research Bridge context, not an undifferentiated dump. Its output is advisory and is never promoted to measurement or Engineering Lab result automatically.</p>
+      <p className="muted">OpenPenguin receives the structured Research Bridge context, not an undifferentiated dump. Its output is advisory, is persisted as an AI suggestion, and is never promoted to measurement or Engineering Lab result automatically.</p>
       <div className="action-row">
         <button className="ghost" onClick={() => void refreshOpenPenguin()}><RefreshCw size={15}/> Inspect local AI</button>
         {aiStatus?.found && <select value={aiModel} onChange={e => setAiModel(e.target.value)}>{aiStatus.models.map(model => <option key={model} value={model}>{model}</option>)}</select>}
@@ -194,7 +254,7 @@ export default function EngineeringPreparationStudio() {
       <textarea value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} rows={4} placeholder="Ask OpenPenguin about this experiment handoff" />
       <div className="action-row"><button className="primary" disabled={!researchBridge || !aiModel || aiBusy} onClick={() => void askOpenPenguin()}><Bot size={15}/>{aiBusy ? 'Reasoning…' : 'Ask OpenPenguin about this handoff'}</button><CopyButton text={openPenguinContext} label="Copy AI context"/></div>
       {aiError && <div className="boundary"><CircleAlert size={14}/>{aiError}</div>}
-      {aiAnswer && <div className="measurement big"><b>OpenPenguin suggestion</b><span style={{ whiteSpace: 'pre-wrap' }}>{aiAnswer}</span></div>}
+      {aiAnswer && <div className="measurement big"><b>OpenPenguin suggestion · stored in bridge provenance</b><span style={{ whiteSpace: 'pre-wrap' }}>{aiAnswer}</span></div>}
     </section>
 
     <details style={{ marginTop: 14 }}>
