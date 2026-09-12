@@ -42,7 +42,7 @@ fn validated_fqbn(raw: &str) -> Result<String, String> {
 fn run_board_details(fqbn: &str, legacy_format: bool) -> Result<String, String> {
     let cli = find_cli()?;
     let mut command = Command::new(cli);
-    command.args(["board", "details", "-b", fqbn]);
+    command.args(["board", "details", "-b", fqbn, "--show-properties=expanded"]);
     if legacy_format {
         command.args(["--format", "json"]);
     } else {
