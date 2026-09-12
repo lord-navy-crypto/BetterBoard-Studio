@@ -78,5 +78,15 @@
     "primary_observable": "power_mw",
     "columns": ["time_us", "bus_v", "current_ma", "power_mw", "energy_mj"],
     "units": ["us", "V", "mA", "mW", "mJ"]
+  },
+  {
+    "id": "el-numerical-bme280-context",
+    "title": "Engineering Lab Environmental Drift Context",
+    "model_target": "Numerical Error Analysis",
+    "sensor": "BME280",
+    "sketch_name": "EL_Numerical_BME280_Context",
+    "primary_observable": "temperature_c",
+    "columns": ["time_us", "temperature_c", "pressure_hpa", "humidity_pct"],
+    "units": ["us", "degC", "hPa", "%"]
   }
 ]
