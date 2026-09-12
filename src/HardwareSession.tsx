@@ -19,6 +19,32 @@ type HardwareSessionValue = {
 
 const HardwareSessionContext = createContext<HardwareSessionValue | null>(null);
 
+const SYSTEM_SERIAL_NAMES = [
+  'bluetooth-incoming-port',
+  'debug-console',
+  'wireless',
+  'incoming-port',
+];
+
+function isLikelyPhysicalBoardPort(port: BoardPort) {
+  const path = port.port.toLowerCase();
+  const name = (port.board_name ?? '').toLowerCase();
+  if (SYSTEM_SERIAL_NAMES.some(token => path.includes(token) || name.includes(token))) return false;
+  if (port.fqbn) return true;
+  return /usb|wch|slab|serial|modem|acm|ttyusb|cu\./i.test(port.port);
+}
+
+function noBoardDiagnostic(rawPorts: BoardPort[]) {
+  if (!rawPorts.length) {
+    return 'No serial devices reported by Arduino CLI · check the USB data cable, connector, hub, and driver, then Refresh';
+  }
+  const systemOnly = rawPorts.every(port => !isLikelyPhysicalBoardPort(port));
+  if (systemOnly) {
+    return 'No USB serial board detected · only macOS system ports are visible · check the USB data cable/connector first, then Refresh';
+  }
+  return 'No usable USB serial board detected · reconnect the board with a known data cable, then Refresh';
+}
+
 export function HardwareSessionProvider({ children }: { children: ReactNode }) {
   const [ports, setPorts] = useState<BoardPort[]>([]);
   const [profiles, setProfiles] = useState<BoardProfile[]>([]);
@@ -47,17 +73,20 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
           invoke<BoardProfile[]>('board_profiles'),
         ]);
         const status: string[] = [];
+        let boardPorts: BoardPort[] = [];
+        let boardProfiles: BoardProfile[] = [];
 
         if (portsResult.status === 'fulfilled') {
-          const boardPorts = portsResult.value;
+          const rawPorts = portsResult.value;
+          boardPorts = rawPorts.filter(isLikelyPhysicalBoardPort);
           setPorts(boardPorts);
           setSelectedPort(current => {
             if (current && boardPorts.some(port => port.port === current)) return current;
             return boardPorts[0]?.port ?? '';
           });
           status.push(boardPorts.length
-            ? `${boardPorts.length} serial device(s) detected`
-            : 'No USB serial board detected');
+            ? `${boardPorts.length} USB serial board(s) detected`
+            : noBoardDiagnostic(rawPorts));
         } else {
           // A failed scan must revoke the previous physical-port selection. A
           // stale non-empty selectedPort could otherwise leave Run / Upload armed.
@@ -67,12 +96,18 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
         }
 
         if (profilesResult.status === 'fulfilled') {
-          const boardProfiles = profilesResult.value;
+          boardProfiles = profilesResult.value;
           setProfiles(boardProfiles);
-          setFqbn(current => boardProfiles.some(profile => profile.fqbn === current)
-            ? current
-            : (boardProfiles[0]?.fqbn ?? current));
-          status.push(`${boardProfiles.length} board profile(s) available`);
+          const detectedFqbn = boardPorts.find(port => port.fqbn && boardProfiles.some(profile => profile.fqbn === port.fqbn))?.fqbn;
+          setFqbn(current => {
+            if (detectedFqbn) return detectedFqbn;
+            return boardProfiles.some(profile => profile.fqbn === current)
+              ? current
+              : (boardProfiles[0]?.fqbn ?? current);
+          });
+          status.push(detectedFqbn
+            ? `profile matched automatically: ${detectedFqbn}`
+            : `${boardProfiles.length} board profile(s) available`);
         } else {
           setProfiles([]);
           status.push(`Board profile load failed: ${String(profilesResult.reason)}`);
