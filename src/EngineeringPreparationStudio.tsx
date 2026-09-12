@@ -1,22 +1,34 @@
 import { useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowRight, CircleAlert, Database, FileCheck2, Magnet, Sigma, UploadCloud, Wrench } from 'lucide-react';
+import { ArrowRight, Bot, CircleAlert, Database, FileCheck2, Magnet, RefreshCw, Sigma, UploadCloud, Wrench } from 'lucide-react';
 import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
 import NumericalBenchAdvanced from './NumericalBenchAdvanced';
 import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
 import MagnetBenchAdvanced from './MagnetBenchAdvanced';
 import StudioAdvanced from './StudioAdvanced';
 import CopyButton from './CopyButton';
+import { bridgeForOpenPenguin, buildResearchBridge } from './ResearchBridge';
 
 type MeasurementSessionSummary = {
   directory: string;
   created_at_utc: string;
+  recipe_id?: string;
   recipe_title: string;
+  acquisition_mode?: string;
+  board_profile?: string;
+  port?: string;
   sample_count: number;
   csv_path: string;
   metadata_path: string;
   physical_lab_csv_path: string;
   physical_lab_bridge_path: string;
+};
+
+type OpenPenguinStatus = {
+  found: boolean;
+  endpoint: string;
+  models: string[];
+  error?: string | null;
 };
 
 type Lane = 'numerical' | 'magnet';
@@ -33,6 +45,12 @@ export default function EngineeringPreparationStudio() {
   const [loaded, setLoaded] = useState(false);
   const [loadingEvidence, setLoadingEvidence] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [aiStatus, setAiStatus] = useState<OpenPenguinStatus | null>(null);
+  const [aiModel, setAiModel] = useState('');
+  const [aiPrompt, setAiPrompt] = useState('Review this experiment handoff. Identify evidence-quality concerns, useful Engineering Lab analyses, and one next experiment. Keep measurement facts separate from suggestions.');
+  const [aiAnswer, setAiAnswer] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
 
   async function loadEvidence() {
     if (loadingEvidence) return;
@@ -53,6 +71,41 @@ export default function EngineeringPreparationStudio() {
     }
   }
 
+  async function refreshOpenPenguin() {
+    setAiError('');
+    try {
+      const status = await invoke<OpenPenguinStatus>('openguin_probe');
+      setAiStatus(status);
+      if (status.models.length && !status.models.includes(aiModel)) setAiModel(status.models[0]);
+    } catch (error) {
+      setAiStatus(null);
+      setAiError(`Could not inspect OpenPenguin: ${error}`);
+    }
+  }
+
+  const researchBridge = useMemo(() => selected ? buildResearchBridge(selected) : null, [selected]);
+  const researchBridgeJson = useMemo(() => researchBridge ? JSON.stringify(researchBridge, null, 2) : '', [researchBridge]);
+  const openPenguinContext = useMemo(() => researchBridge ? bridgeForOpenPenguin(researchBridge) : '', [researchBridge]);
+
+  async function askOpenPenguin() {
+    if (!researchBridge || !aiModel || !aiPrompt.trim()) return;
+    setAiBusy(true);
+    setAiError('');
+    setAiAnswer('');
+    try {
+      const answer = await invoke<string>('openguin_generate', {
+        model: aiModel,
+        prompt: aiPrompt,
+        context: openPenguinContext,
+      });
+      setAiAnswer(answer);
+    } catch (error) {
+      setAiError(`OpenPenguin bridge failed: ${error}`);
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   const exportText = useMemo(() => selected ? [
     'BetterBoard → Engineering Lab handoff',
     `Recipe: ${selected.recipe_title}`,
@@ -61,7 +114,8 @@ export default function EngineeringPreparationStudio() {
     `metadata.json: ${selected.metadata_path}`,
     `legacy physical_lab_v1.csv compatibility: ${selected.physical_lab_csv_path}`,
     `Engineering Lab bridge: ${selected.physical_lab_bridge_path}`,
-  ].join('\n') : '', [selected]);
+    researchBridge ? `Research Bridge schema: ${researchBridge.schema}` : '',
+  ].filter(Boolean).join('\n') : '', [selected, researchBridge]);
 
   return <section className="panel" style={{ maxWidth: 1420, margin: '18px auto 52px' }}>
     <div className="panel-title"><Wrench size={18}/> Engineering Preparation</div>
@@ -103,18 +157,44 @@ export default function EngineeringPreparationStudio() {
     </>}
 
     <section className="panel engineering-handoff" style={{ marginTop: 18 }}>
-      <div className="panel-title"><UploadCloud size={18}/> BetterBoard → Engineering Lab handoff</div>
-      <p className="muted">Preparation ends by producing inspectable files. Engineering Lab should independently recompute or validate the result instead of trusting BetterBoard's displayed summary.</p>
+      <div className="panel-title"><UploadCloud size={18}/> BetterBoard Research Bridge</div>
+      <p className="muted">One provenance-aware contract connects BetterBoard evidence, future Notebook / Annotation / Lab Journey entries, Engineering Lab derived analysis, and OpenPenguin advisory reasoning. Raw measurement remains immutable evidence; downstream analysis and AI suggestions remain separate layers.</p>
       <button className="ghost" disabled={loadingEvidence} onClick={() => void loadEvidence()}><Database size={15}/> {loadingEvidence ? 'Loading evidence…' : loaded ? 'Refresh saved evidence' : 'Load saved evidence'}</button>
       {loadError && <div className="boundary" style={{ marginTop: 10 }}><CircleAlert size={14}/>{loadError}</div>}
-      {!loaded ? <div className="empty compact">Load evidence to browse recent measurement packages.</div> : !loadError && !sessions.length ? <div className="empty compact">No saved measurement sessions yet.</div> : !loadError && <>
+      {!loaded ? <div className="empty compact">Load evidence to create a Research Bridge package.</div> : !loadError && !sessions.length ? <div className="empty compact">No saved measurement sessions yet.</div> : !loadError && <>
         <select value={selected?.directory ?? ''} onChange={e => setSelected(sessions.find(s => s.directory === e.target.value) ?? null)}>
           {sessions.map(s => <option key={s.directory} value={s.directory}>{s.recipe_title} · {s.sample_count} samples · {new Date(s.created_at_utc).toLocaleString()}</option>)}
         </select>
-        {selected && <div className="measurement big"><b>{selected.recipe_title}</b><span>data.csv · {selected.csv_path}</span><span>metadata.json · {selected.metadata_path}</span><span>Legacy Physical Lab v1 compatibility · {selected.physical_lab_csv_path}</span><span>Engineering Lab bridge · {selected.physical_lab_bridge_path}</span></div>}
-        <div className="action-row"><CopyButton text={exportText} label="Copy handoff"/><CopyButton text={selected?.csv_path || ''} label="Copy data path"/><CopyButton text={selected?.physical_lab_bridge_path || ''} label="Copy bridge path"/></div>
+        {selected && <div className="measurement big">
+          <b>{selected.recipe_title}</b>
+          <span>data.csv · {selected.csv_path}</span>
+          <span>metadata.json · {selected.metadata_path}</span>
+          <span>Engineering Lab compatibility · {selected.physical_lab_csv_path}</span>
+          <span>Legacy bridge · {selected.physical_lab_bridge_path}</span>
+          <span>Unified bridge · betterboard.research-bridge/1.0</span>
+        </div>}
+        <div className="action-row">
+          <CopyButton text={exportText} label="Copy handoff"/>
+          <CopyButton text={researchBridgeJson} label="Copy Research Bridge JSON"/>
+          <CopyButton text={selected?.csv_path || ''} label="Copy data path"/>
+          <CopyButton text={selected?.physical_lab_bridge_path || ''} label="Copy legacy bridge path"/>
+        </div>
       </>}
-      <div className="boundary"><FileCheck2 size={14}/> Handoff success means the evidence package exists and is traceable. It does not prove the physical measurement or computational model is correct.</div>
+      <div className="boundary"><FileCheck2 size={14}/> Handoff success means evidence and provenance are traceable. It does not prove calibration, physical correctness, model validity, or an AI conclusion.</div>
+    </section>
+
+    <section className="panel" style={{ marginTop: 18 }}>
+      <div className="panel-title"><Bot size={18}/> OpenPenguin bridge</div>
+      <p className="muted">OpenPenguin receives the structured Research Bridge context, not an undifferentiated dump. Its output is advisory and is never promoted to measurement or Engineering Lab result automatically.</p>
+      <div className="action-row">
+        <button className="ghost" onClick={() => void refreshOpenPenguin()}><RefreshCw size={15}/> Inspect local AI</button>
+        {aiStatus?.found && <select value={aiModel} onChange={e => setAiModel(e.target.value)}>{aiStatus.models.map(model => <option key={model} value={model}>{model}</option>)}</select>}
+      </div>
+      {aiStatus && <div className="boundary compact"><Bot size={14}/>{aiStatus.found ? `OpenPenguin ready · ${aiStatus.endpoint} · ${aiStatus.models.length} model(s)` : aiStatus.error || 'OpenPenguin is not connected.'}</div>}
+      <textarea value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} rows={4} placeholder="Ask OpenPenguin about this experiment handoff" />
+      <div className="action-row"><button className="primary" disabled={!researchBridge || !aiModel || aiBusy} onClick={() => void askOpenPenguin()}><Bot size={15}/>{aiBusy ? 'Reasoning…' : 'Ask OpenPenguin about this handoff'}</button><CopyButton text={openPenguinContext} label="Copy AI context"/></div>
+      {aiError && <div className="boundary"><CircleAlert size={14}/>{aiError}</div>}
+      {aiAnswer && <div className="measurement big"><b>OpenPenguin suggestion</b><span style={{ whiteSpace: 'pre-wrap' }}>{aiAnswer}</span></div>}
     </section>
 
     <details style={{ marginTop: 14 }}>
