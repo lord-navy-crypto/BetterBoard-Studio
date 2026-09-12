@@ -24,7 +24,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -49,24 +49,27 @@ jobs:
           arduino-cli lib install "Adafruit VL53L1X"
           arduino-cli lib install "Adafruit INA219"
           arduino-cli lib install "Adafruit BME280 Library"
+          arduino-cli lib install "Adafruit ADXL345"
           arduino-cli lib install "HX711"
 
       - name: Compile Sensor Suite firmware for UNO reference target
         run: |
-          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/LSM6DSOX_Motion
-          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/VL53L1X_Displacement
-          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/INA219_Power
-          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/BME280_Environment
-          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/HX711_Force
-          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/MotionFusion_LSM6DSOX_VL53L1X
-          arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/MotorPowerBench_TB6612_INA219
+          for sketch in \
+            LSM6DSOX_Motion VL53L1X_Displacement INA219_Power BME280_Environment HX711_Force \
+            MotionFusion_LSM6DSOX_VL53L1X MotorPowerBench_TB6612_INA219 \
+            LSM6DSOX_VibrationStats LSM6DSOX_GyroIntegration VL53L1X_Kinematics INA219_Energy \
+            BME280_DriftMonitor HX711_ForceDynamics EncoderKinematics PhotogatePeriodStats \
+            DualAccelerometerCrossCheck MotorEncoderPowerBench; do
+            arduino-cli compile --fqbn arduino:avr:uno "sensor-suite/firmware/$sketch"
+          done
 
       - name: Compile Sensor Suite firmware for ESP32-S3 target
         run: |
-          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/LSM6DSOX_Motion
-          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/VL53L1X_Displacement
-          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/INA219_Power
-          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/BME280_Environment
-          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/HX711_Force
-          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/MotionFusion_LSM6DSOX_VL53L1X
-          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/MotorPowerBench_TB6612_INA219
+          for sketch in \
+            LSM6DSOX_Motion VL53L1X_Displacement INA219_Power BME280_Environment HX711_Force \
+            MotionFusion_LSM6DSOX_VL53L1X MotorPowerBench_TB6612_INA219 \
+            LSM6DSOX_VibrationStats LSM6DSOX_GyroIntegration VL53L1X_Kinematics INA219_Energy \
+            BME280_DriftMonitor HX711_ForceDynamics EncoderKinematics PhotogatePeriodStats \
+            DualAccelerometerCrossCheck MotorEncoderPowerBench; do
+            arduino-cli compile --fqbn esp32:esp32:esp32s3 "sensor-suite/firmware/$sketch"
+          done
