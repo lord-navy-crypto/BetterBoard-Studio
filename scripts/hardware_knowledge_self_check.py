@@ -46,6 +46,11 @@ panel_required = [
     'Read-only inspection policy',
     'Runtime serial baud and upload transport/speed are separate settings',
     'Unresolved configuration',
+    'Installed Arduino core audit',
+    "invoke<unknown>('arduino_core_list')",
+    'coreFromFqbn',
+    'Selected FQBN options',
+    'No explicit board-menu options are encoded in this FQBN',
 ]
 for token in panel_required:
     if token not in panel:
@@ -64,6 +69,8 @@ print('Hardware knowledge self-check: PASS')
 print('- generic ESP32/S2/S3/C3/C6/H2 profiles present')
 print('- USB transport is described as capability, not exact-board proof')
 print('- flash/partition/PSRAM/USB/upload questions remain explicit')
+print('- installed Arduino core inventory is audited read-only')
+print('- explicit FQBN board-menu options are surfaced without inventing defaults')
 print('- electrical safety remains board-specific')
 print('- capability research is surfaced in Experiments')
 print('- automatic research remains read-only by policy')
