@@ -45,6 +45,9 @@ jobs:
       - name: Observatory statistics boundary self-check
         run: python3 scripts/observatory_stats_self_check.py
 
+      - name: Hardware knowledge self-check
+        run: python3 scripts/hardware_knowledge_self_check.py
+
       - name: Developer workspace correctness self-check
         run: python3 scripts/developer_workspace_self_check.py
 
