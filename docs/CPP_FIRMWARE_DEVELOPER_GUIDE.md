@@ -27,6 +27,10 @@ Avoid using `delay()` as the main timing mechanism for research acquisition when
 ```cpp
 betterboard::core::PeriodicSampler sampler(10000U);  // 100 Hz
 
+void setup() {
+    sampler.reset(micros());
+}
+
 void loop() {
     const uint32_t now_us = micros();
     if (!sampler.ready(now_us)) return;
@@ -35,7 +39,7 @@ void loop() {
 }
 ```
 
-The scheduler is designed around unsigned microsecond timestamps and advances its next deadline rather than resetting the cadence from the current instant. This reduces accumulated phase drift from ordinary loop overhead.
+Calling `reset(micros())` in `setup()` preserves the common legacy behavior of waiting one full sample period before the first acquisition. The scheduler advances its next deadline rather than resetting cadence from the current instant, reducing accumulated phase drift from ordinary loop overhead.
 
 ## Online statistics and RMS
 
@@ -48,6 +52,8 @@ stats.push(value);
 
 The implementation uses Welford-style updates and provides population/sample variance, standard deviation, extrema, and peak-to-peak. Use `RmsAccumulator` when RMS is the actual experiment quantity rather than reconstructing it ad hoc in each sketch.
 
+The current migration set uses these primitives for ADC noise, six-channel IMU bias/noise windows, three-axis magnetometer statistics, and ADXL345 vibration RMS. This removes several independent implementations of sum, sum-of-squares, min/max, and reset logic.
+
 ## Numerical integration and finite differences
 
 Use explicit timestamps:
@@ -58,7 +64,7 @@ energy.push(time_s, power_w);
 const double energy_j = energy.value();
 ```
 
-Do not assume constant `dt` unless the experiment contract explicitly establishes it. The integrator ignores non-positive time steps so reversed or duplicate timestamps do not silently corrupt the result.
+Do not assume constant `dt` unless the experiment contract explicitly establishes it. The integrator ignores non-positive time steps so reversed or duplicate timestamps do not silently corrupt the result. INA219 energy integration now uses this primitive while retaining the physical identity `mW × s = mJ`.
 
 Derived rates should also use the actual timestamp:
 
@@ -69,7 +75,7 @@ if (velocity.push(time_s, position_m)) {
 }
 ```
 
-Remember that differentiation amplifies noise. A firmware-derived velocity or jerk is not equivalent to a directly measured quantity. Preserve this distinction in column names and recipe notes.
+Remember that differentiation amplifies noise. A firmware-derived velocity, angular velocity, acceleration, or jerk is not equivalent to a directly measured quantity. Preserve this distinction in column names and recipe notes. Encoder kinematics now uses staged finite differences for angle → angular velocity → angular acceleration instead of duplicating elapsed-time arithmetic.
 
 ## Linear regression
 
@@ -97,7 +103,7 @@ const double filtered = filter.push(raw);
 
 The filter coefficient is part of the experiment and should be exposed or documented. Do not hide aggressive filtering that changes the apparent dynamics of a signal.
 
-`PeakHold`, `ThresholdTrigger`, and `HysteresisLatch` cover common transient and state-detection patterns. Trigger and hysteresis thresholds must remain explicit experiment parameters rather than invisible magic numbers.
+`PeakHold`, `ThresholdTrigger`, and `HysteresisLatch` cover common transient and state-detection patterns. Trigger and hysteresis thresholds must remain explicit experiment parameters rather than invisible magic numbers. A latched trigger must not be substituted for a one-sample event detector because persistent-state semantics and event semantics are different data contracts.
 
 ## Bounded buffering
 
@@ -117,7 +123,29 @@ Important principle: a failed sensor read must not be converted into a plausible
 
 Migrate one concern at a time. First replace duplicated scheduling. Then move statistics. Then move derivative/integration code. Keep serial column names, units, and recipe metadata stable during each migration unless there is a separate reason to change the data contract.
 
-The first real migration is `sensor-suite/firmware/ADC_NoiseStatistics`. Its output contract is preserved, but timing and statistics now come from `PeriodicSampler` and `OnlineStatistics`. That pattern is the template for later migrations.
+The first representative migration set now spans six different experiment patterns:
+
+```text
+ADC_NoiseStatistics
+  → PeriodicSampler + OnlineStatistics
+
+ADXL345_VibrationRMS
+  → PeriodicSampler + RmsAccumulator + PeakHold
+
+INA219_Energy
+  → PeriodicSampler + TrapezoidIntegrator
+
+LSM6DSOX_BiasSurvey
+  → PeriodicSampler + six OnlineStatistics windows
+
+MLX90393_FieldStatistics
+  → PeriodicSampler + three OnlineStatistics windows
+
+EncoderKinematics
+  → PeriodicSampler + staged FiniteDifference derivatives
+```
+
+This diversity matters more than rewriting many nearly identical sketches at once: each migrated family exercises a different reusable primitive and exposes different portability risks.
 
 A migration is complete only when the sketch still compiles for its supported board targets and the C++ primitive has a deterministic native test where practical.
 
@@ -153,18 +181,19 @@ That structure is the basis for synchronized multi-sensor experiments and system
 
 ## Testing expectations
 
-Every platform-neutral C++ component should be testable with a desktop compiler. Tests should check simple known cases, edge cases, and invalid timing.
+Every platform-neutral C++ component should be testable with a desktop compiler. Tests should check simple known cases, edge cases, invalid timing, and state-machine semantics.
 
-The CI sequence for the C++ Core is:
+The C++ Core workflow runs:
 
 ```text
 native g++ compile with warnings-as-errors
 → native unit tests
 → Arduino UNO core example compile
 → ESP32-S3 core example compile
-→ migrated Sensor Suite sketch compile on UNO
-→ migrated Sensor Suite sketch compile on ESP32-S3
+→ selected migrated firmware compile on both targets
 ```
+
+The frozen Sensor Suite integrity workflow must also compile all 56 sketches with the local `firmware/betterboard-core` library in the Arduino CLI search path. This catches breakage that a single example sketch cannot reveal.
 
 Hardware-in-the-loop acceptance should be added only when real hardware is available and the test is reproducible.
 
@@ -176,4 +205,4 @@ Likewise, do not move desktop UI responsibilities into C++ merely to increase th
 
 ## Near-term migration candidates
 
-After ADC noise statistics, the next representative migrations should be IMU bias/statistics, magnetometer baseline and field integration, encoder kinematics, INA219 energy integration, and motor step-response characterization. Together they exercise most of the reusable core without changing the whole Sensor Suite at once.
+Continue domain-by-domain rather than mass rewriting all 56 recipes. Good next candidates are magnetometer baseline/integral scans, gyro integration, ToF kinematics, current-step detection, and motor step-response characterization. Each should preserve its existing recipe/data contract while moving reusable timing, numerical, and signal-processing logic into the shared library.
