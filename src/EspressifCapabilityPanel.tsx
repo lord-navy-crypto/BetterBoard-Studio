@@ -1,11 +1,13 @@
-import { Cable, Cpu, ShieldCheck, Usb } from 'lucide-react';
+import { Cable, CheckCircle2, CircleAlert, Cpu, ShieldCheck, Usb } from 'lucide-react';
 import { useHardwareSession } from './HardwareSession';
-import { describeHardware } from './HardwareKnowledge';
+import { configurationQuestions, describeHardware } from './HardwareKnowledge';
 
 export default function EspressifCapabilityPanel() {
   const { activePort, fqbn, profiles, diagnosis } = useHardwareSession();
   const capability = describeHardware(activePort, fqbn, profiles);
+  const questions = configurationQuestions(capability);
   const isEspressif = capability.ecosystem === 'Espressif ESP32';
+  const unresolved = questions.filter(item => item.state !== 'known-from-target').length;
 
   return <section className="panel" style={{ maxWidth: 1420, margin: '14px auto 50px' }}>
     <div className="panel-title"><Cpu size={18}/> Hardware capability research</div>
@@ -41,20 +43,29 @@ export default function EspressifCapabilityPanel() {
           <span>Hardware Doctor</span><b>{diagnosis.title}</b>
           <span>Compile</span><b>{diagnosis.canCompile ? 'allowed' : 'blocked'}</b>
           <span>Upload</span><b>{diagnosis.canUpload ? 'allowed' : 'blocked'}</b>
+          <span>Unresolved configuration</span><b>{unresolved}</b>
         </div>
         <div className="boundary compact"><ShieldCheck size={14}/>{diagnosis.action}</div>
       </article>
     </div>
 
     <div className="panel" style={{ marginTop: 12 }}>
-      <div className="panel-title">Configuration questions BetterBoard should validate</div>
-      <ul className="compact-list">
-        <li>Exact Arduino target/FQBN and installed core version.</li>
-        <li>Flash size, flash mode, partition scheme and PSRAM options when the target exposes them.</li>
-        <li>USB mode / CDC-on-boot options on ESP32 variants that support native USB.</li>
-        <li>Upload transport and upload speed separately from runtime serial-monitor baud.</li>
-        <li>Whether a serial bridge identifies only the USB-UART chip rather than the MCU behind it.</li>
-      </ul>
+      <div className="panel-title">Board configuration audit</div>
+      <p className="muted">These are the target questions BetterBoard should resolve through Arduino board details and explicit board documentation before treating a generic target as fully characterized.</p>
+      <div className="observatory-task-list">
+        {questions.map(item => <div className={`observatory-task ${item.state === 'known-from-target' ? 'done' : 'running'}`} key={item.id}>
+          <span>{item.state === 'known-from-target' ? 'KNOWN' : item.state === 'needs-board-details' ? 'BOARD DETAILS' : 'BOARD-SPECIFIC'}</span>
+          <b>{item.label}</b>
+          <small>{item.why}</small>
+          {item.state === 'known-from-target' ? <CheckCircle2 size={14}/> : <CircleAlert size={14}/>} 
+        </div>)}
+      </div>
+    </div>
+
+    <div className="panel" style={{ marginTop: 12 }}>
+      <div className="panel-title">Read-only inspection policy</div>
+      <div className="boundary compact"><ShieldCheck size={14}/> Automatic hardware research may inspect target metadata and read-only identity information, but it must not silently erase flash, change eFuses, write firmware, or alter board configuration.</div>
+      <div className="boundary compact"><Usb size={14}/> Runtime serial baud and upload transport/speed are separate settings; BetterBoard should not infer one from the other.</div>
     </div>
 
     <div className="panel" style={{ marginTop: 12 }}>
