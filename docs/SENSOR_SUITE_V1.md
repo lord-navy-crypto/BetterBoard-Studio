@@ -17,92 +17,102 @@ python3 scripts/sensor_suite_self_check.py
 python3 scripts/install_sensor_suite.py
 ```
 
-The installer reads every `sensor-suite/catalog*.json` expansion catalog and writes stable recipe files to `~/Documents/BetterBoard/library/`. BetterBoard already loads that directory as its user recipe library. Refresh the Recipe Library after installation.
+The installer reads every `sensor-suite/catalog*.json` expansion catalog and writes stable recipe files to:
+
+```text
+~/Documents/BetterBoard/library/
+```
+
+BetterBoard already loads that directory as its user recipe library. Refresh the Recipe Library after installation.
+
+Installer writes are atomic: each recipe is fully written to a temporary file, flushed to disk, and then moved into place. Re-running installation is deterministic and idempotent for an unchanged repository state.
 
 ## Program museum
 
-The suite now ships **56 installable experiments** across acquisition, dynamics, numerical methods, V&V, mechanics, timing, electrical power, environment, magnetics, calibration, sensor fusion, reliability, low-voltage control, advanced measurement, and system identification.
+The suite ships **56 installable experiments** across acquisition, dynamics, numerical methods, V&V, mechanics, timing, electrical power, environment, magnetics, calibration, sensor fusion, reliability, low-voltage control, advanced measurement, and system identification.
 
-The original 46-program museum remains intact. This expansion adds a dedicated system-identification and metrology layer:
+The v1 program count is intentionally held at 56 during the current hardening phase. Current work prioritizes correctness, metadata integrity, deterministic installation, cross-target compilation, scientific boundaries, and regression protection rather than adding more recipes.
 
-| Recipe | Main purpose |
-|---|---|
-| ADC RC Step Response | low-voltage PWM step -> ADC transient for RC/time-constant studies |
-| Encoder Reversal / Deadband Evidence | signed count increments through manual reversals |
-| LSM6DSOX Shock Peak Hold | short-window acceleration peak capture |
-| VL53L1X Stability Window | stationary distance mean/std repeatability |
-| MLX90393 Manual Field-Integral Scan | button-confirmed B(z) scan plus cumulative trapezoidal integral |
-| BME280 Dew-Point Estimate | temperature/humidity-derived dew-point estimate |
-| HX711 Load-Cycle Marker | force stream with explicit loading/unloading phase marker |
-| Photogate Energy per Unit Mass | measured blocking width -> speed -> kinetic energy per mass |
-| Encoder / Gyro Angular Consistency | encoder-derived angular velocity vs gyro rate |
-| INA219 Current-Step Detector | current-change event evidence with voltage/current/power preserved |
+## Quality contract
 
-## Existing program families
+Every Sensor Suite recipe is required to satisfy the same repository-level contract before it is considered installable:
 
-The museum also includes raw IMU/ToF/power/environment/force acquisition; vibration statistics; gyro integration; discrete kinematics; electrical energy integration; environmental drift; force dynamics; encoder angular kinematics; photogate period statistics; ADXL345/LSM6DSOX cross-checking; motor power/RPM characterization; magnetic statistics and baseline delta; static tilt; IMU bias survey; pendulum IMU + encoder; oscillator ToF + acceleration; creep and power stability; ADC noise and oversampling; impact triggering; vibration RMS; gate timing; complementary tilt; relative pressure-altitude; load repeatability; bounded motor step/ramp response; motion triggering; known-width photogate speed; encoder/gyro angle cross-check; jerk monitoring; ToF free-decay; field-direction stability; thermal stability; electrical load transient; HX711 zero drift; ADC step detection; and rotation repeatability.
+- unique, path-safe recipe and sketch identifiers;
+- firmware located exactly under `sensor-suite/firmware/<sketch>/<sketch>.ino`;
+- non-empty Sensor Suite title/category/description/scientific boundary metadata;
+- numeric capture columns with one-to-one units and a valid primary column;
+- positive baud/sample-rate metadata where applicable;
+- non-empty hardware, Engineering Lab target, and experimental-note metadata;
+- parameter keys/macros that are unique, range-consistent, and actually referenced by the firmware;
+- firmware `Serial.begin(...)` consistent with catalog baud metadata;
+- deterministic user-recipe materialization with no partial temporary files left behind;
+- compilation for both Arduino UNO and ESP32-S3 reference targets.
 
 ## Scientific boundaries
 
-The museum is evidence-first. Derived quantities remain explicitly derived: IMU integration is not absolute position or angle truth; numerical differentiation amplifies noise; ADC codes are not calibrated voltage without ADC/reference characterization; PWM command is not torque or speed; photogate speed depends on measured geometry; kinetic energy per unit mass omits other energy terms; ToF repeatability does not establish absolute range accuracy; magnetic field integration assumes the declared spatial step and stable sensor orientation; load-cell hysteresis can include fixture and calibration effects; dew point inherits temperature/humidity uncertainty; and INA219 step timing is bandwidth-limited.
+The program museum is designed around evidence-first measurement. Derived quantities remain explicit. IMU integration is not absolute position/angle truth; numerical differentiation amplifies noise; ADC codes are not calibrated voltage without ADC/reference characterization; PWM is not torque/speed; photogate-derived speed requires measured geometry; energy-per-mass omits other energy terms; ToF repeatability is not absolute accuracy; field integration assumes accurate spatial stepping/orientation; load-cycle differences can include fixture/calibration effects; dew point inherits temperature/humidity uncertainty; and INA219 transient timing is bandwidth-limited.
 
-Engineering Lab should own calibration metadata, uncertainty, V&V, model-to-measurement comparison, and final scientific interpretation.
+Engineering Lab should own calibration metadata, uncertainty, model-to-measurement comparison, V&V, and final scientific interpretation.
 
-## Recommended bundles
+## Recommended experiment bundles
 
-### Motion / dynamics
+### Motion / dynamics bench
 
 ```text
 LSM6DSOX + VL53L1X + photogate + quadrature encoder
         -> x(t), a(t), omega(t), events, theta(t)
-        -> direct + derived kinematics + repeatability
+        -> direct + derived kinematics + repeatability statistics
         -> BetterBoard measurement package
         -> Engineering Lab Oscillation / Chaos comparison
-```
-
-### Magnetic digital twin
-
-```text
-MLX90393 + non-magnetic positioning fixture + step-confirm button
-        -> B(position) + field integral
-        -> BetterBoard Magnet Bench
-        -> Engineering Lab RADIA / Digital Twin residuals
-```
-
-### System identification
-
-```text
-low-voltage RC + PWM + ADC
-        -> known command step + measured transient
-        -> time-domain response evidence
-        -> Engineering Lab model fitting / V&V
 ```
 
 ### Cross-sensor rotational V&V
 
 ```text
 LSM6DSOX + quadrature encoder
-        -> encoder omega + gyro omega
+        -> gyro angle + encoder angle
         -> disagreement(t)
         -> Engineering Lab calibration / V&V evidence
 ```
 
-### Mechanics / reliability
+### Magnetic digital-twin bench
 
 ```text
-load cell + HX711 + phase marker
-        -> loading / unloading force stream
-        -> repeatability + creep + hysteresis evidence
+MLX90393 + controlled non-magnetic positioning fixture
+        -> B vector + magnitude + direction stability + spatial scan
+        -> BetterBoard Magnet Bench
+        -> Engineering Lab RADIA / Digital Twin residuals
 ```
 
-## First-day checkout sequence
+### Reliability / drift bench
 
-For every new module: verify the exact breakout and voltage/logic limits; run BetterBoard I2C Scanner for I2C devices; run Recipe Preflight; install only reported missing libraries; compile/upload; preview a short serial capture; record a BetterBoard measurement package only after the stream is physically plausible; then ingest through LabBridge / Engineering Lab.
+```text
+BME280 + HX711 + INA219
+        -> thermal context + raw zero drift + electrical transient/stability evidence
+        -> BetterBoard
+        -> Engineering Lab quality / reliability evidence
+```
 
-For low-voltage control experiments, keep the electrical setup within the board/module ratings and document the actual wiring, supply, load, geometry, and calibration constants used in each run.
+### System-identification bench
+
+```text
+bounded low-voltage step/ramp stimulus
+        -> ADC / encoder / current / displacement response
+        -> BetterBoard synchronized evidence
+        -> Engineering Lab model fitting and residual analysis
+```
 
 ## Libraries and CI
 
-Expected Arduino Library Manager names include `Adafruit LSM6DS`, `Adafruit Unified Sensor`, `Adafruit VL53L1X`, `Adafruit INA219`, `Adafruit BME280 Library`, `Adafruit ADXL345`, `Adafruit MLX90393`, and `HX711`.
+Expected Arduino Library Manager names include:
 
-`Sensor Suite v1 Integrity` validates all expansion catalogs, proves installer materialization, installs the declared libraries, and compiles all **56** firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`.
+- `Adafruit LSM6DS`
+- `Adafruit Unified Sensor`
+- `Adafruit VL53L1X`
+- `Adafruit INA219`
+- `Adafruit BME280 Library`
+- `Adafruit ADXL345`
+- `Adafruit MLX90393`
+- `HX711`
+
+`Sensor Suite v1 Integrity` validates Python tooling syntax, all expansion catalogs, parameter/metadata consistency, deterministic installer materialization, declared Arduino libraries, and all **56** firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`. The normal BetterBoard CI continues to protect the application frontend, Rust backend, numerical firmware, provenance/evidence logic, and bridge contracts.
