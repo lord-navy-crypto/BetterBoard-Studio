@@ -24,7 +24,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -37,10 +37,13 @@ jobs:
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
 
-      - name: Install AVR core and Sensor Suite libraries
+      - name: Install Arduino cores and Sensor Suite libraries
         run: |
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core update-index
           arduino-cli core install arduino:avr
+          arduino-cli core install esp32:esp32
           arduino-cli lib install "Adafruit Unified Sensor"
           arduino-cli lib install "Adafruit LSM6DS"
           arduino-cli lib install "Adafruit VL53L1X"
@@ -57,3 +60,13 @@ jobs:
           arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/HX711_Force
           arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/MotionFusion_LSM6DSOX_VL53L1X
           arduino-cli compile --fqbn arduino:avr:uno sensor-suite/firmware/MotorPowerBench_TB6612_INA219
+
+      - name: Compile Sensor Suite firmware for ESP32-S3 target
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/LSM6DSOX_Motion
+          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/VL53L1X_Displacement
+          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/INA219_Power
+          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/BME280_Environment
+          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/HX711_Force
+          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/MotionFusion_LSM6DSOX_VL53L1X
+          arduino-cli compile --fqbn esp32:esp32:esp32s3 sensor-suite/firmware/MotorPowerBench_TB6612_INA219
