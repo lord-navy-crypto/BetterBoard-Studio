@@ -9,20 +9,14 @@ experiments = (root / 'src' / 'ExperimentsHub.tsx').read_text(encoding='utf-8')
 boards = json.loads((root / 'src-tauri' / 'resources' / 'boards' / 'boards.json').read_text(encoding='utf-8'))
 
 required_tokens = [
-    "'Classic ESP32'",
-    "'ESP32-S2'",
-    "'ESP32-S3'",
-    "'ESP32-C3'",
-    "'ESP32-C6'",
-    "'ESP32-H2'",
+    "'Classic ESP32'", "'ESP32-S2'", "'ESP32-S3'", "'ESP32-C3'", "'ESP32-C6'", "'ESP32-H2'",
     'USB Serial/JTAG capability exists',
     'USB serial identity alone does not reliably identify the MCU variant',
-    'Flash size and flash mode',
-    'Partition scheme',
-    'PSRAM configuration',
-    'USB mode / CDC-on-boot',
-    'Upload transport and upload speed',
+    'Flash size', 'Flash mode / flash frequency', 'Partition scheme', 'PSRAM configuration',
+    'USB mode / CDC / DFU on boot', 'Upload transport and upload speed', 'CPU frequency',
     'Read-only inspection should be the default',
+    'Arduino CLI board details', 'Arduino CLI FAQ', 'Arduino ESP32 Tools Menu', 'USB CDC and DFU Flashing',
+    "impact: 'electrical'", "severity: 'high'", 'parseFqbnOptions',
 ]
 missing = [token for token in required_tokens if token not in knowledge and token not in json.dumps(boards)]
 if missing:
@@ -30,27 +24,20 @@ if missing:
 
 fqbns = {item['fqbn'] for item in boards}
 for fqbn in [
-    'esp32:esp32:esp32',
-    'esp32:esp32:esp32s2',
-    'esp32:esp32:esp32s3',
-    'esp32:esp32:esp32c3',
-    'esp32:esp32:esp32c6',
-    'esp32:esp32:esp32h2',
+    'esp32:esp32:esp32', 'esp32:esp32:esp32s2', 'esp32:esp32:esp32s3',
+    'esp32:esp32:esp32c3', 'esp32:esp32:esp32c6', 'esp32:esp32:esp32h2',
 ]:
     if fqbn not in fqbns:
         raise SystemExit(f'Missing ESP profile: {fqbn}')
 
 panel_required = [
     'BetterBoard will not infer safe GPIO pins',
-    'Board configuration audit',
+    'Board configuration risk audit',
     'Read-only inspection policy',
     'Runtime serial baud and upload transport/speed are separate settings',
-    'Unresolved configuration',
-    'Installed Arduino core audit',
-    "invoke<unknown>('arduino_core_list')",
-    'coreFromFqbn',
-    'Selected FQBN options',
-    'No explicit board-menu options are encoded in this FQBN',
+    'Unresolved configuration', 'High-impact unresolved', 'Research basis',
+    'Installed Arduino core audit', "invoke<unknown>('arduino_core_list')",
+    'Selected FQBN options', 'parseFqbnOptions(fqbn)',
 ]
 for token in panel_required:
     if token not in panel:
@@ -59,18 +46,16 @@ for token in panel_required:
 if 'EspressifCapabilityPanel' not in experiments:
     raise SystemExit('Experiments no longer surfaces hardware capability research')
 
-# The panel may explain destructive operations only as prohibited actions. It must
-# not expose imperative controls or command strings for them.
 for forbidden in ['erase_flash', 'write_flash', 'burn_efuse', 'espefuse.py', 'esptool.py write_flash']:
     if forbidden in panel.lower() or forbidden in knowledge.lower():
         raise SystemExit('Capability research must remain descriptive/read-only: ' + forbidden)
 
 print('Hardware knowledge self-check: PASS')
 print('- generic ESP32/S2/S3/C3/C6/H2 profiles present')
-print('- USB transport is described as capability, not exact-board proof')
-print('- flash/partition/PSRAM/USB/upload questions remain explicit')
-print('- installed Arduino core inventory is audited read-only')
-print('- explicit FQBN board-menu options are surfaced without inventing defaults')
+print('- USB transport is capability evidence, not exact-board proof')
+print('- flash/partition/PSRAM/USB/upload/CPU questions remain explicit')
+print('- configuration questions carry impact and severity')
+print('- explicit FQBN board-menu options are parsed')
+print('- first-party Arduino/Espressif research basis is surfaced')
+print('- installed Arduino core inventory remains read-only')
 print('- electrical safety remains board-specific')
-print('- capability research is surfaced in Experiments')
-print('- automatic research remains read-only by policy')
