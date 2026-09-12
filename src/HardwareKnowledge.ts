@@ -10,7 +10,8 @@ export type HardwareCapability = {
 };
 
 function espFamilyFromFqbn(fqbn: string) {
-  const target = fqbn.split(':').at(-1)?.toLowerCase() ?? '';
+  const parts = fqbn.split(':');
+  const target = (parts[parts.length - 1] ?? '').toLowerCase();
   if (target.includes('esp32s3')) return 'ESP32-S3';
   if (target.includes('esp32s2')) return 'ESP32-S2';
   if (target.includes('esp32c6')) return 'ESP32-C6';
