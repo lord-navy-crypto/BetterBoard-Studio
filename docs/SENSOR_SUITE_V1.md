@@ -17,6 +17,12 @@ python3 scripts/sensor_suite_self_check.py
 python3 scripts/install_sensor_suite.py
 ```
 
+To verify an existing installation exactly matches the current checkout without rewriting files:
+
+```bash
+python3 scripts/install_sensor_suite.py --verify
+```
+
 The installer reads every `sensor-suite/catalog*.json` expansion catalog and writes stable recipe files to:
 
 ```text
@@ -25,13 +31,13 @@ The installer reads every `sensor-suite/catalog*.json` expansion catalog and wri
 
 BetterBoard already loads that directory as its user recipe library. Refresh the Recipe Library after installation.
 
-Installer writes are atomic: each recipe is fully written to a temporary file, flushed to disk, and then moved into place. Re-running installation is deterministic and idempotent for an unchanged repository state.
+Installer writes are atomic: each changed recipe is fully written to a same-directory temporary file, flushed to disk, atomically replaced, and the destination directory is synced where the platform supports it. Unchanged managed recipes are not rewritten. Re-running installation is deterministic and idempotent for an unchanged repository state.
 
 ## Program museum
 
 The suite ships **56 installable experiments** across acquisition, dynamics, numerical methods, V&V, mechanics, timing, electrical power, environment, magnetics, calibration, sensor fusion, reliability, low-voltage control, advanced measurement, and system identification.
 
-The v1 program count is intentionally held at 56 during the current hardening phase. Current work prioritizes correctness, metadata integrity, deterministic installation, cross-target compilation, scientific boundaries, and regression protection rather than adding more recipes.
+The v1 program count is intentionally frozen at 56 during the current hardening phase. The repository self-check fails if that count changes. Current work prioritizes correctness, metadata integrity, deterministic installation, cross-target compilation, scientific boundaries, and regression protection rather than adding more recipes.
 
 ## Quality contract
 
@@ -39,13 +45,16 @@ Every Sensor Suite recipe is required to satisfy the same repository-level contr
 
 - unique, path-safe recipe and sketch identifiers;
 - firmware located exactly under `sensor-suite/firmware/<sketch>/<sketch>.ino`;
+- no unknown top-level recipe metadata keys;
 - non-empty Sensor Suite title/category/description/scientific boundary metadata;
-- numeric capture columns with one-to-one units and a valid primary column;
-- positive baud/sample-rate metadata where applicable;
+- numeric capture columns with one-to-one units, lower-snake-case column identifiers, and a valid primary column;
+- positive finite baud/sample-rate metadata where applicable;
 - non-empty hardware, Engineering Lab target, and experimental-note metadata;
-- parameter keys/macros that are unique, range-consistent, and actually referenced by the firmware;
-- firmware `Serial.begin(...)` consistent with catalog baud metadata;
+- parameter keys/macros that are unique, finite, range-consistent, and actually referenced by the firmware;
+- exactly one `setup()` and one `loop()` definition in each sketch;
+- firmware `Serial.begin(...)` values exactly consistent with catalog baud metadata;
 - deterministic user-recipe materialization with no partial temporary files left behind;
+- exact post-install verification capable of detecting missing or modified managed recipe files;
 - compilation for both Arduino UNO and ESP32-S3 reference targets.
 
 ## Scientific boundaries
@@ -115,4 +124,4 @@ Expected Arduino Library Manager names include:
 - `Adafruit MLX90393`
 - `HX711`
 
-`Sensor Suite v1 Integrity` validates Python tooling syntax, all expansion catalogs, parameter/metadata consistency, deterministic installer materialization, declared Arduino libraries, and all **56** firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`. The normal BetterBoard CI continues to protect the application frontend, Rust backend, numerical firmware, provenance/evidence logic, and bridge contracts.
+`Sensor Suite v1 Integrity` validates Python tooling syntax, the frozen 56-recipe count, all expansion catalogs, parameter/metadata consistency, deterministic installer materialization, verification/corruption detection, declared Arduino libraries, and all **56** firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`. The normal BetterBoard CI continues to protect the application frontend, Rust backend, numerical firmware, provenance/evidence logic, and bridge contracts.
