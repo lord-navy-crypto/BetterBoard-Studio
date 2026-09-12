@@ -17,6 +17,12 @@ required_tokens = [
     "'ESP32-H2'",
     'USB Serial/JTAG capability exists',
     'USB serial identity alone does not reliably identify the MCU variant',
+    'Flash size and flash mode',
+    'Partition scheme',
+    'PSRAM configuration',
+    'USB mode / CDC-on-boot',
+    'Upload transport and upload speed',
+    'Read-only inspection should be the default',
 ]
 missing = [token for token in required_tokens if token not in knowledge and token not in json.dumps(boards)]
 if missing:
@@ -34,15 +40,30 @@ for fqbn in [
     if fqbn not in fqbns:
         raise SystemExit(f'Missing ESP profile: {fqbn}')
 
-if 'BetterBoard will not infer safe GPIO pins' not in panel:
-    raise SystemExit('Capability panel lost electrical safety boundary')
+panel_required = [
+    'BetterBoard will not infer safe GPIO pins',
+    'Board configuration audit',
+    'Read-only inspection policy',
+    'Runtime serial baud and upload transport/speed are separate settings',
+    'Unresolved configuration',
+]
+for token in panel_required:
+    if token not in panel:
+        raise SystemExit('Capability panel lost research boundary: ' + token)
+
 if 'EspressifCapabilityPanel' not in experiments:
     raise SystemExit('Experiments no longer surfaces hardware capability research')
-if 'erase' in panel.lower() or 'efuse' in panel.lower():
-    raise SystemExit('Capability panel must remain descriptive/read-only')
+
+# The panel may explain destructive operations only as prohibited actions. It must
+# not expose imperative controls or command strings for them.
+for forbidden in ['erase_flash', 'write_flash', 'burn_efuse', 'espefuse.py', 'esptool.py write_flash']:
+    if forbidden in panel.lower() or forbidden in knowledge.lower():
+        raise SystemExit('Capability research must remain descriptive/read-only: ' + forbidden)
 
 print('Hardware knowledge self-check: PASS')
 print('- generic ESP32/S2/S3/C3/C6/H2 profiles present')
 print('- USB transport is described as capability, not exact-board proof')
+print('- flash/partition/PSRAM/USB/upload questions remain explicit')
 print('- electrical safety remains board-specific')
 print('- capability research is surfaced in Experiments')
+print('- automatic research remains read-only by policy')
