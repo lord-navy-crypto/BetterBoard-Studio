@@ -39,7 +39,20 @@
     "notes": [
       "Use only when the board is a classic ESP32-compatible Dev Module or when the exact vendor profile maps to this FQBN.",
       "GPIO logic is 3.3 V; do not assume 5 V tolerance.",
+      "Classic ESP32 development boards commonly expose an external USB-to-UART bridge rather than native USB.",
       "BetterBoard keeps the profile explicit because USB serial identity alone does not reliably identify the MCU variant."
+    ]
+  },
+  {
+    "id": "esp32-s2-generic",
+    "label": "ESP32-S2 Dev Module (generic)",
+    "fqbn": "esp32:esp32:esp32s2",
+    "core": "esp32:esp32",
+    "default_baud": 115200,
+    "notes": [
+      "Generic Arduino-ESP32 S2 profile; vendor boards can require a more specific FQBN or USB option.",
+      "ESP32-S2 supports native USB, but a particular development board can still route programming through another interface.",
+      "GPIO logic is 3.3 V and the safe pin map is board-specific."
     ]
   },
   {
@@ -50,6 +63,7 @@
     "default_baud": 115200,
     "notes": [
       "Generic Arduino-ESP32 S3 profile; vendor boards can require a more specific FQBN or USB option.",
+      "ESP32-S3 supports native USB; USB mode and CDC/JTAG behavior depend on board routing and Arduino configuration.",
       "GPIO logic is 3.3 V and the safe pin map is board-specific."
     ]
   },
@@ -61,6 +75,31 @@
     "default_baud": 115200,
     "notes": [
       "Generic Arduino-ESP32 C3 profile; ESP32-C3 is single-core, so multicore experiments must be interpreted as grouped/task execution only.",
+      "USB Serial/JTAG capability exists on the SoC, but board routing and selected USB options determine what the host actually sees.",
+      "GPIO logic is 3.3 V and the safe pin map is board-specific."
+    ]
+  },
+  {
+    "id": "esp32-c6-generic",
+    "label": "ESP32-C6 Dev Module (generic)",
+    "fqbn": "esp32:esp32:esp32c6",
+    "core": "esp32:esp32",
+    "default_baud": 115200,
+    "notes": [
+      "Generic Arduino-ESP32 C6 profile; use a vendor-specific profile when the board package provides one.",
+      "USB Serial/JTAG capability exists on the SoC, but USB behavior is still board- and configuration-dependent.",
+      "GPIO logic is 3.3 V and the safe pin map is board-specific."
+    ]
+  },
+  {
+    "id": "esp32-h2-generic",
+    "label": "ESP32-H2 Dev Module (generic)",
+    "fqbn": "esp32:esp32:esp32h2",
+    "core": "esp32:esp32",
+    "default_baud": 115200,
+    "notes": [
+      "Generic Arduino-ESP32 H2 profile; use a vendor-specific profile when the board package provides one.",
+      "USB Serial/JTAG capability exists on the SoC family, but the active programming/monitor transport is board-specific.",
       "GPIO logic is 3.3 V and the safe pin map is board-specific."
     ]
   }
