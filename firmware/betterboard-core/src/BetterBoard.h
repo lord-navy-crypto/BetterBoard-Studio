@@ -1,9 +1,15 @@
 #pragma once
 
 #include "core/PeriodicSampler.h"
+#include "core/RingBuffer.h"
 #include "math/FiniteDifference.h"
+#include "math/LinearRegression.h"
 #include "math/OnlineStatistics.h"
+#include "math/RmsAccumulator.h"
 #include "math/TrapezoidIntegrator.h"
 #include "measurement/MeasurementQuality.h"
+#include "measurement/Sample.h"
 #include "signal/ExponentialMovingAverage.h"
+#include "signal/HysteresisLatch.h"
 #include "signal/PeakHold.h"
+#include "signal/ThresholdTrigger.h"
