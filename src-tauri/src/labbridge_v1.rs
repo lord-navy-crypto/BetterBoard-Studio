@@ -1,6 +1,11 @@
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fs, path::{Path, PathBuf}};
+use std::{
+    collections::BTreeMap,
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 pub const OUTPUT_NAME: &str = "labbridge_measurement_asset.json";
 pub const SCHEMA: &str = "labbridge.measurement-asset/v1";
@@ -17,17 +22,52 @@ fn canonical_json_sha(value: &Value) -> Result<String, String> {
 }
 
 fn channel_rows(columns: &[String], units: &[String], primary: Option<&str>) -> Vec<Value> {
-    columns.iter().zip(units.iter()).map(|(name, unit)| {
-        let lower = name.to_ascii_lowercase();
-        let role = if primary == Some(name.as_str()) {
-            "primary-observable"
-        } else if matches!(lower.as_str(), "time" | "time_s" | "time_us" | "timestamp") {
-            "coordinate"
-        } else {
-            "observable"
-        };
-        json!({"name": name, "unit": unit, "role": role})
-    }).collect()
+    columns
+        .iter()
+        .zip(units.iter())
+        .map(|(name, unit)| {
+            let lower = name.to_ascii_lowercase();
+            let role = if primary == Some(name.as_str()) {
+                "primary-observable"
+            } else if matches!(
+                lower.as_str(),
+                "time" | "time_s" | "time_us" | "timestamp"
+            ) {
+                "coordinate"
+            } else {
+                "observable"
+            };
+            json!({"name": name, "unit": unit, "role": role})
+        })
+        .collect()
+}
+
+fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| format!("Invalid LabBridge output path: {}", path.display()))?;
+    let tmp = path.with_file_name(format!(".{file_name}.{}.tmp", std::process::id()));
+    let result = (|| -> Result<(), String> {
+        let mut file = fs::File::create(&tmp)
+            .map_err(|e| format!("Could not create {}: {e}", tmp.display()))?;
+        file.write_all(bytes)
+            .map_err(|e| format!("Could not write {}: {e}", tmp.display()))?;
+        file.sync_all()
+            .map_err(|e| format!("Could not sync {}: {e}", tmp.display()))?;
+        fs::rename(&tmp, path).map_err(|e| {
+            format!(
+                "Could not atomically replace {} with {}: {e}",
+                path.display(),
+                tmp.display()
+            )
+        })?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    result
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -58,8 +98,10 @@ pub fn write_measurement_asset(
         return Err("LabBridge MeasurementAsset requires at least one sample".into());
     }
 
-    let data_bytes = fs::read(data_path).map_err(|e| format!("Could not read {}: {e}", data_path.display()))?;
-    let metadata_bytes = fs::read(metadata_path).map_err(|e| format!("Could not read {}: {e}", metadata_path.display()))?;
+    let data_bytes = fs::read(data_path)
+        .map_err(|e| format!("Could not read {}: {e}", data_path.display()))?;
+    let metadata_bytes = fs::read(metadata_path)
+        .map_err(|e| format!("Could not read {}: {e}", metadata_path.display()))?;
 
     let stable = json!({
         "schema": SCHEMA,
@@ -110,11 +152,17 @@ pub fn write_measurement_asset(
     });
 
     let digest = canonical_json_sha(&stable)?;
-    let mut packet = stable.as_object().cloned().ok_or("LabBridge packet is not an object")?;
-    packet.insert("packet_id".into(), Value::String(format!("measurement-{}", &digest[..20])));
+    let mut packet = stable
+        .as_object()
+        .cloned()
+        .ok_or("LabBridge packet is not an object")?;
+    packet.insert(
+        "packet_id".into(),
+        Value::String(format!("measurement-{}", &digest[..20])),
+    );
     packet.insert("content_sha256".into(), Value::String(digest));
     let destination = measurement_dir.join(OUTPUT_NAME);
     let bytes = serde_json::to_vec_pretty(&Value::Object(packet)).map_err(|e| e.to_string())?;
-    fs::write(&destination, bytes).map_err(|e| format!("Could not write {}: {e}", destination.display()))?;
+    atomic_write(&destination, &bytes)?;
     Ok(destination)
 }
