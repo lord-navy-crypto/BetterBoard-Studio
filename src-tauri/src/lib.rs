@@ -1,6 +1,7 @@
 mod openguin_bridge;
 mod serial_stream;
 mod ide_manager;
+mod board_inspection;
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -1106,6 +1107,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             arduino_cli_discovery,
             board_list,
+            board_inspection::arduino_board_details,
             recipe_catalog,
             board_profiles,
             device_catalog,
