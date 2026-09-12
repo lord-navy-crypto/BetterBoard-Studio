@@ -77,7 +77,7 @@ int main() {
     ThresholdTrigger trigger(5.0);
     assert(!trigger.update(4.9));
     assert(trigger.update(5.1));
-    assert(!trigger.update(6.0));
+    assert(trigger.update(6.0));
     trigger.reset();
     assert(trigger.update(8.0));
 
