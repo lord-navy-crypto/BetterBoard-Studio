@@ -8,7 +8,7 @@ This guide defines how new and existing BetterBoard Arduino/ESP32 firmware shoul
 
 A sketch should describe an experiment. A reusable algorithm should live in the C++ library.
 
-Good sketch responsibilities include selecting pins, initializing a device, choosing a sample rate, deciding which observables to emit, and defining experiment-specific parameters. Repeated statistics, derivative, integral, filtering, scheduling, validity handling, and later sensor wrappers should not be copied into many `.ino` files.
+Good sketch responsibilities include selecting pins, initializing a device, choosing a sample rate, deciding which observables to emit, and defining experiment-specific parameters. Repeated statistics, derivative, integral, filtering, scheduling, validity handling, buffering, threshold logic, and regression should not be copied into many `.ino` files.
 
 ## Include the library
 
@@ -37,23 +37,18 @@ void loop() {
 
 The scheduler is designed around unsigned microsecond timestamps and advances its next deadline rather than resetting the cadence from the current instant. This reduces accumulated phase drift from ordinary loop overhead.
 
-## Online statistics
+## Online statistics and RMS
 
 Use `OnlineStatistics` for windows where retaining every sample is unnecessary:
 
 ```cpp
 betterboard::math::OnlineStatistics stats;
 stats.push(value);
-
-if (stats.count() >= 128U) {
-    Serial.println(stats.mean());
-    stats.reset();
-}
 ```
 
-The implementation uses Welford-style updates and provides population/sample variance, standard deviation, extrema, and peak-to-peak.
+The implementation uses Welford-style updates and provides population/sample variance, standard deviation, extrema, and peak-to-peak. Use `RmsAccumulator` when RMS is the actual experiment quantity rather than reconstructing it ad hoc in each sketch.
 
-## Numerical integration
+## Numerical integration and finite differences
 
 Use explicit timestamps:
 
@@ -64,8 +59,6 @@ const double energy_j = energy.value();
 ```
 
 Do not assume constant `dt` unless the experiment contract explicitly establishes it. The integrator ignores non-positive time steps so reversed or duplicate timestamps do not silently corrupt the result.
-
-## Finite differences
 
 Derived rates should also use the actual timestamp:
 
@@ -78,7 +71,22 @@ if (velocity.push(time_s, position_m)) {
 
 Remember that differentiation amplifies noise. A firmware-derived velocity or jerk is not equivalent to a directly measured quantity. Preserve this distinction in column names and recipe notes.
 
-## Lightweight filtering
+## Linear regression
+
+`LinearRegression` provides a small streaming least-squares primitive for experiments such as calibration previews, trend estimation, and first-pass system identification:
+
+```cpp
+betterboard::math::LinearRegression fit;
+fit.push(command, response);
+if (fit.valid()) {
+    const double gain = fit.slope();
+    const double offset = fit.intercept();
+}
+```
+
+Firmware regression is a compact derived summary, not a replacement for downstream uncertainty analysis or model validation.
+
+## Lightweight filtering and event logic
 
 For a transparent one-pole smoother:
 
@@ -89,16 +97,15 @@ const double filtered = filter.push(raw);
 
 The filter coefficient is part of the experiment and should be exposed or documented. Do not hide aggressive filtering that changes the apparent dynamics of a signal.
 
-## Peak hold
+`PeakHold`, `ThresholdTrigger`, and `HysteresisLatch` cover common transient and state-detection patterns. Trigger and hysteresis thresholds must remain explicit experiment parameters rather than invisible magic numbers.
 
-Peak hold is useful for shocks, impulses, and transient current measurements:
+## Bounded buffering
 
-```cpp
-betterboard::signal::PeakHold peak;
-peak.push(sample);
-```
+Use `core::RingBuffer<T, N>` when recent history is required. It has fixed compile-time capacity and performs no dynamic allocation. This is preferred over unbounded containers for small microcontroller targets.
 
-Reset it at an explicit experiment boundary, not invisibly.
+## Timestamped samples
+
+`measurement::Sample<T>` is a minimal carrier for a timestamp, a value, and an explicit validity flag. It is intentionally small so future device adapters can return observations without inventing a plausible numeric value after a failed sensor read.
 
 ## Measurement quality
 
@@ -109,6 +116,8 @@ Important principle: a failed sensor read must not be converted into a plausible
 ## Migrating an existing sketch
 
 Migrate one concern at a time. First replace duplicated scheduling. Then move statistics. Then move derivative/integration code. Keep serial column names, units, and recipe metadata stable during each migration unless there is a separate reason to change the data contract.
+
+The first real migration is `sensor-suite/firmware/ADC_NoiseStatistics`. Its output contract is preserved, but timing and statistics now come from `PeriodicSampler` and `OnlineStatistics`. That pattern is the template for later migrations.
 
 A migration is complete only when the sketch still compiles for its supported board targets and the C++ primitive has a deterministic native test where practical.
 
@@ -132,14 +141,15 @@ As the library grows, an experiment should become a composition of reusable piec
 ```text
 device adapter
 + scheduler
-+ optional filter
-+ optional derivative / integral
++ bounded buffer
++ optional filter / trigger / hysteresis
++ derivative / integral / regression
 + window statistics
 + validity state
 + telemetry
 ```
 
-That structure is the basis for later synchronized multi-sensor experiments and system-identification campaigns.
+That structure is the basis for synchronized multi-sensor experiments and system-identification campaigns.
 
 ## Testing expectations
 
@@ -150,8 +160,10 @@ The CI sequence for the C++ Core is:
 ```text
 native g++ compile with warnings-as-errors
 → native unit tests
-→ Arduino UNO compile
-→ ESP32-S3 compile
+→ Arduino UNO core example compile
+→ ESP32-S3 core example compile
+→ migrated Sensor Suite sketch compile on UNO
+→ migrated Sensor Suite sketch compile on ESP32-S3
 ```
 
 Hardware-in-the-loop acceptance should be added only when real hardware is available and the test is reproducible.
@@ -164,4 +176,4 @@ Likewise, do not move desktop UI responsibilities into C++ merely to increase th
 
 ## Near-term migration candidates
 
-Representative existing firmware should be migrated before attempting a mass rewrite. Good candidates are ADC noise statistics, IMU bias/statistics, magnetometer baseline and field integration, encoder kinematics, INA219 energy integration, and motor step-response characterization. Together they exercise most of the reusable core without changing the whole Sensor Suite at once.
+After ADC noise statistics, the next representative migrations should be IMU bias/statistics, magnetometer baseline and field integration, encoder kinematics, INA219 energy integration, and motor step-response characterization. Together they exercise most of the reusable core without changing the whole Sensor Suite at once.
