@@ -50,14 +50,16 @@ for token in [
 ]:
     assert token in MONITOR, f'Monitor state/compatibility contract lost: {token}'
 
-# Engineering Preparation must surface retrieval failures and allow a retry.
+# Engineering Preparation must surface retrieval failures and allow a retry while preserving
+# the current Research Bridge naming for legacy and Engineering Lab compatibility artifacts.
 for token in [
     'loadingEvidence',
     'loadError',
     'Could not load saved evidence',
     'Refresh saved evidence',
-    'Legacy Physical Lab v1 compatibility',
-    'Engineering Lab bridge',
+    'Engineering Lab compatibility',
+    'Legacy bridge',
+    'Unified bridge · betterboard.research-bridge/1.0',
 ]:
     assert token in PREPARATION, f'Engineering Preparation reliability contract lost: {token}'
 
