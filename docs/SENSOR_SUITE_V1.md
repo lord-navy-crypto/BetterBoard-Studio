@@ -27,7 +27,7 @@ BetterBoard already loads that directory as its user recipe library. Refresh the
 
 ## Program museum
 
-The suite now ships **17 installable experiments** across acquisition, dynamics, numerical methods, V&V, mechanics, timing, electrical power, environment, and control.
+The suite now ships **25 installable experiments** across acquisition, dynamics, numerical methods, V&V, mechanics, timing, electrical power, environment, magnetics, calibration, and control.
 
 ### Core acquisition and systems programs
 
@@ -41,7 +41,7 @@ The suite now ships **17 installable experiments** across acquisition, dynamics,
 | Motion Fusion IMU + ToF | LSM6DSOX + VL53L1X | synchronized x(t), a(t), angular rate | measured/model dynamics validation |
 | TB6612 + INA219 Motor Power Bench | motor + driver + INA219 | PWM command + electrical input | robotics/control characterization |
 
-### Expanded analysis programs
+### Analysis, numerical, and V&V programs
 
 | Recipe | Main purpose |
 |---|---|
@@ -56,6 +56,19 @@ The suite now ships **17 installable experiments** across acquisition, dynamics,
 | ADXL345 / LSM6DSOX Cross-Check | simultaneous two-sensor acceleration disagreement |
 | Motor Encoder + Power Characterization | PWM + encoder RPM + voltage/current/power on one timeline |
 
+### Instrumentation museum expansion
+
+| Recipe | Main purpose |
+|---|---|
+| MLX90393 Field Statistics | magnetic vector mean/std for stability and repeatability |
+| MLX90393 Baseline Delta | explicit ambient baseline and vector field change |
+| ADXL345 Static Tilt Estimate | gravity-vector roll/pitch plus raw acceleration |
+| LSM6DSOX Bias Survey | stationary acceleration/gyro bias and gyro-noise windows |
+| Pendulum IMU + Encoder | synchronized encoder angle and 6-axis inertial data |
+| Oscillator ToF + ADXL345 | synchronized direct displacement and acceleration |
+| HX711 Creep Monitor | load-cell creep / relaxation / zero-drift evidence |
+| INA219 Power Stability | rolling voltage/current/power mean and standard deviation |
+
 ## Existing BetterBoard hardware remains first-class
 
 Sensor Suite complements rather than replaces the existing recipes:
@@ -66,7 +79,7 @@ Sensor Suite complements rather than replaces the existing recipes:
 - Quadrature Encoder -> count / angle -> rotational dynamics.
 - Random Walk Robot -> bounded motor commands; actual trajectory still requires independent position evidence.
 
-The expanded programs deliberately reuse these same instruments in richer combinations rather than requiring a new sensor for every experiment.
+The expanded programs deliberately reuse the same instruments in richer combinations rather than requiring a new sensor for every experiment.
 
 ## First-day checkout sequence
 
@@ -90,9 +103,13 @@ The program museum is designed around evidence-first measurement:
 - HX711 force depends on measured offset and scale using reference loads;
 - ToF velocity/acceleration are numerical derivatives of measured distance and amplify noise;
 - IMU acceleration includes gravity, bias, alignment and mounting effects;
+- accelerometer-only tilt is primarily a static/slow-motion estimate;
 - gyro integration drifts and should be cross-checked with encoder/optical angle evidence;
 - INA219 energy is a numerical integral of sampled sensor power;
+- INA219 rolling variability describes the measured electrical path, not a calibrated spectrum analyzer;
 - BME280 drift is relative to startup, not a calibrated environmental reference;
+- MLX90393 baseline subtraction does not automatically remove every background or sensor offset;
+- magnetic stability windows do not establish calibration traceability;
 - dual-accelerometer disagreement does not identify which instrument is correct;
 - PWM command, encoder RPM and electrical input do not by themselves establish torque or mechanical efficiency.
 
@@ -110,6 +127,15 @@ LSM6DSOX + VL53L1X + photogate + quadrature encoder
         -> Engineering Lab Oscillation / Chaos comparison
 ```
 
+### Pendulum / rotational dynamics bench
+
+```text
+LSM6DSOX + quadrature encoder
+        -> theta(t) + a(t) + gyro(t)
+        -> cross-sensor rotational dynamics evidence
+        -> Engineering Lab Oscillation / Chaos
+```
+
 ### Cross-sensor V&V bench
 
 ```text
@@ -117,6 +143,16 @@ ADXL345 + LSM6DSOX on one rigid fixture
         -> two independent acceleration streams
         -> disagreement vector
         -> Engineering Lab calibration / V&V evidence
+```
+
+### Magnetic digital-twin bench
+
+```text
+MLX90393 + controlled non-magnetic positioning fixture
+        -> raw B(position)
+        -> baseline delta + repeatability statistics
+        -> BetterBoard Magnet Bench
+        -> Engineering Lab RADIA / Digital Twin residuals
 ```
 
 ### Robotics / control bench
@@ -137,13 +173,13 @@ ADXL345 / LSM6DSOX + bounded actuator
         -> Engineering Lab Oscillation / Honeycomb mechanical analogue
 ```
 
-### Magnetic digital-twin bench
+### Mechanics / creep bench
 
 ```text
-MLX90393 + controlled non-magnetic positioning fixture
-        -> B(position)
-        -> BetterBoard Magnet Bench
-        -> Engineering Lab RADIA / Digital Twin residuals
+load cell + HX711 + fixed fixture
+        -> force(t) + baseline-relative drift
+        -> BetterBoard
+        -> Engineering Lab mechanics / reliability evidence
 ```
 
 ## Libraries and CI
@@ -156,6 +192,7 @@ Expected Arduino Library Manager names include:
 - `Adafruit INA219`
 - `Adafruit BME280 Library`
 - `Adafruit ADXL345`
+- `Adafruit MLX90393`
 - `HX711`
 
-`Sensor Suite v1 Integrity` validates all expansion catalogs, proves installer materialization, installs the declared libraries, and compiles all 17 firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`.
+`Sensor Suite v1 Integrity` validates all expansion catalogs, proves installer materialization, installs the declared libraries, and compiles all **25** firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`.
