@@ -27,7 +27,7 @@ BetterBoard already loads that directory as its user recipe library. Refresh the
 
 ## Program museum
 
-The suite now ships **25 installable experiments** across acquisition, dynamics, numerical methods, V&V, mechanics, timing, electrical power, environment, magnetics, calibration, and control.
+The suite now ships **36 installable experiments** across acquisition, dynamics, numerical methods, V&V, mechanics, timing, electrical power, environment, magnetics, calibration, sensor fusion, reliability, and low-voltage control.
 
 ### Core acquisition and systems programs
 
@@ -69,6 +69,22 @@ The suite now ships **25 installable experiments** across acquisition, dynamics,
 | HX711 Creep Monitor | load-cell creep / relaxation / zero-drift evidence |
 | INA219 Power Stability | rolling voltage/current/power mean and standard deviation |
 
+### Reliability, fusion, and control expansion
+
+| Recipe | Main purpose |
+|---|---|
+| ADC Noise Statistics | ADC mean/std/min/max/peak-to-peak characterization |
+| ADC Oversampling Comparison | single-sample vs 4x/16x averaging on the same analog source |
+| LSM6DSOX Impact Trigger | acceleration transient capture with explicit threshold flag |
+| ADXL345 Vibration RMS | windowed acceleration RMS and peak response |
+| Photogate Gate Timing | blocked/open dwell time and optical duty fraction |
+| LSM6DSOX Complementary Tilt | accelerometer tilt vs gyro/accelerometer fused estimate |
+| BME280 Relative Altitude Trend | pressure-derived relative height trend from startup baseline |
+| HX711 Load Repeatability | repeated calibrated force mean/std windows |
+| Motor Step Response + Encoder + Power | bounded PWM step with RPM/current/power transient capture |
+| Motor Ramp Hysteresis + Encoder + Power | ascending/descending PWM response comparison |
+| IMU + ToF Motion Trigger | synchronized distance and acceleration-change trigger evidence |
+
 ## Existing BetterBoard hardware remains first-class
 
 Sensor Suite complements rather than replaces the existing recipes:
@@ -104,10 +120,13 @@ The program museum is designed around evidence-first measurement:
 - ToF velocity/acceleration are numerical derivatives of measured distance and amplify noise;
 - IMU acceleration includes gravity, bias, alignment and mounting effects;
 - accelerometer-only tilt is primarily a static/slow-motion estimate;
+- complementary-filter orientation remains model-dependent and can drift or be distorted by motion;
 - gyro integration drifts and should be cross-checked with encoder/optical angle evidence;
+- ADC statistics and oversampling do not by themselves establish calibrated voltage accuracy;
+- photogate dwell time is not speed unless object width and geometry are measured;
 - INA219 energy is a numerical integral of sampled sensor power;
 - INA219 rolling variability describes the measured electrical path, not a calibrated spectrum analyzer;
-- BME280 drift is relative to startup, not a calibrated environmental reference;
+- BME280 drift and relative altitude are relative/model-derived environmental quantities, not reference standards;
 - MLX90393 baseline subtraction does not automatically remove every background or sensor offset;
 - magnetic stability windows do not establish calibration traceability;
 - dual-accelerometer disagreement does not identify which instrument is correct;
@@ -159,7 +178,7 @@ MLX90393 + controlled non-magnetic positioning fixture
 
 ```text
 TB6612 + encoder gearmotor + INA219 + ToF
-        -> command + RPM + electrical input + measured displacement
+        -> step/ramp command + RPM + electrical input + displacement
         -> BetterBoard
         -> Engineering Lab control / quality / reliability evidence
 ```
@@ -168,18 +187,18 @@ TB6612 + encoder gearmotor + INA219 + ToF
 
 ```text
 ADXL345 / LSM6DSOX + bounded actuator
-        -> raw acceleration + window statistics
+        -> raw acceleration + RMS/peak + event triggers
         -> frequency-domain analysis on host
         -> Engineering Lab Oscillation / Honeycomb mechanical analogue
 ```
 
-### Mechanics / creep bench
+### Calibration / ADC bench
 
 ```text
-load cell + HX711 + fixed fixture
-        -> force(t) + baseline-relative drift
+stable analog source + A0
+        -> raw codes + noise windows + oversampling comparison
         -> BetterBoard
-        -> Engineering Lab mechanics / reliability evidence
+        -> Engineering Lab numerical / measurement reliability evidence
 ```
 
 ## Libraries and CI
@@ -195,4 +214,4 @@ Expected Arduino Library Manager names include:
 - `Adafruit MLX90393`
 - `HX711`
 
-`Sensor Suite v1 Integrity` validates all expansion catalogs, proves installer materialization, installs the declared libraries, and compiles all **25** firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`.
+`Sensor Suite v1 Integrity` validates all expansion catalogs, proves installer materialization, installs the declared libraries, and compiles all **36** firmware programs for both the UNO reference target and `esp32:esp32:esp32s3`.
