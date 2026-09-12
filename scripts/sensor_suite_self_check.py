@@ -143,6 +143,8 @@ def _validate_parameters(entry: dict, rid: str, source: str) -> None:
             step_numeric = _finite_number(step, rid=rid, label=f"parameter {key} step")
             if step_numeric <= 0:
                 fail(f"{rid}: parameter {key} step must be positive")
+            if kind == "integer" and not step_numeric.is_integer():
+                fail(f"{rid}: integer parameter {key} has a non-integer step")
 
 
 def main() -> int:
@@ -153,6 +155,7 @@ def main() -> int:
     ids: set[str] = set()
     sketch_names: set[str] = set()
     expected_targets: set[str] = set()
+    expected_firmware_files: set[Path] = set()
 
     for entry in entries:
         missing = REQUIRED_KEYS - set(entry)
@@ -224,6 +227,12 @@ def main() -> int:
             fail(f"{rid}: firmware path must match sketch_name ({expected_rel})")
         if not firmware.is_file():
             fail(f"{rid}: missing firmware {firmware}")
+        expected_firmware_files.add(firmware)
+
+        sketch_dir = firmware.parent
+        ino_files = sorted(sketch_dir.glob("*.ino"))
+        if ino_files != [firmware]:
+            fail(f"{rid}: sketch directory must contain exactly one .ino file named {firmware.name}")
 
         source = firmware.read_text(encoding="utf-8")
         if len(re.findall(r"\bvoid\s+setup\s*\(\s*\)", source)) != 1:
@@ -235,6 +244,21 @@ def main() -> int:
             fail(f"{rid}: firmware Serial.begin values {sorted(serial_bauds)} do not exactly match catalog baud {baud}")
         _validate_parameters(entry, rid, source)
         expected_targets.add(f"sensor-suite-{rid}.json")
+
+    actual_firmware_files = {path.resolve() for path in FIRMWARE_ROOT.glob("*/*.ino") if path.is_file()}
+    if actual_firmware_files != expected_firmware_files:
+        orphaned = sorted(str(path.relative_to(ROOT)) for path in actual_firmware_files - expected_firmware_files)
+        missing = sorted(str(path.relative_to(ROOT)) for path in expected_firmware_files - actual_firmware_files)
+        if orphaned:
+            fail(f"orphan firmware not referenced by any frozen recipe: {orphaned}")
+        if missing:
+            fail(f"catalog firmware missing from firmware tree: {missing}")
+
+    actual_sketch_dirs = {path.resolve() for path in FIRMWARE_ROOT.iterdir() if path.is_dir()}
+    expected_sketch_dirs = {path.parent for path in expected_firmware_files}
+    extra_dirs = sorted(str(path.relative_to(ROOT)) for path in actual_sketch_dirs - expected_sketch_dirs)
+    if extra_dirs:
+        fail(f"orphan firmware directories are not allowed during the 56-recipe freeze: {extra_dirs}")
 
     import install_sensor_suite
     with tempfile.TemporaryDirectory() as tmp:
@@ -277,6 +301,15 @@ def main() -> int:
         victim.write_text(victim.read_text(encoding="utf-8") + "corruption\n", encoding="utf-8")
         if not install_sensor_suite.verify_installation(destination):
             fail("installer verification failed to detect a modified managed recipe")
+        install_sensor_suite.install(destination)
+        if install_sensor_suite.verify_installation(destination):
+            fail("installer did not repair a modified managed recipe")
+
+        stale = destination / "sensor-suite-stale-recipe.json"
+        stale.write_text("{}\n", encoding="utf-8")
+        stale_problems = install_sensor_suite.verify_installation(destination)
+        if not any("unexpected managed recipe" in problem for problem in stale_problems):
+            fail("installer verification failed to detect an unexpected managed recipe")
 
     print(f"Sensor Suite self-check PASS: {len(entries)} frozen recipes across {len(catalogs)} catalogs")
     return 0
