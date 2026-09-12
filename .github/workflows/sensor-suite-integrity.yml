@@ -28,6 +28,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Python tooling syntax validation
+        run: python3 -m py_compile scripts/install_sensor_suite.py scripts/sensor_suite_self_check.py
+
       - name: Sensor Suite structural validation
         run: python3 scripts/sensor_suite_self_check.py
 
