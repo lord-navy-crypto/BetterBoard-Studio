@@ -19,6 +19,10 @@ void PeriodicSampler::reset(uint32_t now_us) {
     armed_ = true;
 }
 
+void PeriodicSampler::arm(uint32_t now_us) {
+    reset(now_us);
+}
+
 bool PeriodicSampler::ready(uint32_t now_us) {
     if (!armed_) {
         reset(now_us);

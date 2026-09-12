@@ -12,6 +12,7 @@ public:
     void setPeriodMicros(uint32_t period_us);
     uint32_t periodMicros() const;
     void reset(uint32_t now_us = 0U);
+    void arm(uint32_t now_us);
     bool ready(uint32_t now_us);
 
 private:
