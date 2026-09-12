@@ -37,65 +37,59 @@ jobs:
       - name: Prove dry-run installation
         run: python3 scripts/install_sensor_suite.py --dry-run
 
+      - name: Prove exact installed-state verification
+        run: |
+          tmpdir="$(mktemp -d)"
+          python3 scripts/install_sensor_suite.py --destination "$tmpdir"
+          python3 scripts/install_sensor_suite.py --destination "$tmpdir" --verify
+
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
 
-      - name: Install Arduino cores and Sensor Suite libraries
+      - name: Install Arduino cores and catalog-declared libraries
         run: |
           arduino-cli config init --overwrite
           arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core update-index
           arduino-cli core install arduino:avr
           arduino-cli core install esp32:esp32
-          arduino-cli lib install "Adafruit Unified Sensor"
-          arduino-cli lib install "Adafruit LSM6DS"
-          arduino-cli lib install "Adafruit VL53L1X"
-          arduino-cli lib install "Adafruit INA219"
-          arduino-cli lib install "Adafruit BME280 Library"
-          arduino-cli lib install "Adafruit ADXL345"
-          arduino-cli lib install "Adafruit MLX90393"
-          arduino-cli lib install "HX711"
+          python3 - <<'PY' > /tmp/sensor-suite-libraries.txt
+          import json
+          from pathlib import Path
+          libraries = set()
+          for path in sorted(Path('sensor-suite').glob('catalog*.json')):
+              for entry in json.loads(path.read_text(encoding='utf-8')):
+                  libraries.update(entry.get('required_libraries', []))
+          for library in sorted(libraries):
+              print(library)
+          PY
+          while IFS= read -r library; do
+            [ -z "$library" ] || arduino-cli lib install "$library"
+          done < /tmp/sensor-suite-libraries.txt
+
+      - name: Build catalog-derived sketch list
+        run: |
+          python3 - <<'PY' > /tmp/sensor-suite-sketches.txt
+          import json
+          from pathlib import Path
+          sketches = []
+          for path in sorted(Path('sensor-suite').glob('catalog*.json')):
+              for entry in json.loads(path.read_text(encoding='utf-8')):
+                  sketches.append(entry['sketch_name'])
+          for sketch in sorted(sketches):
+              print(sketch)
+          PY
+          test "$(wc -l < /tmp/sensor-suite-sketches.txt | tr -d ' ')" = "56"
+          test "$(sort -u /tmp/sensor-suite-sketches.txt | wc -l | tr -d ' ')" = "56"
 
       - name: Compile Sensor Suite firmware for UNO reference target
         run: |
-          for sketch in \
-            LSM6DSOX_Motion VL53L1X_Displacement INA219_Power BME280_Environment HX711_Force \
-            MotionFusion_LSM6DSOX_VL53L1X MotorPowerBench_TB6612_INA219 \
-            LSM6DSOX_VibrationStats LSM6DSOX_GyroIntegration VL53L1X_Kinematics INA219_Energy \
-            BME280_DriftMonitor HX711_ForceDynamics EncoderKinematics PhotogatePeriodStats \
-            DualAccelerometerCrossCheck MotorEncoderPowerBench \
-            MLX90393_FieldStatistics MLX90393_BaselineDelta ADXL345_TiltEstimate LSM6DSOX_BiasSurvey \
-            Pendulum_IMU_Encoder Oscillator_ToF_ADXL345 HX711_CreepMonitor INA219_PowerStability \
-            ADC_NoiseStatistics ADC_OversamplingComparison LSM6DSOX_ImpactTrigger ADXL345_VibrationRMS \
-            Photogate_GateTiming LSM6DSOX_ComplementaryTilt BME280_RelativeAltitude HX711_LoadRepeatability \
-            MotorStepResponse_EncoderPower MotorRampHysteresis_EncoderPower IMU_ToF_MotionTrigger \
-            Photogate_KnownWidthSpeed EncoderGyro_CrossCheck ADXL345_JerkMonitor VL53L1X_FreeDecay \
-            MLX90393_FieldDirection BME280_ThermalStability INA219_LoadTransient HX711_ZeroDrift \
-            ADC_StepDetector LSM6DSOX_RotationRepeatability \
-            ADC_RCStepResponse Encoder_ReversalDeadband LSM6DSOX_ShockPeakHold VL53L1X_StabilityWindow \
-            MLX90393_ManualFieldIntegralScan BME280_DewPointEstimate HX711_LoadCycleMarker \
-            Photogate_EnergyPerMass EncoderGyro_AngularConsistency INA219_CurrentStepDetector; do
+          while IFS= read -r sketch; do
             arduino-cli compile --fqbn arduino:avr:uno "sensor-suite/firmware/$sketch"
-          done
+          done < /tmp/sensor-suite-sketches.txt
 
       - name: Compile Sensor Suite firmware for ESP32-S3 target
         run: |
-          for sketch in \
-            LSM6DSOX_Motion VL53L1X_Displacement INA219_Power BME280_Environment HX711_Force \
-            MotionFusion_LSM6DSOX_VL53L1X MotorPowerBench_TB6612_INA219 \
-            LSM6DSOX_VibrationStats LSM6DSOX_GyroIntegration VL53L1X_Kinematics INA219_Energy \
-            BME280_DriftMonitor HX711_ForceDynamics EncoderKinematics PhotogatePeriodStats \
-            DualAccelerometerCrossCheck MotorEncoderPowerBench \
-            MLX90393_FieldStatistics MLX90393_BaselineDelta ADXL345_TiltEstimate LSM6DSOX_BiasSurvey \
-            Pendulum_IMU_Encoder Oscillator_ToF_ADXL345 HX711_CreepMonitor INA219_PowerStability \
-            ADC_NoiseStatistics ADC_OversamplingComparison LSM6DSOX_ImpactTrigger ADXL345_VibrationRMS \
-            Photogate_GateTiming LSM6DSOX_ComplementaryTilt BME280_RelativeAltitude HX711_LoadRepeatability \
-            MotorStepResponse_EncoderPower MotorRampHysteresis_EncoderPower IMU_ToF_MotionTrigger \
-            Photogate_KnownWidthSpeed EncoderGyro_CrossCheck ADXL345_JerkMonitor VL53L1X_FreeDecay \
-            MLX90393_FieldDirection BME280_ThermalStability INA219_LoadTransient HX711_ZeroDrift \
-            ADC_StepDetector LSM6DSOX_RotationRepeatability \
-            ADC_RCStepResponse Encoder_ReversalDeadband LSM6DSOX_ShockPeakHold VL53L1X_StabilityWindow \
-            MLX90393_ManualFieldIntegralScan BME280_DewPointEstimate HX711_LoadCycleMarker \
-            Photogate_EnergyPerMass EncoderGyro_AngularConsistency INA219_CurrentStepDetector; do
+          while IFS= read -r sketch; do
             arduino-cli compile --fqbn esp32:esp32:esp32s3 "sensor-suite/firmware/$sketch"
-          done
+          done < /tmp/sensor-suite-sketches.txt
