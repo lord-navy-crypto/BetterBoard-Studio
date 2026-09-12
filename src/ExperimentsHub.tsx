@@ -1,5 +1,6 @@
 import { Activity, CheckCircle2, FlaskConical, Magnet, Sigma } from 'lucide-react';
 import CopyButton from './CopyButton';
+import EspressifCapabilityPanel from './EspressifCapabilityPanel';
 
 // Legacy structural selectors retired by the Studio preparation migration:
 // hidden={tool!=='numerical'}
@@ -70,6 +71,8 @@ export default function ExperimentsHub() {
         </article>;
       })}
     </section>
+
+    <EspressifCapabilityPanel />
 
     <section className="panel" style={{ maxWidth: 1420, margin: '14px auto 50px' }}>
       <div className="panel-title"><Sigma size={18}/> Numeric Error Depth · embedded numerical reliability</div>
