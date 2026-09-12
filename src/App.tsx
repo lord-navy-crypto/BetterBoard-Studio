@@ -85,7 +85,7 @@ export default function App() {
   const [tasks, setTasks] = useState<BackgroundTask[]>(restoreTaskMemory);
   const {
     ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn,
-    activePort, hardwareStatus, refreshHardware,
+    activePort, hardwareStatus, diagnosis, refreshHardware,
   } = useHardwareSession();
 
   const recipe = useMemo(() => recipes.find(r => r.id === recipeId), [recipes, recipeId]);
@@ -207,6 +207,7 @@ export default function App() {
 
   async function compile() {
     if (!recipe) return;
+    if (!diagnosis.canCompile) { setStatus(`Compile blocked by Hardware Doctor: ${diagnosis.title} · ${diagnosis.action}`); return; }
     const path = sketchDir || await prepare(); if (!path) return;
     const task = addTask('Program', `Compile · ${recipe.title}`, `arduino-cli compile --fqbn ${fqbn}`);
     setBusy(true);
@@ -220,6 +221,7 @@ export default function App() {
 
   async function upload() {
     if (!recipe) return;
+    if (!diagnosis.canUpload) { setStatus(`Upload blocked by Hardware Doctor: ${diagnosis.title} · ${diagnosis.action}`); return; }
     if (!selectedPort) { setStatus('Select a serial port first.'); return; }
     const path = sketchDir || await prepare(); if (!path) return;
     const task = addTask('Program', `Upload · ${recipe.title}`, `Compile → upload to ${selectedPort}`);
@@ -292,6 +294,7 @@ export default function App() {
             </select></label>
             <div className="hint">This selection is shared across Studio and Experiments. Switching workspaces no longer creates a second board session.</div>
             {activePort && <div className="device-line"><b>{activePort.port}</b><span>{activePort.protocol}{activePort.fqbn ? ` · detected ${activePort.fqbn}` : ''}</span></div>}
+            <div className="boundary">{diagnosis.severity === 'success' ? <ShieldCheck size={15}/> : <CircleAlert size={15}/>}<span><b>Hardware Doctor · {diagnosis.title}</b><br/>{diagnosis.detail}<br/><small>{diagnosis.action}</small></span></div>
             {profileMismatch && <div className="boundary"><CircleAlert size={15}/><span>Board profile mismatch · Arduino CLI detected <b>{detectedFqbn}</b> on {activePort?.port}, while BetterBoard is set to <b>{fqbn}</b>. Confirm before compiling or uploading.</span>{detectedProfileAvailable && <button className="ghost" onClick={() => setFqbn(detectedFqbn)}>Use detected profile</button>}</div>}
           </div>
           <div className="panel">
@@ -315,8 +318,8 @@ export default function App() {
           {recipe && <div className="action-row" style={{ alignItems: 'end' }}><label style={{ flex: '1 1 260px' }}>Preset name<input value={presetName} onChange={event => setPresetName(event.target.value)} /></label><button className="ghost" disabled={busy} onClick={() => void saveRecipePreset()}><Save size={15}/> Save preset to My Library</button></div>}
           <div className="action-row">
             <button className="ghost" disabled={busy || !recipe} onClick={() => void prepare()}><Braces size={16}/> Prepare firmware</button>
-            <button className="ghost" disabled={busy || !recipe} onClick={() => void compile()}><Download size={16}/> Compile</button>
-            <button className="primary" disabled={busy || !recipe || !selectedPort} onClick={() => void upload()}><Upload size={16}/> Compile & Upload</button>
+            <button className="ghost" disabled={busy || !recipe || !diagnosis.canCompile} onClick={() => void compile()}><Download size={16}/> Compile</button>
+            <button className="primary" disabled={busy || !recipe || !diagnosis.canUpload} onClick={() => void upload()}><Upload size={16}/> Compile & Upload</button>
             {recipe?.capture_mode !== 'none' && <button className="primary secondary" disabled={busy || !selectedPort} onClick={() => setTab('data')}><Waves size={16}/> Open Monitor & Data</button>}
           </div>
         </section>
