@@ -10,6 +10,16 @@ export type ResearchBridgeEvent = {
   refs?: string[];
 };
 
+export type ResearchContextForBridge = {
+  question?: string;
+  hypothesis?: string;
+  notebook?: ResearchBridgeEvent[];
+  annotations?: ResearchBridgeEvent[];
+  lab_journey?: ResearchBridgeEvent[];
+  engineering_results?: ResearchBridgeEvent[];
+  ai_suggestions?: ResearchBridgeEvent[];
+};
+
 export type MeasurementSessionForBridge = {
   directory: string;
   created_at_utc: string;
@@ -64,14 +74,20 @@ export type ResearchBridgeV1 = {
   provenance: ResearchBridgeEvent[];
 };
 
-function sessionId(session: MeasurementSessionForBridge) {
+export function researchSessionId(session: MeasurementSessionForBridge) {
   const tail = session.directory.split(/[\\/]/).filter(Boolean).pop();
   return tail || `session-${Date.parse(session.created_at_utc) || Date.now()}`;
 }
 
-export function buildResearchBridge(session: MeasurementSessionForBridge): ResearchBridgeV1 {
+export function buildResearchBridge(session: MeasurementSessionForBridge, context: ResearchContextForBridge = {}): ResearchBridgeV1 {
   const created = new Date().toISOString();
-  const id = sessionId(session);
+  const id = researchSessionId(session);
+  const notebook = context.notebook ?? [];
+  const annotations = context.annotations ?? [];
+  const journey = context.lab_journey ?? [];
+  const engineeringResults = context.engineering_results ?? [];
+  const aiSuggestions = context.ai_suggestions ?? [];
+  const contextualEvents = [...notebook, ...annotations, ...journey, ...engineeringResults, ...aiSuggestions];
   return {
     schema: 'betterboard.research-bridge/1.0',
     session_id: id,
@@ -79,8 +95,8 @@ export function buildResearchBridge(session: MeasurementSessionForBridge): Resea
     producer: 'BetterBoard Studio',
     experiment: {
       title: session.recipe_title,
-      question: null,
-      hypothesis: null,
+      question: context.question?.trim() || null,
+      hypothesis: context.hypothesis?.trim() || null,
     },
     hardware: {
       board_profile: session.board_profile || null,
@@ -94,18 +110,18 @@ export function buildResearchBridge(session: MeasurementSessionForBridge): Resea
       legacy_bridge_json: session.physical_lab_bridge_path,
     },
     research_context: {
-      notebook: [],
-      annotations: [],
-      lab_journey: [],
+      notebook,
+      annotations,
+      lab_journey: journey,
     },
     engineering_lab: {
       imports: [],
-      results: [],
+      results: engineeringResults,
       policy: 'Engineering Lab may append derived analysis but must not replace BetterBoard raw measurement evidence.',
     },
     ai: {
       provider: 'OpenPenguin',
-      suggestions: [],
+      suggestions: aiSuggestions,
       policy: 'OpenPenguin output is advisory and must remain distinguishable from measurements, calibration, and validated engineering results.',
     },
     provenance: [{
@@ -115,7 +131,7 @@ export function buildResearchBridge(session: MeasurementSessionForBridge): Resea
       kind: 'measurement',
       text: `${session.recipe_title} measurement package · ${session.sample_count} samples`,
       refs: [session.csv_path, session.metadata_path],
-    }],
+    }, ...contextualEvents],
   };
 }
 
