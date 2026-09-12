@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CATALOG = ROOT / "sensor-suite" / "catalog.json"
+CATALOG_DIR = ROOT / "sensor-suite"
 
 REQUIRED_KEYS = {
     "id", "title", "category", "description", "sketch_name", "firmware_path",
@@ -20,10 +20,23 @@ def fail(message: str) -> None:
     raise SystemExit(f"Sensor Suite self-check FAILED: {message}")
 
 
+def load_all_entries() -> tuple[list[dict], list[Path]]:
+    paths = sorted(CATALOG_DIR.glob("catalog*.json"))
+    if not paths:
+        fail("no catalog*.json files found")
+    entries: list[dict] = []
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            fail(f"{path.name} must be a JSON array")
+        entries.extend(data)
+    return entries, paths
+
+
 def main() -> int:
-    entries = json.loads(CATALOG.read_text(encoding="utf-8"))
-    if not isinstance(entries, list) or not entries:
-        fail("catalog must be a non-empty JSON array")
+    entries, catalogs = load_all_entries()
+    if not entries:
+        fail("catalogs contain no recipes")
 
     ids: set[str] = set()
     sketch_names: set[str] = set()
@@ -62,7 +75,6 @@ def main() -> int:
         if not str(entry.get("boundary", "")).strip():
             fail(f"{rid}: scientific boundary is empty")
 
-    # Prove the installer can materialize BetterBoard's UserRecipeFile schema.
     import install_sensor_suite
     with tempfile.TemporaryDirectory() as tmp:
         written = install_sensor_suite.install(Path(tmp))
@@ -77,7 +89,7 @@ def main() -> int:
             if not wrapper["source"].strip():
                 fail(f"{path.name}: source is empty")
 
-    print(f"Sensor Suite self-check PASS: {len(entries)} recipes")
+    print(f"Sensor Suite self-check PASS: {len(entries)} recipes across {len(catalogs)} catalogs")
     return 0
 
 
