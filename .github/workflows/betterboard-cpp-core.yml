@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'firmware/betterboard-core/**'
+      - 'sensor-suite/firmware/**'
       - 'docs/BETTERBOARD_CPP_ARCHITECTURE.md'
       - 'docs/CPP_FIRMWARE_DEVELOPER_GUIDE.md'
       - '.github/workflows/betterboard-cpp-core.yml'
@@ -12,6 +13,7 @@ on:
       - 'feature/betterboard-cpp-core-v1'
     paths:
       - 'firmware/betterboard-core/**'
+      - 'sensor-suite/firmware/**'
       - 'docs/BETTERBOARD_CPP_ARCHITECTURE.md'
       - 'docs/CPP_FIRMWARE_DEVELOPER_GUIDE.md'
       - '.github/workflows/betterboard-cpp-core.yml'
@@ -30,10 +32,14 @@ jobs:
             firmware/betterboard-core/tests/test_core.cpp \
             firmware/betterboard-core/src/core/PeriodicSampler.cpp \
             firmware/betterboard-core/src/math/OnlineStatistics.cpp \
+            firmware/betterboard-core/src/math/RmsAccumulator.cpp \
             firmware/betterboard-core/src/math/TrapezoidIntegrator.cpp \
             firmware/betterboard-core/src/math/FiniteDifference.cpp \
+            firmware/betterboard-core/src/math/LinearRegression.cpp \
             firmware/betterboard-core/src/signal/ExponentialMovingAverage.cpp \
             firmware/betterboard-core/src/signal/PeakHold.cpp \
+            firmware/betterboard-core/src/signal/ThresholdTrigger.cpp \
+            firmware/betterboard-core/src/signal/HysteresisLatch.cpp \
             -o /tmp/betterboard-core-tests
           /tmp/betterboard-core-tests
 
@@ -53,3 +59,9 @@ jobs:
 
       - name: Compile C++ core example for ESP32-S3
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 --library firmware/betterboard-core firmware/betterboard-core/examples/ADCNoiseCore
+
+      - name: Compile migrated Sensor Suite sketch for UNO
+        run: arduino-cli compile --fqbn arduino:avr:uno --library firmware/betterboard-core sensor-suite/firmware/ADC_NoiseStatistics
+
+      - name: Compile migrated Sensor Suite sketch for ESP32-S3
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3 --library firmware/betterboard-core sensor-suite/firmware/ADC_NoiseStatistics
