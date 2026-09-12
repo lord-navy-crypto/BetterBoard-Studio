@@ -1,0 +1,82 @@
+[
+  {
+    "id": "el-radia-mlx90393-field",
+    "title": "Engineering Lab RADIA Field Evidence",
+    "model_target": "RADIA Magnet Studio",
+    "sensor": "MLX90393",
+    "sketch_name": "EL_Radia_MLX90393_Field",
+    "primary_observable": "bmag_uT",
+    "columns": ["time_us", "bx_uT", "by_uT", "bz_uT", "bmag_uT"],
+    "units": ["us", "uT", "uT", "uT", "uT"]
+  },
+  {
+    "id": "el-oscillation-imu-tof",
+    "title": "Engineering Lab Oscillation Motion Evidence",
+    "model_target": "Oscillation & Numerical Integration",
+    "sensor": "LSM6DSOX + VL53L1X",
+    "sketch_name": "EL_Oscillation_LSM6DSOX_VL53L1X",
+    "primary_observable": "distance_m",
+    "columns": ["time_us", "distance_m", "ax_mps2", "ay_mps2", "az_mps2", "gx_rps", "gy_rps", "gz_rps"],
+    "units": ["us", "m", "m/s^2", "m/s^2", "m/s^2", "rad/s", "rad/s", "rad/s"]
+  },
+  {
+    "id": "el-honeycomb-dual-adxl345",
+    "title": "Engineering Lab Dual-Point Vibration Evidence",
+    "model_target": "Multilayer Honeycomb Lattice",
+    "sensor": "ADXL345 x2",
+    "sketch_name": "EL_Honeycomb_Dual_ADXL345",
+    "primary_observable": "a1_z_mps2",
+    "columns": ["time_us", "a1_x_mps2", "a1_y_mps2", "a1_z_mps2", "a2_x_mps2", "a2_y_mps2", "a2_z_mps2"],
+    "units": ["us", "m/s^2", "m/s^2", "m/s^2", "m/s^2", "m/s^2", "m/s^2"]
+  },
+  {
+    "id": "el-chaos-encoder-kinematics",
+    "title": "Engineering Lab Rotational Dynamics Evidence",
+    "model_target": "Nonlinear Dynamics & Chaos",
+    "sensor": "Quadrature encoder",
+    "sketch_name": "EL_Chaos_Encoder_Kinematics",
+    "primary_observable": "angle_rad",
+    "columns": ["time_us", "count", "angle_rad", "omega_rps", "alpha_rps2"],
+    "units": ["us", "count", "rad", "rad/s", "rad/s^2"]
+  },
+  {
+    "id": "el-oscillation-photogate-period",
+    "title": "Engineering Lab Photogate Period Evidence",
+    "model_target": "Oscillation & Numerical Integration",
+    "sensor": "Photogate",
+    "sketch_name": "EL_Oscillation_Photogate_Period",
+    "primary_observable": "period_s",
+    "columns": ["time_us", "period_s", "frequency_hz", "event_index"],
+    "units": ["us", "s", "Hz", "count"]
+  },
+  {
+    "id": "el-numerical-adc-reference",
+    "title": "Engineering Lab ADC Numerical Evidence",
+    "model_target": "Numerical Error Analysis",
+    "sensor": "10k linear potentiometer / ADC",
+    "sketch_name": "EL_Numerical_ADC_Reference",
+    "primary_observable": "adc_code",
+    "columns": ["time_us", "adc_code", "normalized", "nominal_voltage_v"],
+    "units": ["us", "code", "1", "V"]
+  },
+  {
+    "id": "el-force-dynamics-hx711",
+    "title": "Engineering Lab Force Dynamics Evidence",
+    "model_target": "Oscillation & Numerical Integration",
+    "sensor": "Load Cell + HX711",
+    "sketch_name": "EL_ForceDynamics_HX711",
+    "primary_observable": "force_n",
+    "columns": ["time_us", "raw_counts", "force_n", "filtered_force_n", "dfdt_nps"],
+    "units": ["us", "count", "N", "N", "N/s"]
+  },
+  {
+    "id": "el-power-context-ina219",
+    "title": "Engineering Lab Electrical Power Context",
+    "model_target": "Oscillation & Numerical Integration",
+    "sensor": "INA219",
+    "sketch_name": "EL_PowerContext_INA219",
+    "primary_observable": "power_mw",
+    "columns": ["time_us", "bus_v", "current_ma", "power_mw", "energy_mj"],
+    "units": ["us", "V", "mA", "mW", "mJ"]
+  }
+]
