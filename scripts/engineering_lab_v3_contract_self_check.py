@@ -8,11 +8,16 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "engineering-lab-experiments" / "catalog.json"
 FIRMWARE = ROOT / "engineering-lab-experiments" / "firmware"
 
-REQUIRED_TOKENS = (
-    "betterboard::core::SampleClock",
+COMMON_REQUIRED_TOKENS = (
     "betterboard::measurement::AcquisitionResult",
     "betterboard::experiments::makeEvidenceRecord",
 )
+PERIODIC_REQUIRED_TOKENS = (
+    "betterboard::core::SampleClock",
+)
+EVENT_DRIVEN_SKETCHES = {
+    "EL_Oscillation_Photogate_Period",
+}
 FORBIDDEN_LEGACY_TOKENS = (
     "previous_sample_us",
 )
@@ -39,9 +44,14 @@ def main() -> None:
             fail(f"missing sketch: {path.relative_to(ROOT)}")
         text = path.read_text()
 
-        for token in REQUIRED_TOKENS:
+        for token in COMMON_REQUIRED_TOKENS:
             if token not in text:
                 fail(f"{sketch} does not use required v3 contract token: {token}")
+        if sketch not in EVENT_DRIVEN_SKETCHES:
+            for token in PERIODIC_REQUIRED_TOKENS:
+                if token not in text:
+                    fail(f"{sketch} does not use required periodic timing token: {token}")
+
         for token in FORBIDDEN_LEGACY_TOKENS:
             if token in text:
                 fail(f"{sketch} still contains legacy timing state: {token}")
@@ -51,7 +61,14 @@ def main() -> None:
         if "record.timestamp_us" not in text:
             fail(f"{sketch} does not timestamp rows from EvidenceRecord")
 
-    print(f"Engineering Lab v3 contract audit passed for {len(entries)} sketches")
+    if not EVENT_DRIVEN_SKETCHES.issubset(seen):
+        fail("event-driven sketch allowlist contains an unknown sketch")
+
+    print(
+        f"Engineering Lab v3 contract audit passed for {len(entries)} sketches "
+        f"({len(EVENT_DRIVEN_SKETCHES)} event-driven, "
+        f"{len(entries) - len(EVENT_DRIVEN_SKETCHES)} periodic)"
+    )
 
 
 if __name__ == "__main__":
