@@ -16,7 +16,8 @@ enum QualityFlag : uint16_t {
   CalibrationDefault = 1u << 3,
   Saturated = 1u << 4,
   WarmingUp = 1u << 5,
-  DerivedUnavailable = 1u << 6
+  DerivedUnavailable = 1u << 6,
+  EventDropped = 1u << 7
 };
 
 inline uint16_t addFlag(uint16_t flags, QualityFlag flag) {
