@@ -44,12 +44,14 @@ for token in store_required:
     if token not in store:
         raise SystemExit('Research context store lost provenance validation: ' + token)
 
+# Protect Research Bridge behavior and provenance boundaries without freezing old UI headings.
 studio_required = [
-    'BetterBoard Research Bridge', 'Copy Research Bridge JSON', 'OpenPenguin bridge',
+    'Evidence handoff', 'Copy Research Bridge JSON', 'Ask OpenPenguin about this evidence',
     "invoke<OpenPenguinStatus>('openguin_probe')", "invoke<string>('openguin_generate'",
-    'bridgeForOpenPenguin', 'Raw measurement remains immutable evidence',
-    'Research context bridge', 'Experiment Notebook', 'Annotation', 'Lab Journey',
+    'bridgeForOpenPenguin', 'immutable measurement evidence',
+    'Research context', 'Experiment Notebook', 'Annotation', 'Lab Journey',
     'saveResearchContext', "makeResearchEvent('openguin', 'suggestion'",
+    'betterboard.research-bridge/1.0', 'Engineering Lab compatibility', 'Legacy bridge',
 ]
 for token in studio_required:
     if token not in studio:
