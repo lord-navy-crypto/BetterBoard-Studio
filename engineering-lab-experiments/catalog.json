@@ -6,8 +6,8 @@
     "sensor": "MLX90393",
     "sketch_name": "EL_Radia_MLX90393_Field",
     "primary_observable": "bmag_uT",
-    "columns": ["time_us", "bx_uT", "by_uT", "bz_uT", "bmag_uT"],
-    "units": ["us", "uT", "uT", "uT", "uT"]
+    "columns": ["time_us", "bx_uT", "by_uT", "bz_uT", "bmag_uT", "bxy_uT", "azimuth_rad", "elevation_rad"],
+    "units": ["us", "uT", "uT", "uT", "uT", "uT", "rad", "rad"]
   },
   {
     "id": "el-oscillation-imu-tof",
@@ -36,8 +36,8 @@
     "sensor": "Quadrature encoder",
     "sketch_name": "EL_Chaos_Encoder_Kinematics",
     "primary_observable": "angle_rad",
-    "columns": ["time_us", "count", "angle_rad", "omega_rps", "alpha_rps2"],
-    "units": ["us", "count", "rad", "rad/s", "rad/s^2"]
+    "columns": ["time_us", "count", "angle_rad", "omega_rps", "alpha_rps2", "revolutions", "phase_rad"],
+    "units": ["us", "count", "rad", "rad/s", "rad/s^2", "rev", "rad"]
   },
   {
     "id": "el-oscillation-photogate-period",
