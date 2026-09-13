@@ -12,6 +12,7 @@ import type { BackgroundTask } from './TaskCenter';
 import './styles.css';
 import './visual-system.css';
 import './monitor-data.css';
+import './monitor-mode.css';
 import './workspace-shell.css';
 import './developer-task.css';
 import './copy-ai.css';
