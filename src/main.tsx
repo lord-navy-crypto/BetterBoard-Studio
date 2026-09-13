@@ -4,8 +4,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { Bot, CircuitBoard, FlaskConical, RadioTower, X } from 'lucide-react';
 import App from './App';
 import EngineeringPreparationStudio from './EngineeringPreparationStudio';
+import EvidenceInspector from './EvidenceInspector';
 import ExperimentsHub from './ExperimentsHub';
 import Observatory from './Observatory';
+import ObservatoryMissionControl from './ObservatoryMissionControl';
 import OpenPenguinBridge from './OpenPenguinBridge';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
 import type { BackgroundTask } from './TaskCenter';
@@ -191,8 +193,8 @@ function Root() {
     </aside>
 
     <div className="bb-workspace-frame">
-      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><EngineeringPreparationStudio /></div>
-      <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><Observatory /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><EvidenceInspector /><EngineeringPreparationStudio /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><ObservatoryMissionControl /><Observatory /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub /></div>
     </div>
   </div>;
