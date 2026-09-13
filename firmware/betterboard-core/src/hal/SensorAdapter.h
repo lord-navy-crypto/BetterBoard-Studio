@@ -8,6 +8,7 @@
 namespace betterboard {
 namespace hal {
 
+// Common acquisition boundary shared by deterministic fakes and real devices.
 template <typename T>
 class ISensorAdapter {
  public:
