@@ -1,0 +1,121 @@
+.bb-workflow-rail {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 3fr);
+  gap: 14px;
+  align-items: stretch;
+  margin: 12px auto 0;
+  padding: 0 18px;
+  max-width: 1540px;
+}
+
+.bb-workflow-next,
+.bb-workflow-steps {
+  border: 1px solid var(--border, rgba(120, 140, 170, 0.24));
+  background: var(--panel, rgba(18, 24, 34, 0.9));
+  border-radius: 14px;
+}
+
+.bb-workflow-next {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 68px;
+  padding: 12px 15px;
+}
+
+.bb-workflow-next small {
+  color: var(--muted, #94a3b8);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.bb-workflow-next b {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.bb-workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.bb-workflow-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px 12px;
+  opacity: 0.68;
+}
+
+.bb-workflow-step + .bb-workflow-step {
+  border-left: 1px solid var(--border, rgba(120, 140, 170, 0.2));
+}
+
+.bb-workflow-step.active {
+  opacity: 1;
+  background: rgba(79, 70, 229, 0.08);
+  box-shadow: inset 0 -2px 0 rgba(99, 102, 241, 0.7);
+}
+
+.bb-workflow-step.complete {
+  opacity: 0.9;
+}
+
+.bb-workflow-number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--border, rgba(120, 140, 170, 0.35));
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.bb-workflow-step.complete .bb-workflow-number {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.bb-workflow-step.active .bb-workflow-number {
+  border-color: rgba(99, 102, 241, 0.65);
+  background: rgba(99, 102, 241, 0.16);
+}
+
+.bb-workflow-step > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.bb-workflow-step b {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.bb-workflow-step small {
+  margin-top: 2px;
+  color: var(--muted, #94a3b8);
+  font-size: 10px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .bb-workflow-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .bb-workflow-steps {
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    overflow-x: auto;
+  }
+}
