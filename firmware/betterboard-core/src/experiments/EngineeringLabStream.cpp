@@ -10,14 +10,19 @@ void EngineeringLabStream::begin(const char* experiment_id,
                                  const char* model_target,
                                  const char* columns,
                                  const char* units,
-                                 uint32_t sample_interval_us) {
-  output_.println(F("#bb-engineering-lab-stream,1"));
+                                 uint32_t sample_interval_us,
+                                 const char* configuration) {
+  output_.println(F("#bb-engineering-lab-stream,2"));
   output_.print(F("#experiment_id,"));
   output_.println(experiment_id);
   output_.print(F("#model_target,"));
   output_.println(model_target);
   output_.print(F("#sample_interval_us,"));
   output_.println(sample_interval_us);
+  if (configuration != nullptr && configuration[0] != '\0') {
+    output_.print(F("#configuration,"));
+    output_.println(configuration);
+  }
   output_.print(F("#columns,"));
   output_.println(columns);
   output_.print(F("#units,"));
