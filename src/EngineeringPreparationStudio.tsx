@@ -155,74 +155,101 @@ export default function EngineeringPreparationStudio() {
 
   return <section className="panel" style={{ maxWidth: 1420, margin: '18px auto 52px' }}>
     <div className="panel-title"><Wrench size={18}/> Engineering Preparation</div>
-    <p className="muted">Reusable evidence preparation, bridge tooling and expert analyzers live in Studio. Experiments is reserved for model-specific Engineering Lab campaigns.</p>
+    <p className="muted">Turn saved measurements into analysis-ready evidence. Choose a preparation lane, inspect the evidence, add research context, then hand the package to Engineering Lab or local AI.</p>
 
-    <div className="action-row" style={{ marginBottom: 14 }}>
-      <button className={lane === 'numerical' ? 'primary' : 'ghost'} onClick={() => setLane('numerical')}><Sigma size={15}/> Numerical preparation</button>
-      <button className={lane === 'magnet' ? 'primary' : 'ghost'} onClick={() => setLane('magnet')}><Magnet size={15}/> Magnetic preparation</button>
+    <div className="engineering-model-grid" style={{ marginBottom: 14 }}>
+      <button className={`panel ${lane === 'numerical' ? 'selected' : ''}`} onClick={() => setLane('numerical')} style={{ textAlign: 'left', cursor: 'pointer' }}>
+        <div className="panel-title"><Sigma size={17}/> Numerical evidence</div>
+        <p className="muted">Check sampling, discretization and embedded numerical reliability before interpreting a model comparison.</p>
+        <b>Prepare numerical evidence →</b>
+      </button>
+      <button className={`panel ${lane === 'magnet' ? 'selected' : ''}`} onClick={() => setLane('magnet')} style={{ textAlign: 'left', cursor: 'pointer' }}>
+        <div className="panel-title"><Magnet size={17}/> Magnetic evidence</div>
+        <p className="muted">Characterize field measurements and residuals while keeping calibration assumptions separate from the raw sensor record.</p>
+        <b>Prepare magnetic evidence →</b>
+      </button>
+    </div>
+
+    <div className="observatory-facts" style={{ marginBottom: 14 }}>
+      <span>1 · Inspect</span><b>Measurement evidence</b>
+      <span>2 · Prepare</span><b>{lane === 'numerical' ? 'Numerical reliability' : 'Field characterization'}</b>
+      <span>3 · Context</span><b>Question · notes · annotations</b>
+      <span>4 · Handoff</span><b>Research Bridge</b>
     </div>
 
     {lane === 'numerical' && <>
-      <div className="boundary compact">Bench 01 / 02 / 03 are preparation stages: acquisition evidence, sampling/discretization evidence and MCU numerical-reliability evidence. They prepare a trustworthy package; they are not themselves the final Engineering Lab experiment.</div>
+      <div className="boundary compact"><FileCheck2 size={14}/> Numerical preparation asks whether the captured data and computation are trustworthy enough to support the next scientific claim. Bench 01 / 02 / 03 remain separate evidence stages.</div>
       <NumericalBenchSuiteV2/>
 
-      <section className="panel" style={{ marginTop: 14 }}>
-        <div className="panel-title"><Sigma size={17}/> Numeric Error campaign preparation tools</div>
-        <p className="muted">The old research analyzer V1/V2 and validation scripts are consolidated here. Use the campaign analyzer for the wider Numeric Error experiment family and the dedicated bridge for Interactive Studio Taylor rows.</p>
-        <div className="measurement big">
-          <b>Campaign analyzer</b><span>{CAMPAIGN_ANALYZER}</span>
-          <b>Campaign self-check</b><span>{CAMPAIGN_SELF_CHECK}</span>
-          <b>Interactive Studio bridge</b><span>{INTERACTIVE_BRIDGE}</span>
-          <b>Absorption ledger</b><span>{ABSORPTION_LEDGER}</span>
-        </div>
-        <div className="action-row">
-          <CopyButton text={CAMPAIGN_ANALYZER} label="Copy analyzer path"/>
-          <CopyButton text={CAMPAIGN_SELF_CHECK} label="Copy self-check path"/>
-          <CopyButton text={INTERACTIVE_BRIDGE} label="Copy bridge path"/>
-          <CopyButton text={ABSORPTION_LEDGER} label="Copy ledger path"/>
-        </div>
-      </section>
-
-      <details style={{ marginTop: 14 }}><summary><b>Numerical expert analyzer</b> · classic / exact controls</summary><NumericalBenchAdvanced/></details>
+      <details style={{ marginTop: 14 }}>
+        <summary><b>Advanced implementation tools</b> · analyzer paths, validation and exact controls</summary>
+        <section className="panel" style={{ marginTop: 10 }}>
+          <div className="panel-title"><Sigma size={17}/> Numeric Error implementation tools</div>
+          <p className="muted">Use these direct paths when maintaining or validating the numerical analysis pipeline. They are implementation details, not required for the normal evidence-preparation workflow.</p>
+          <div className="measurement big">
+            <b>Campaign analyzer</b><span>{CAMPAIGN_ANALYZER}</span>
+            <b>Campaign self-check</b><span>{CAMPAIGN_SELF_CHECK}</span>
+            <b>Interactive Studio bridge</b><span>{INTERACTIVE_BRIDGE}</span>
+            <b>Absorption ledger</b><span>{ABSORPTION_LEDGER}</span>
+          </div>
+          <div className="action-row">
+            <CopyButton text={CAMPAIGN_ANALYZER} label="Copy analyzer path"/>
+            <CopyButton text={CAMPAIGN_SELF_CHECK} label="Copy self-check path"/>
+            <CopyButton text={INTERACTIVE_BRIDGE} label="Copy bridge path"/>
+            <CopyButton text={ABSORPTION_LEDGER} label="Copy ledger path"/>
+          </div>
+          <details style={{ marginTop: 12 }}><summary><b>Numerical expert analyzer</b> · classic / exact controls</summary><NumericalBenchAdvanced/></details>
+        </section>
+      </details>
     </>}
 
     {lane === 'magnet' && <>
-      <div className="boundary compact">Magnetic preparation is organized as acquisition → field characterization → residual/model handoff. Keep raw sensor evidence, calibration assumptions and model comparison separate so a clean curve cannot hide a bad measurement.</div>
+      <div className="boundary compact"><FileCheck2 size={14}/> Magnetic preparation follows acquisition → field characterization → residual/model handoff. A clean curve never substitutes for calibration and provenance.</div>
       <MagnetBenchSuiteV2/>
-      <details style={{ marginTop: 14 }}><summary><b>Magnetic expert analyzer</b> · advanced residual / characterization controls</summary><MagnetBenchAdvanced/></details>
+      <details style={{ marginTop: 14 }}><summary><b>Advanced magnetic tools</b> · residual / characterization controls</summary><MagnetBenchAdvanced/></details>
     </>}
 
     <section className="panel engineering-handoff" style={{ marginTop: 18 }}>
-      <div className="panel-title"><UploadCloud size={18}/> BetterBoard Research Bridge</div>
-      <p className="muted">One provenance-aware contract connects BetterBoard evidence, Notebook / Annotation / Lab Journey context, Engineering Lab derived analysis, and OpenPenguin advisory reasoning. Raw measurement remains immutable evidence; downstream analysis and AI suggestions remain separate layers.</p>
-      <button className="ghost" disabled={loadingEvidence} onClick={() => void loadEvidence()}><Database size={15}/> {loadingEvidence ? 'Loading evidence…' : loaded ? 'Refresh saved evidence' : 'Load saved evidence'}</button>
+      <div className="panel-title"><UploadCloud size={18}/> Evidence handoff</div>
+      <p className="muted">Select a saved run and package its immutable measurement evidence with human research context. Engineering results and AI suggestions remain downstream layers rather than being mixed into the raw data.</p>
+      <button className="primary" disabled={loadingEvidence} onClick={() => void loadEvidence()}><Database size={15}/> {loadingEvidence ? 'Loading evidence…' : loaded ? 'Refresh saved evidence' : 'Choose saved evidence'}</button>
       {loadError && <div className="boundary" style={{ marginTop: 10 }}><CircleAlert size={14}/>{loadError}</div>}
-      {!loaded ? <div className="empty compact">Load evidence to create a Research Bridge package.</div> : !loadError && !sessions.length ? <div className="empty compact">No saved measurement sessions yet.</div> : !loadError && <>
+      {!loaded ? <div className="empty compact">Choose saved evidence when you are ready to build a research handoff.</div> : !loadError && !sessions.length ? <div className="empty compact">No saved measurement sessions yet. Record evidence in Monitor & Data first.</div> : !loadError && <>
         <select value={selected?.directory ?? ''} onChange={e => setSelected(sessions.find(s => s.directory === e.target.value) ?? null)}>
           {sessions.map(s => <option key={s.directory} value={s.directory}>{s.recipe_title} · {s.sample_count} samples · {new Date(s.created_at_utc).toLocaleString()}</option>)}
         </select>
-        {selected && <div className="measurement big">
-          <b>{selected.recipe_title}</b>
-          <span>Research session · {currentSessionId}</span>
-          <span>data.csv · {selected.csv_path}</span>
-          <span>metadata.json · {selected.metadata_path}</span>
-          <span>Engineering Lab compatibility · {selected.physical_lab_csv_path}</span>
-          <span>Legacy bridge · {selected.physical_lab_bridge_path}</span>
-          <span>Unified bridge · betterboard.research-bridge/1.0</span>
-        </div>}
-        <div className="action-row">
-          <CopyButton text={exportText} label="Copy handoff"/>
-          <CopyButton text={researchBridgeJson} label="Copy Research Bridge JSON"/>
-          <CopyButton text={selected?.csv_path || ''} label="Copy data path"/>
-          <CopyButton text={selected?.physical_lab_bridge_path || ''} label="Copy legacy bridge path"/>
-        </div>
+        {selected && <>
+          <div className="measurement big">
+            <b>{selected.recipe_title}</b>
+            <span>{selected.sample_count} samples · {new Date(selected.created_at_utc).toLocaleString()}</span>
+            <span>Research session · {currentSessionId}</span>
+            <span>Unified bridge · betterboard.research-bridge/1.0</span>
+          </div>
+          <div className="action-row">
+            <CopyButton text={exportText} label="Copy handoff summary"/>
+            <CopyButton text={researchBridgeJson} label="Copy Research Bridge JSON"/>
+          </div>
+          <details style={{ marginTop: 10 }}>
+            <summary><b>Evidence files & compatibility exports</b></summary>
+            <div className="measurement big" style={{ marginTop: 8 }}>
+              <b>Raw data</b><span>{selected.csv_path}</span>
+              <b>Metadata</b><span>{selected.metadata_path}</span>
+              <b>Engineering Lab compatibility</b><span>{selected.physical_lab_csv_path}</span>
+              <b>Legacy bridge</b><span>{selected.physical_lab_bridge_path}</span>
+            </div>
+            <div className="action-row">
+              <CopyButton text={selected.csv_path || ''} label="Copy data path"/>
+              <CopyButton text={selected.physical_lab_bridge_path || ''} label="Copy legacy bridge path"/>
+            </div>
+          </details>
+        </>}
       </>}
-      <div className="boundary"><FileCheck2 size={14}/> Handoff success means evidence and provenance are traceable. It does not prove calibration, physical correctness, model validity, or an AI conclusion.</div>
+      <div className="boundary"><FileCheck2 size={14}/> A successful handoff means evidence and provenance are traceable. It does not prove calibration, physical correctness, model validity, or an AI conclusion.</div>
     </section>
 
     {selected && <section className="panel" style={{ marginTop: 18 }}>
-      <div className="panel-title"><Database size={18}/> Research context bridge</div>
-      <p className="muted">Notebook, annotations and Lab Journey entries are persisted per measurement session and are embedded into every Research Bridge export. They remain human context, never raw sensor evidence.</p>
+      <div className="panel-title"><Database size={18}/> Research context</div>
+      <p className="muted">Add the question, hypothesis, observations and decisions that explain why this run matters. These notes travel with the handoff but remain distinct from sensor evidence.</p>
       <div className="engineering-model-grid">
         <label className="panel">Research question<textarea rows={3} value={researchContext.question} onChange={e => patchContext({ question: e.target.value })} placeholder="What are you trying to determine?" /></label>
         <label className="panel">Hypothesis<textarea rows={3} value={researchContext.hypothesis} onChange={e => patchContext({ hypothesis: e.target.value })} placeholder="What result do you expect, and why?" /></label>
@@ -243,8 +270,8 @@ export default function EngineeringPreparationStudio() {
     </section>}
 
     <section className="panel" style={{ marginTop: 18 }}>
-      <div className="panel-title"><Bot size={18}/> OpenPenguin bridge</div>
-      <p className="muted">OpenPenguin receives the structured Research Bridge context, not an undifferentiated dump. Its output is advisory, is persisted as an AI suggestion, and is never promoted to measurement or Engineering Lab result automatically.</p>
+      <div className="panel-title"><Bot size={18}/> Ask OpenPenguin about this evidence</div>
+      <p className="muted">OpenPenguin receives the structured Research Bridge context. Its output is advisory, is stored as an AI suggestion, and is never promoted to measurement or Engineering Lab result automatically.</p>
       <div className="action-row">
         <button className="ghost" onClick={() => void refreshOpenPenguin()}><RefreshCw size={15}/> Inspect local AI</button>
         {aiStatus?.found && <select value={aiModel} onChange={e => setAiModel(e.target.value)}>{aiStatus.models.map(model => <option key={model} value={model}>{model}</option>)}</select>}
