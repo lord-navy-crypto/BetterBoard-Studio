@@ -88,13 +88,16 @@ for forbidden in ['<NumericalBenchSuiteV2', '<MagnetBenchSuiteV2', '<NumericalBe
     assert forbidden not in hub, f'Preparation/expert surface regressed into Experiments: {forbidden}'
 
 # Studio Engineering Preparation owns reusable preparation, analyzers, bridges and handoff.
+# Protect product capabilities and information hierarchy rather than freezing old button copy.
 for token in [
-    'Engineering Preparation', 'Numerical preparation', 'Magnetic preparation',
+    'Engineering Preparation', 'Numerical evidence', 'Magnetic evidence',
+    'Numerical preparation', 'Magnetic preparation',
     'NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'NumericalBenchAdvanced', 'MagnetBenchAdvanced',
-    'BetterBoard → Engineering Lab handoff', 'Load saved evidence', 'Copy handoff',
-    'Numeric Error campaign preparation tools', 'numeric_error_campaign_analyzer.py',
-    'numeric_error_campaign_self_check.py', 'arduino_numeric_error_bridge_v2.py',
-    'NUMERIC_ERROR_ABSORPTION_LEDGER.md', 'Research context bridge', 'OpenPenguin bridge',
+    'BetterBoard → Engineering Lab handoff', 'Choose saved evidence', 'Refresh saved evidence',
+    'Evidence handoff', 'Research context', 'Ask OpenPenguin about this evidence',
+    'Advanced implementation tools', 'Copy handoff',
+    'numeric_error_campaign_analyzer.py', 'numeric_error_campaign_self_check.py',
+    'arduino_numeric_error_bridge_v2.py', 'NUMERIC_ERROR_ABSORPTION_LEDGER.md',
 ]:
     assert token in preparation, f'Engineering Preparation lost {token}'
 
@@ -227,7 +230,7 @@ print('BetterBoard functionality surface check: PASS')
 print('- retired StudioAdvanced compatibility UI stays removed')
 print('- canonical Studio / Monitor / Developer / Task Center own its former product capabilities')
 print('- three-workspace hierarchy protected: Studio / Observatory / Experiments')
-print('- Engineering Preparation retains scientific preparation / analyzer / handoff surfaces')
+print('- Engineering Preparation retains productized evidence preparation / analyzer / handoff surfaces')
 print('- live Physical Lab compatibility export remains protected until explicitly migrated')
 print('- Numerical and Magnet V2 evidence/re-analysis contracts remain protected')
 print('- Developer, Task Center, Circuit, Monitor and IDE-parity capabilities protected')
