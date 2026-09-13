@@ -2,68 +2,206 @@
 
 ## Scope
 
-This guide defines how new and existing BetterBoard Arduino/ESP32 firmware should use the reusable C++ Core. It is written for contributors who are adding experiments, migrating older sketches, or building device adapters.
+This guide defines how BetterBoard Arduino/ESP32 firmware should use the current reusable C++ Core. It is for contributors adding experiments, migrating older sketches, or connecting new hardware.
 
-## The main rule
+The main rule is simple:
 
-A sketch should describe an experiment. A reusable algorithm should live in the C++ library.
-
-Good sketch responsibilities include selecting pins, initializing a device, choosing a sample rate, deciding which observables to emit, and defining experiment-specific parameters. Repeated statistics, derivative, integral, filtering, scheduling, validity handling, buffering, threshold logic, and regression should not be copied into many `.ino` files.
+> A sketch should describe an experiment. Reusable acquisition, timing, evidence, numerical, and signal-processing behavior should live in the C++ Core.
 
 ## Include the library
 
-Use the umbrella header for ordinary sketches:
+For ordinary sketches:
 
 ```cpp
 #include <BetterBoard.h>
 ```
 
-For highly constrained code, individual component headers may be included instead.
+The umbrella header exports the current timing, HAL, measurement, evidence, numerical, and signal-processing primitives.
 
-## Periodic sampling
+## Choose the correct time model first
 
-Avoid using `delay()` as the main timing mechanism for research acquisition when timestamp quality matters. Use `PeriodicSampler` with `micros()`:
+Before touching a sensor driver, decide whether the experiment is periodic or event-driven.
+
+### Periodic acquisition
+
+Use `PeriodicSampler` to decide when a sample belongs on the experiment timeline and `SampleClock` to record actual spacing and lateness:
 
 ```cpp
-betterboard::core::PeriodicSampler sampler(10000U);  // 100 Hz
+betterboard::core::PeriodicSampler sampler(10000U);
+betterboard::core::SampleClock sample_clock(10000U);
 
 void setup() {
-    // Optional: preserve legacy startup cadence by arming at the current timestamp.
-    sampler.reset(micros());
+  sampler.reset(micros());
 }
 
 void loop() {
-    const uint32_t now_us = micros();
-    if (!sampler.ready(now_us)) return;
+  const uint32_t now = micros();
+  if (!sampler.ready(now)) return;
 
-    // acquire and emit one sample
+  const auto timing = sample_clock.observe(now);
+  // acquire one sample whose evidence timestamp is `now`
 }
 ```
 
-The scheduler is designed around unsigned microsecond timestamps and advances its next deadline rather than resetting cadence from the current instant. This reduces accumulated phase drift from ordinary loop overhead. When migrating an older sketch that waited one complete sample interval before its first read, explicitly arm/reset the sampler in `setup()` so the startup contract stays unchanged.
+Do not use hardware-read completion time as the scientific sample timestamp. I2C/SPI/ADC latency belongs in `read_duration_us`.
 
-## Online statistics and RMS
+### Event-driven acquisition
 
-Use `OnlineStatistics` for windows where retaining every sample is unnecessary:
+Do not force `SampleClock` onto an event experiment merely for API consistency. A photogate or interrupt-driven encoder event should preserve its event timestamp and event interval when those are the actual observables.
+
+## Use the HAL boundary for reusable device acquisition
+
+The current reusable hardware boundary is:
+
+```cpp
+betterboard::hal::ISensorAdapter<T>
+```
+
+For a typical synchronous device driver, use `ClockedSensorAdapter<T>`.
+
+Define a narrow sample type:
+
+```cpp
+struct EnvironmentSample {
+  float temperature_c{0.0f};
+  float pressure_hpa{0.0f};
+  float humidity_pct{0.0f};
+};
+```
+
+Then write a device callback that does only driver I/O and status classification:
+
+```cpp
+betterboard::measurement::AcquisitionStatus readEnvironment(
+    void* context, EnvironmentSample& sample) {
+  auto* sensor = static_cast<Adafruit_BME280*>(context);
+
+  sample.temperature_c = sensor->readTemperature();
+  sample.pressure_hpa = sensor->readPressure() / 100.0f;
+  sample.humidity_pct = sensor->readHumidity();
+
+  if (!isfinite(sample.temperature_c) ||
+      !isfinite(sample.pressure_hpa) ||
+      !isfinite(sample.humidity_pct)) {
+    return betterboard::measurement::AcquisitionStatus::InvalidValue;
+  }
+
+  return betterboard::measurement::AcquisitionStatus::Ok;
+}
+```
+
+Connect it to an Arduino clock and adapter:
+
+```cpp
+Adafruit_BME280 bme;
+betterboard::core::ArduinoClock acquisition_clock;
+betterboard::hal::ClockedSensorAdapter<EnvironmentSample> sensor_adapter(
+    acquisition_clock, &bme, readEnvironment);
+```
+
+At sample time:
+
+```cpp
+const auto acquisition = sensor_adapter.readAt(now);
+```
+
+The adapter preserves `now` as the evidence timestamp and measures the hardware call duration separately.
+
+## Status classification
+
+Use acquisition statuses deliberately:
+
+```text
+Ok            valid device observation
+NotReady      device has no new observation yet
+Timeout       acquisition exceeded the device/experiment timeout contract
+BusError      transport or driver read failed
+InvalidValue  driver returned a value that cannot be used as an observation
+Saturated     device/range saturation is known
+```
+
+Do not convert a failed read into zero unless zero is actually the observed value.
+
+## Convert acquisition into evidence
+
+Every catalogued Engineering Lab experiment uses `EvidenceRecord`.
+
+For a periodic sample:
+
+```cpp
+uint16_t flags = betterboard::experiments::evidence::Valid;
+if (timing.late) {
+  flags = betterboard::experiments::evidence::addFlag(
+      flags,
+      betterboard::experiments::evidence::TimingLate);
+}
+
+const auto record = betterboard::experiments::makeEvidenceRecord(
+    sequence_id++, timing.sample_dt_us, acquisition, flags);
+```
+
+Emit rows from the record timestamp:
+
+```cpp
+stream.rowBegin(record.timestamp_us);
+```
+
+and emit the evidence quality flags:
+
+```cpp
+stream.field(static_cast<unsigned long>(record.quality_flags));
+```
+
+The v3 contract audit checks for these semantics.
+
+## Preserve scientific meaning during migration
+
+Internal architecture may change while the data contract stays stable. Unless the migration explicitly changes the experiment definition, preserve:
+
+- experiment ID
+- CSV column order
+- units
+- startup behavior
+- calibration assumptions
+- direct-vs-derived distinction
+- event semantics
+
+A migration that makes the code prettier but changes what a column means is not behavior-preserving.
+
+## Fake sensors and deterministic testing
+
+`FakeSensor<T, N>` implements the same `ISensorAdapter<T>` boundary as real hardware.
+
+Use it to script success and failure cases without physical devices:
+
+```cpp
+betterboard::hal::FakeSensor<float, 3> fake;
+
+fake.push(betterboard::measurement::AcquisitionResult<float>::success(
+    3.25f, 1000U, 80U));
+
+fake.push(betterboard::measurement::AcquisitionResult<float>::failure(
+    betterboard::measurement::AcquisitionStatus::Timeout,
+    1100U,
+    100U));
+```
+
+This makes error propagation, quality mapping, and sequence behavior deterministic.
+
+## Numerical primitives
+
+Use shared numerical code instead of reimplementing formulas in sketches.
+
+### Online statistics
 
 ```cpp
 betterboard::math::OnlineStatistics stats;
 stats.push(value);
 ```
 
-The implementation uses Welford-style updates and provides population/sample variance, standard deviation, extrema, and peak-to-peak. Use `RmsAccumulator` when RMS is the actual experiment quantity rather than reconstructing it ad hoc in each sketch.
+Use `RmsAccumulator` when RMS is the actual experiment quantity.
 
-Current migrations demonstrate three patterns:
-
-- `ADC_NoiseStatistics`: one online statistics window replaces hand-maintained sum/sum-square/min/max state.
-- `LSM6DSOX_BiasSurvey`: six independent online statistics windows track three accelerometer and three gyroscope axes without duplicated sum/sum-square formulas.
-- `MLX90393_FieldStatistics`: three online statistics windows provide axis means and standard deviations before the sketch derives vector magnitude from the axis means.
-
-This is safer than duplicating `sum2 / n - mean^2` logic in many sketches and gives the host-side test suite one implementation to verify.
-
-## Numerical integration and finite differences
-
-Use explicit timestamps:
+### Integration
 
 ```cpp
 betterboard::math::TrapezoidIntegrator energy;
@@ -71,143 +209,130 @@ energy.push(time_s, power_w);
 const double energy_j = energy.value();
 ```
 
-Do not assume constant `dt` unless the experiment contract explicitly establishes it. The integrator ignores non-positive time steps so reversed or duplicate timestamps do not silently corrupt the result.
+Use explicit time. Do not assume constant `dt` unless the experiment contract guarantees it.
 
-`INA219_Energy` now uses the shared integrator with `time_s` and `power_mW`; the numerical result therefore remains in mW·s, i.e. mJ, preserving the existing serial contract while removing duplicated trapezoid bookkeeping from the sketch.
-
-Derived rates should also use the actual timestamp:
+### Finite differences
 
 ```cpp
 betterboard::math::FiniteDifference velocity;
 if (velocity.push(time_s, position_m)) {
-    const double velocity_mps = velocity.derivative();
+  const double velocity_mps = velocity.derivative();
 }
 ```
 
-`EncoderKinematics` demonstrates a staged derivative chain: encoder count is converted to angle, angle is pushed into one finite-difference object to obtain angular velocity, and valid angular velocity is pushed into a second finite-difference object to obtain angular acceleration. The sketch retains zero outputs until each derivative stage has enough history, matching the previous startup behavior without duplicating time-step arithmetic.
+Differentiation amplifies noise; derived rates must remain identifiable as derived quantities.
 
-Remember that differentiation amplifies noise. A firmware-derived velocity, acceleration, or jerk is not equivalent to a directly measured quantity. Preserve this distinction in column names and recipe notes.
-
-## Linear regression
-
-`LinearRegression` provides a small streaming least-squares primitive for experiments such as calibration previews, trend estimation, and first-pass system identification:
+### Regression
 
 ```cpp
 betterboard::math::LinearRegression fit;
 fit.push(command, response);
-if (fit.valid()) {
-    const double gain = fit.slope();
-    const double offset = fit.intercept();
-}
 ```
 
-Firmware regression is a compact derived summary, not a replacement for downstream uncertainty analysis or model validation.
+Firmware regression is a compact derived summary, not a substitute for downstream model validation or uncertainty analysis.
 
-## Lightweight filtering and event logic
+## Signal processing
 
-For a transparent one-pole smoother:
+Reusable transparent primitives include exponential moving average, peak hold, threshold trigger, and hysteresis latch.
 
-```cpp
-betterboard::signal::ExponentialMovingAverage filter(0.2);
-const double filtered = filter.push(raw);
-```
+Filter coefficients and thresholds are experiment parameters and must remain visible. Do not hide aggressive filtering that materially changes apparent dynamics.
 
-The filter coefficient is part of the experiment and should be exposed or documented. Do not hide aggressive filtering that changes the apparent dynamics of a signal.
+## Bounded memory
 
-`PeakHold`, `ThresholdTrigger`, and `HysteresisLatch` cover common transient and state-detection patterns. Trigger and hysteresis thresholds must remain explicit experiment parameters rather than invisible magic numbers.
+Use `core::RingBuffer<T, N>` when recent history is required. It has fixed compile-time capacity and avoids dynamic allocation.
 
-A migration must preserve event semantics. For example, `ADC_StepDetector` uses `PeriodicSampler` for timing but keeps its existing per-sample delta comparison because a latched threshold trigger would change the output contract from "event on this sample" to "state has ever triggered". Reuse the shared primitive only when its semantics actually match the experiment.
+For microcontroller code, prefer bounded state and explicit ownership over heap-backed containers unless there is a clear reason otherwise.
 
-## Bounded buffering
+## Multi-sensor experiments
 
-Use `core::RingBuffer<T, N>` when recent history is required. It has fixed compile-time capacity and performs no dynamic allocation. This is preferred over unbounded containers for small microcontroller targets.
+Do not collapse multiple physical reads into a fake single timestamp if sensor skew matters.
 
-## Timestamped samples
+For sequential sensor reads:
 
-`measurement::Sample<T>` is a minimal carrier for a timestamp, a value, and an explicit validity flag. It is intentionally small so future device adapters can return observations without inventing a plausible numeric value after a failed sensor read.
+- keep the scheduler-owned experiment timestamp
+- measure each device read duration when useful
+- preserve inter-sensor skew explicitly when it affects interpretation
+- expose partial invalidity instead of silently dropping healthy channels
 
-## Measurement quality
+The existing oscillation and dual-accelerometer experiments demonstrate why synchronization is part of scientific evidence rather than only a performance concern.
 
-A future sensor-adapter layer should attach `measurement::Quality` to observations. Until adapters are introduced, sketches can still use the enum explicitly when producing state columns or deciding whether a derived quantity is valid.
+## Calibration
 
-Important principle: a failed sensor read must not be converted into a plausible numeric zero unless zero is actually the measured value.
+The HAL reports observations and acquisition state. It does not decide scientific calibration.
 
-## Migrating an existing sketch
+Examples:
 
-Migrate one concern at a time. First replace duplicated scheduling. Then move statistics. Then move derivative/integration code. Keep serial column names, units, and recipe metadata stable during each migration unless there is a separate reason to change the data contract.
+- a load cell adapter may expose raw counts; newtons require explicit calibration provenance
+- a magnetometer exposes vector field; laboratory-frame interpretation and background subtraction are experiment choices
+- an IMU exposes acceleration/angular rate; it must not claim absolute position
 
-The current representative migration set spans multiple domains:
+Use quality flags or metadata to make default/missing calibration visible.
+
+## Telemetry
+
+Use `EngineeringLabStream` for Engineering Lab experiments. Telemetry should expose enough information for downstream judgment:
 
 ```text
-ADC_NoiseStatistics        -> scheduler + online statistics
-ADC_StepDetector           -> scheduler only; event semantics stay local
-ADXL345_VibrationRMS       -> scheduler + RMS accumulator + peak hold
-INA219_Energy              -> scheduler + trapezoid integration
-LSM6DSOX_BiasSurvey        -> scheduler + six online statistics windows
-MLX90393_FieldStatistics   -> scheduler + three online statistics windows
-EncoderKinematics          -> scheduler + two-stage finite differences
+timestamp
+observable(s)
+sample interval
+read duration
+quality flags
+relevant calibration/configuration provenance
 ```
 
-This is intentional. The goal is not to mass-edit all 56 recipes at once. The goal is to prove shared primitives across different measurement domains while keeping each recipe/data contract stable.
-
-A migration is complete only when the sketch still compiles for its supported board targets and the C++ primitive has a deterministic native test where practical.
-
-## Device adapter design
-
-When sensor wrappers are added, each adapter should have a narrow job:
-
-```text
-initialize hardware
-read the device's actual observables
-report validity / error state
-expose configuration that materially affects the reading
-```
-
-An adapter should not over-interpret the measurement. An IMU does not know absolute position. A magnetometer does not know the user's laboratory coordinate frame unless that frame is explicitly defined. A load cell does not know newtons without calibration information.
-
-## Experiment composition
-
-As the library grows, an experiment should become a composition of reusable pieces:
-
-```text
-device adapter
-+ scheduler
-+ bounded buffer
-+ optional filter / trigger / hysteresis
-+ derivative / integral / regression
-+ window statistics
-+ validity state
-+ telemetry
-```
-
-That structure is the basis for synchronized multi-sensor experiments and system-identification campaigns.
+CSV remains the inspectable compatibility surface. Future structured/binary transport must not remove the ability to reason about evidence quality.
 
 ## Testing expectations
 
-Every platform-neutral C++ component should be testable with a desktop compiler. Tests should check simple known cases, edge cases, and invalid timing.
+A change to the C++ Core is not complete merely because one sketch compiles.
 
-The C++ Core CI covers native tests and representative migrated sketches, while the frozen Sensor Suite integrity workflow compiles all 56 recipes against the local BetterBoard Core library for both board families:
+The current verification stack includes:
 
 ```text
-native g++ compile with warnings-as-errors
-→ native unit tests
-→ Arduino UNO core example compile
-→ ESP32-S3 core example compile
-→ representative migrated sketch compiles
-→ full 56-recipe UNO compile with local BetterBoard Core
-→ full 56-recipe ESP32-S3 compile with local BetterBoard Core
+native g++ tests with warnings-as-errors
+→ HAL/fake-sensor deterministic tests
+→ Arduino UNO compile
+→ ESP32-S3 compile
+→ Engineering Lab schema audit
+→ Engineering Lab v3 acquisition/evidence audit
+→ Engineering Lab experiment compiles
+→ full Sensor Suite integrity compile
 ```
 
-That split gives fast focused feedback plus a full compatibility gate. Changes under `firmware/betterboard-core/**` must trigger the Sensor Suite workflow because a shared-library change can affect migrated recipes even when no sketch file changed.
+When the exact PR HEAD changes, old green runs do not count. Re-run the gates for the new HEAD.
 
-Hardware-in-the-loop acceptance should be added only when real hardware is available and the test is reproducible.
+## Migration checklist
+
+Before merging a firmware migration, verify:
+
+1. the experiment uses the correct periodic or event-driven time model
+2. acquisition failures are explicit
+3. evidence timestamp semantics did not move during refactoring
+4. `read_duration_us` measures device work rather than replacing the sample timestamp
+5. quality flags still describe degraded conditions
+6. CSV columns and units are unchanged unless intentionally versioned
+7. derived quantities remain distinguishable from direct observations
+8. deterministic tests cover reusable platform-neutral behavior when practical
+9. UNO/ESP32 compile targets still pass where supported
+10. the exact latest HEAD passes every required CI gate
 
 ## What stays outside the embedded core
 
-The firmware core should not absorb all of Engineering Lab. Keep large-scale model fitting, uncertainty propagation, publication plots, residual studies, Monte Carlo analysis, and final scientific validation downstream.
+Keep large-scale model fitting, Monte Carlo studies, publication plots, uncertainty propagation, residual analysis, and final scientific validation downstream in Engineering Lab or related desktop analysis tools.
 
-Likewise, do not move desktop UI responsibilities into C++ merely to increase the repository's C++ percentage. C++ should grow where it is the appropriate implementation language: embedded acquisition, numerical primitives, hardware abstractions, and deterministic experiment infrastructure.
+The embedded layer should make evidence richer and failures more visible, not make unsupported claims about the physical system.
 
-## Near-term migration candidates
+## Near-term extensions
 
-The next representative migrations should target magnetometer baseline/field integration, IMU integration and bias-corrected motion experiments, motor step-response characterization, power stability/transient experiments, and multi-sensor synchronization. Prefer candidates that exercise an existing shared primitive or justify a new generally reusable primitive.
+Useful next extensions are evolutionary rather than architectural rewrites:
+
+- typed units
+- compile-time schema definitions
+- calibration provenance objects
+- sequence/CRC framing
+- optional binary transport beside CSV
+- synchronized multi-sensor metadata
+- reproducible hardware-in-the-loop acceptance tests
+
+The v3 HAL, acquisition, timing, and evidence contracts are the baseline these additions should build on.
