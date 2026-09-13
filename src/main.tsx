@@ -12,12 +12,21 @@ import type { BackgroundTask } from './TaskCenter';
 import './styles.css';
 import './visual-system.css';
 import './monitor-data.css';
+import './monitor-mode.css';
 import './workspace-shell.css';
 import './developer-task.css';
 import './copy-ai.css';
+import './workflow-rail.css';
 
 type Workspace = 'studio' | 'observatory' | 'experiments';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
+
+type WorkflowStep = {
+  label: string;
+  detail: string;
+  complete: boolean;
+  active?: boolean;
+};
 
 const TASK_MEMORY_KEY = 'betterboard.task-center.v1';
 
@@ -58,6 +67,60 @@ function Root() {
   const runningTasks = useMemo(() => tasks.filter(task => task.state === 'running'), [tasks]);
   const latestRunning = runningTasks[0];
   const liveSerial = runningTasks.find(task => task.category === 'Monitor' && /live serial/i.test(task.title));
+
+  const workflow = useMemo(() => {
+    const successful = tasks.filter(task => task.state === 'done');
+    const programmed = successful.some(task => task.category === 'Program' && /upload|compile/i.test(task.title));
+    const monitored = Boolean(liveSerial) || successful.some(task => task.category === 'Monitor');
+    const evidenceSaved = successful.some(task => task.category === 'Evidence');
+    const analyzed = successful.some(task => task.category === 'Analysis');
+
+    const steps: WorkflowStep[] = [
+      {
+        label: 'Connect',
+        detail: selectedPort ? (activePort?.board_name || selectedPort) : 'Select hardware',
+        complete: Boolean(selectedPort),
+        active: !selectedPort,
+      },
+      {
+        label: 'Program',
+        detail: programmed ? 'Firmware verified' : 'Prepare / upload',
+        complete: programmed,
+        active: Boolean(selectedPort) && !programmed,
+      },
+      {
+        label: 'Monitor',
+        detail: liveSerial ? 'LIVE' : monitored ? 'Acquisition observed' : 'Acquire data',
+        complete: monitored,
+        active: programmed && !monitored,
+      },
+      {
+        label: 'Evidence',
+        detail: evidenceSaved ? 'Session saved' : 'Save measurement',
+        complete: evidenceSaved,
+        active: monitored && !evidenceSaved,
+      },
+      {
+        label: 'Analyze',
+        detail: analyzed ? 'Analysis recorded' : 'Inspect / handoff',
+        complete: analyzed,
+        active: evidenceSaved && !analyzed,
+      },
+    ];
+
+    let nextAction = 'Connect a board in Studio';
+    if (!cli?.found) nextAction = 'Restore the Arduino toolchain';
+    else if (!selectedPort) nextAction = 'Connect and select hardware';
+    else if (!programmed) nextAction = 'Prepare or upload firmware';
+    else if (liveSerial) nextAction = 'Save the live run as evidence';
+    else if (!monitored) nextAction = 'Start Monitor & Data';
+    else if (!evidenceSaved) nextAction = 'Save the captured measurement';
+    else if (!analyzed) nextAction = 'Analyze or prepare the handoff';
+    else nextAction = 'Start the next experiment';
+
+    return { steps, nextAction };
+  }, [tasks, liveSerial, selectedPort, activePort?.board_name, cli?.found]);
+
   const openPenguinContext = useMemo(() => [
     `Workspace: ${workspace}`,
     `Arduino CLI: ${cli?.found ? 'ready' : 'unavailable'}`,
@@ -66,7 +129,8 @@ function Root() {
     `Acquisition: ${liveSerial ? 'LIVE' : 'idle'}`,
     `Running tasks: ${runningTasks.length}`,
     `Current status: ${latestRunning?.detail || hardwareStatus}`,
-  ].join('\n'), [workspace, cli?.found, fqbn, selectedPort, activePort?.board_name, liveSerial, runningTasks.length, latestRunning?.detail, hardwareStatus]);
+    `Recommended next action: ${workflow.nextAction}`,
+  ].join('\n'), [workspace, cli?.found, fqbn, selectedPort, activePort?.board_name, liveSerial, runningTasks.length, latestRunning?.detail, hardwareStatus, workflow.nextAction]);
 
   return <div className="bb-root">
     <header className="bb-command-bar rich">
@@ -106,6 +170,19 @@ function Root() {
       <span><b>Tasks</b>{runningTasks.length ? `${runningTasks.length} running` : 'Background idle'}</span>
       <span className="bb-context-current"><b>Current</b>{latestRunning?.detail || hardwareStatus}</span>
     </div>
+
+    {workspace === 'studio' && <section className="bb-workflow-rail" aria-label="BetterBoard experiment workflow">
+      <div className="bb-workflow-next">
+        <small>Next action</small>
+        <b>{workflow.nextAction}</b>
+      </div>
+      <div className="bb-workflow-steps">
+        {workflow.steps.map((step, index) => <div key={step.label} className={`bb-workflow-step ${step.complete ? 'complete' : ''} ${step.active ? 'active' : ''}`}>
+          <span className="bb-workflow-number">{step.complete ? '✓' : index + 1}</span>
+          <span><b>{step.label}</b><small>{step.detail}</small></span>
+        </div>)}
+      </div>
+    </section>}
 
     <div className="bb-ai-drawer-backdrop" hidden={!aiOpen} onClick={() => setAiOpen(false)} />
     <aside className="bb-ai-drawer" hidden={!aiOpen} aria-label="OpenPenguin local AI bridge">
