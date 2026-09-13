@@ -5,6 +5,7 @@ import {
   Cpu, Download, Gauge, Magnet, Play, RefreshCw, RotateCw,
   Save, Search, ShieldCheck, TerminalSquare, TimerReset, Upload, Waves, Wrench,
 } from 'lucide-react';
+import packageMetadata from '../package.json';
 import CircuitLab from './CircuitLab';
 import DeveloperIDE from './DeveloperIDE';
 import MonitorDataStudio from './MonitorDataStudio';
@@ -290,7 +291,7 @@ export default function App() {
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><div className="brand-mark">B</div><div><b>BetterBoard</b><span>Studio · Alpha 0.7</span></div></div>
+      <div className="brand"><div className="brand-mark">B</div><div><b>BetterBoard</b><span>Studio · {packageMetadata.version}</span></div></div>
       {nav.map(([id, Icon, label]) => <button key={id} className={`nav ${tab === id ? 'nav-active' : ''}`} onClick={() => setTab(id)}><Icon size={17}/>{label}</button>)}
       <div className="sidebar-spacer"/>
       <div className="small-card"><span>Core workflow</span><b>Connect → program → monitor → record → analyze</b></div>
