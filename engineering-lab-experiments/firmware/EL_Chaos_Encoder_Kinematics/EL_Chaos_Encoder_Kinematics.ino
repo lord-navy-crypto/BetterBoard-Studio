@@ -19,11 +19,11 @@ const uint8_t ENC_B = 3;
 volatile long encoder_count = 0;
 
 betterboard::core::PeriodicSampler sampler(BB_SAMPLE_INTERVAL_US);
+betterboard::core::SampleClock sample_clock(BB_SAMPLE_INTERVAL_US);
 betterboard::math::FiniteDifference omega_diff;
 betterboard::math::FiniteDifference alpha_diff;
 betterboard::experiments::EngineeringLabStream stream(Serial);
-
-unsigned long previous_sample_us = 0;
+uint32_t sequence_id = 0U;
 
 void onEncoderA() {
   const bool a = digitalRead(ENC_A);
@@ -46,26 +46,32 @@ void setup() {
 }
 
 void loop() {
-  const unsigned long now = micros();
+  const uint32_t now = micros();
   if (!sampler.ready(now)) return;
 
-  const unsigned long sample_dt_us = previous_sample_us == 0 ? 0 : now - previous_sample_us;
-  previous_sample_us = now;
-  uint16_t quality = betterboard::experiments::evidence::Valid;
-  if (sample_dt_us != 0 && sample_dt_us > BB_SAMPLE_INTERVAL_US + BB_SAMPLE_INTERVAL_US / 2) {
-    quality = betterboard::experiments::evidence::addFlag(
-        quality, betterboard::experiments::evidence::TimingLate);
+  const betterboard::core::SampleTiming timing = sample_clock.observe(now);
+  uint16_t base_quality = betterboard::experiments::evidence::Valid;
+  if (timing.late) {
+    base_quality = betterboard::experiments::evidence::addFlag(
+        base_quality, betterboard::experiments::evidence::TimingLate);
   }
 #if BB_COUNTS_PER_REVOLUTION_DEFAULT
-  quality = betterboard::experiments::evidence::addFlag(
-      quality, betterboard::experiments::evidence::CalibrationDefault);
+  base_quality = betterboard::experiments::evidence::addFlag(
+      base_quality, betterboard::experiments::evidence::CalibrationDefault);
 #endif
 
-  const unsigned long read_start_us = micros();
+  const uint32_t read_start_us = micros();
   noInterrupts();
   const long count = encoder_count;
   interrupts();
-  const unsigned long read_duration_us = micros() - read_start_us;
+  const uint32_t read_duration_us = micros() - read_start_us;
+
+  const betterboard::measurement::AcquisitionResult<long> result =
+      betterboard::measurement::AcquisitionResult<long>::success(
+          count, now, read_duration_us);
+  betterboard::experiments::EvidenceRecord record =
+      betterboard::experiments::makeEvidenceRecord(
+          sequence_id++, timing.sample_dt_us, result, base_quality);
 
   const double t = now * 1.0e-6;
   const double revolutions = count / double(BB_COUNTS_PER_REVOLUTION);
@@ -83,14 +89,14 @@ void loop() {
     }
   }
   if (!derivative_ready) {
-    quality = betterboard::experiments::evidence::addFlag(
-        quality, betterboard::experiments::evidence::DerivedUnavailable);
+    record.quality_flags = betterboard::experiments::evidence::addFlag(
+        record.quality_flags, betterboard::experiments::evidence::DerivedUnavailable);
   }
 
-  stream.rowBegin(now);
+  stream.rowBegin(record.timestamp_us);
   stream.field(count); stream.field(angle, 7); stream.field(omega, 7); stream.field(alpha, 7);
   stream.field(revolutions, 7); stream.field(phase, 7);
-  stream.field(sample_dt_us); stream.field(read_duration_us);
-  stream.field(static_cast<unsigned long>(quality));
+  stream.field(record.sample_dt_us); stream.field(record.read_duration_us);
+  stream.field(static_cast<unsigned long>(record.quality_flags));
   stream.rowEnd();
 }

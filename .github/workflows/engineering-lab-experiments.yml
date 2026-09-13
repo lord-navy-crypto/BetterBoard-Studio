@@ -6,6 +6,7 @@ on:
       - 'engineering-lab-experiments/**'
       - 'firmware/betterboard-core/**'
       - 'scripts/engineering_lab_schema_self_check.py'
+      - 'scripts/engineering_lab_v3_contract_self_check.py'
       - 'docs/ENGINEERING_LAB_EXPERIMENTS.md'
       - '.github/workflows/engineering-lab-experiments.yml'
   push:
@@ -16,6 +17,7 @@ on:
       - 'engineering-lab-experiments/**'
       - 'firmware/betterboard-core/**'
       - 'scripts/engineering_lab_schema_self_check.py'
+      - 'scripts/engineering_lab_v3_contract_self_check.py'
       - 'docs/ENGINEERING_LAB_EXPERIMENTS.md'
       - '.github/workflows/engineering-lab-experiments.yml'
   workflow_dispatch:
@@ -29,6 +31,9 @@ jobs:
 
       - name: Validate Engineering Lab v2 stream schemas
         run: python3 scripts/engineering_lab_schema_self_check.py
+
+      - name: Validate Engineering Lab v3 acquisition contracts
+        run: python3 scripts/engineering_lab_v3_contract_self_check.py
 
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
