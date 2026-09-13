@@ -15,7 +15,8 @@ class EngineeringLabStream {
              const char* model_target,
              const char* columns,
              const char* units,
-             uint32_t sample_interval_us);
+             uint32_t sample_interval_us,
+             const char* configuration = nullptr);
 
   void rowBegin(uint32_t time_us);
   void field(long value);
