@@ -11,6 +11,7 @@ on:
   push:
     branches:
       - 'feature/betterboard-cpp-core-v1'
+      - 'enhance/**'
     paths:
       - 'firmware/betterboard-core/**'
       - 'sensor-suite/firmware/**'
