@@ -43,10 +43,10 @@ Provides a fixed-capacity, no-heap scripted sensor source for native failure-mod
 
 ## Production migration
 
-The v3 path is already used by representative Engineering Lab firmware:
+The v3 path is already used by representative Engineering Lab firmware while preserving the existing CSV schemas:
 
-- `EL_Numerical_ADC_Reference`: timing and provenance now flow through `SampleClock`, `AcquisitionResult<int>`, and `EvidenceRecord` while preserving the existing stream schema.
-- `EL_Numerical_BME280_Context`: finite-value validation becomes an explicit `InvalidValue` acquisition failure, which maps to the Engineering Lab `SensorError` quality flag without emitting fake measurements.
+- `EL_Numerical_ADC_Reference`: timing/provenance flow through `SampleClock`, `AcquisitionResult<int>`, and `EvidenceRecord`; rail saturation remains an evidence-quality condition while the raw ADC code is retained.
+- `EL_Numerical_BME280_Context`: finite-value validation becomes an explicit `InvalidValue` acquisition failure, which maps to the Engineering Lab `SensorError` quality flag and emits blank measurements rather than fake numeric values.
 
 The migration is intentionally incremental. Existing sketches remain source-compatible while more experiments move onto the shared acquisition contract.
 
