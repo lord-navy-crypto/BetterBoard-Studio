@@ -2,6 +2,7 @@
 
 #include "core/PeriodicSampler.h"
 #include "core/RingBuffer.h"
+#include "experiments/EngineeringLabEvidence.h"
 #include "experiments/EngineeringLabStream.h"
 #include "experiments/EngineeringLabTargets.h"
 #include "math/FiniteDifference.h"
