@@ -2,17 +2,28 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_ADXL345_U.h>
 #include <BetterBoard.h>
+#include <math.h>
 
 #ifndef BB_SAMPLE_INTERVAL_US
 #define BB_SAMPLE_INTERVAL_US 10000UL
 #endif
 
+struct DualAccelSample {
+  float a1_x_mps2{0.0f};
+  float a1_y_mps2{0.0f};
+  float a1_z_mps2{0.0f};
+  float a2_x_mps2{0.0f};
+  float a2_y_mps2{0.0f};
+  float a2_z_mps2{0.0f};
+  uint32_t sensor_skew_us{0U};
+};
+
 Adafruit_ADXL345_Unified accel1(34501);
 Adafruit_ADXL345_Unified accel2(34502);
 betterboard::core::PeriodicSampler sampler(BB_SAMPLE_INTERVAL_US);
+betterboard::core::SampleClock sample_clock(BB_SAMPLE_INTERVAL_US);
 betterboard::experiments::EngineeringLabStream stream(Serial);
-
-unsigned long previous_sample_us = 0;
+uint32_t sequence_id = 0U;
 
 void failSensor() {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -39,30 +50,57 @@ void setup() {
 }
 
 void loop() {
-  const unsigned long now = micros();
+  const uint32_t now = micros();
   if (!sampler.ready(now)) return;
 
-  const unsigned long sample_dt_us = previous_sample_us == 0 ? 0 : now - previous_sample_us;
-  previous_sample_us = now;
-  uint16_t quality = betterboard::experiments::evidence::Valid;
-  if (sample_dt_us != 0 && sample_dt_us > BB_SAMPLE_INTERVAL_US + BB_SAMPLE_INTERVAL_US / 2) {
-    quality = betterboard::experiments::evidence::addFlag(
-        quality, betterboard::experiments::evidence::TimingLate);
+  const betterboard::core::SampleTiming timing = sample_clock.observe(now);
+  uint16_t base_quality = betterboard::experiments::evidence::Valid;
+  if (timing.late) {
+    base_quality = betterboard::experiments::evidence::addFlag(
+        base_quality, betterboard::experiments::evidence::TimingLate);
   }
 
-  const unsigned long read_start_us = micros();
+  const uint32_t read_start_us = micros();
   sensors_event_t e1, e2;
   accel1.getEvent(&e1);
-  const unsigned long a1_done_us = micros();
+  const uint32_t a1_done_us = micros();
   accel2.getEvent(&e2);
-  const unsigned long a2_done_us = micros();
-  const unsigned long sensor_skew_us = a2_done_us - a1_done_us;
-  const unsigned long read_duration_us = a2_done_us - read_start_us;
+  const uint32_t a2_done_us = micros();
 
-  stream.rowBegin(now);
-  stream.field(e1.acceleration.x, 6); stream.field(e1.acceleration.y, 6); stream.field(e1.acceleration.z, 6);
-  stream.field(e2.acceleration.x, 6); stream.field(e2.acceleration.y, 6); stream.field(e2.acceleration.z, 6);
-  stream.field(sample_dt_us); stream.field(sensor_skew_us); stream.field(read_duration_us);
-  stream.field(static_cast<unsigned long>(quality));
+  DualAccelSample sample;
+  sample.a1_x_mps2 = e1.acceleration.x;
+  sample.a1_y_mps2 = e1.acceleration.y;
+  sample.a1_z_mps2 = e1.acceleration.z;
+  sample.a2_x_mps2 = e2.acceleration.x;
+  sample.a2_y_mps2 = e2.acceleration.y;
+  sample.a2_z_mps2 = e2.acceleration.z;
+  sample.sensor_skew_us = a2_done_us - a1_done_us;
+  const uint32_t read_duration_us = a2_done_us - read_start_us;
+
+  const bool valid = isfinite(sample.a1_x_mps2) && isfinite(sample.a1_y_mps2) &&
+                     isfinite(sample.a1_z_mps2) && isfinite(sample.a2_x_mps2) &&
+                     isfinite(sample.a2_y_mps2) && isfinite(sample.a2_z_mps2);
+  const betterboard::measurement::AcquisitionResult<DualAccelSample> result =
+      valid
+          ? betterboard::measurement::AcquisitionResult<DualAccelSample>::success(
+                sample, now, read_duration_us)
+          : betterboard::measurement::AcquisitionResult<DualAccelSample>::failure(
+                betterboard::measurement::AcquisitionStatus::InvalidValue,
+                now, read_duration_us);
+
+  const betterboard::experiments::EvidenceRecord record =
+      betterboard::experiments::makeEvidenceRecord(
+          sequence_id++, timing.sample_dt_us, result, base_quality);
+
+  stream.rowBegin(record.timestamp_us);
+  if (valid) {
+    stream.field(sample.a1_x_mps2, 6); stream.field(sample.a1_y_mps2, 6); stream.field(sample.a1_z_mps2, 6);
+    stream.field(sample.a2_x_mps2, 6); stream.field(sample.a2_y_mps2, 6); stream.field(sample.a2_z_mps2, 6);
+  } else {
+    stream.field(""); stream.field(""); stream.field("");
+    stream.field(""); stream.field(""); stream.field("");
+  }
+  stream.field(record.sample_dt_us); stream.field(sample.sensor_skew_us); stream.field(record.read_duration_us);
+  stream.field(static_cast<unsigned long>(record.quality_flags));
   stream.rowEnd();
 }
