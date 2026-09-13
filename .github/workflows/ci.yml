@@ -27,62 +27,8 @@ jobs:
       - name: TypeScript and Vite build
         run: npm run build
 
-      - name: BetterBoard structural self-check
-        run: python3 scripts/self_check.py
-
-      - name: Functionality surface no-regression check
-        run: python3 scripts/functionality_surface_check.py
-
-      - name: Monitor provenance and evidence-handling self-check
-        run: python3 scripts/monitor_provenance_self_check.py
-
-      - name: Circuit Lab persisted-design correctness self-check
-        run: python3 scripts/circuit_local_design_self_check.py
-
-      - name: OpenPenguin bridge boundary self-check
-        run: python3 scripts/openguin_bridge_self_check.py
-
-      - name: Research Bridge contract self-check
-        run: python3 scripts/research_bridge_self_check.py
-
-      - name: Observatory statistics boundary self-check
-        run: python3 scripts/observatory_stats_self_check.py
-
-      - name: Hardware knowledge self-check
-        run: python3 scripts/hardware_knowledge_self_check.py
-
-      - name: Developer workspace correctness self-check
-        run: python3 scripts/developer_workspace_self_check.py
-
-      - name: Arduino CLI schema correctness self-check
-        run: python3 scripts/arduino_cli_schema_self_check.py
-
-      - name: Developer diagnostic attribution self-check
-        run: python3 scripts/developer_diagnostic_self_check.py
-
-      - name: Developer filesystem consistency self-check
-        run: python3 scripts/developer_filesystem_self_check.py
-
-      - name: Developer project rename transaction self-check
-        run: python3 scripts/developer_rename_transaction_self_check.py
-
-      - name: Developer Arduino example import self-check
-        run: python3 scripts/developer_example_import_self_check.py
-
-      - name: Developer ecosystem target-state self-check
-        run: python3 scripts/developer_ecosystem_state_self_check.py
-
-      - name: Developer Arduino uninstall target self-check
-        run: python3 scripts/developer_uninstall_spec_self_check.py
-
-      - name: Developer imported-example open workflow self-check
-        run: python3 scripts/developer_example_open_self_check.py
-
-      - name: Numerical depth self-check
-        run: python3 scripts/numerical_depth_self_check.py
-
-      - name: Numeric Error campaign analyzer self-check
-        run: python3 scripts/numeric_error_campaign_self_check.py
+      - name: Python contract self-check suite
+        run: python3 scripts/run_contract_self_checks.py
 
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
