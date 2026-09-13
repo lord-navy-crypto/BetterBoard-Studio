@@ -1,0 +1,47 @@
+.monitor-toolbar:has(.live-badge.live) {
+  border-color: rgba(85, 226, 167, 0.24) !important;
+  background: linear-gradient(180deg, rgba(85, 226, 167, 0.055), rgba(7, 17, 26, 0.68));
+}
+
+.monitor-toolbar:has(.live-badge.starting) {
+  border-color: rgba(112, 220, 255, 0.24) !important;
+}
+
+.monitor-toolbar:has(.live-badge.error) {
+  border-color: rgba(255, 114, 136, 0.3) !important;
+  background: linear-gradient(180deg, rgba(255, 114, 136, 0.055), rgba(7, 17, 26, 0.68));
+}
+
+.live-badge.live,
+.live-badge.starting,
+.live-badge.error {
+  font-weight: 800;
+}
+
+.monitor-statusline:has(.replay-pill) {
+  min-height: 40px;
+  border-color: rgba(126, 140, 255, 0.34);
+  background: linear-gradient(90deg, rgba(126, 140, 255, 0.11), rgba(7, 17, 26, 0.7));
+}
+
+.monitor-statusline:has(.replay-pill) > svg {
+  color: #9da7ff;
+}
+
+.replay-pill {
+  padding: 5px 10px !important;
+  border-color: rgba(126, 140, 255, 0.5) !important;
+  background: rgba(126, 140, 255, 0.14) !important;
+  font-weight: 750;
+  letter-spacing: 0.025em;
+}
+
+.replay-pill:hover {
+  background: rgba(126, 140, 255, 0.22) !important;
+}
+
+.monitor-statusline .monitor-count {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+}
