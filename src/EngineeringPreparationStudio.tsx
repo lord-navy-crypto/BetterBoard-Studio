@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowRight, Bot, CircleAlert, Database, FileCheck2, Magnet, Plus, RefreshCw, Sigma, UploadCloud, Wrench } from 'lucide-react';
+import { Bot, CircleAlert, Database, FileCheck2, Magnet, Plus, RefreshCw, Sigma, UploadCloud, Wrench } from 'lucide-react';
 import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
 import NumericalBenchAdvanced from './NumericalBenchAdvanced';
 import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
 import MagnetBenchAdvanced from './MagnetBenchAdvanced';
-import StudioAdvanced from './StudioAdvanced';
 import CopyButton from './CopyButton';
 import { bridgeForOpenPenguin, buildResearchBridge, researchSessionId } from './ResearchBridge';
 import { emptyResearchContext, loadResearchContext, makeResearchEvent, saveResearchContext, type ResearchContextState } from './ResearchContextStore';
@@ -256,11 +255,5 @@ export default function EngineeringPreparationStudio() {
       {aiError && <div className="boundary"><CircleAlert size={14}/>{aiError}</div>}
       {aiAnswer && <div className="measurement big"><b>OpenPenguin suggestion · stored in bridge provenance</b><span style={{ whiteSpace: 'pre-wrap' }}>{aiAnswer}</span></div>}
     </section>
-
-    <details style={{ marginTop: 14 }}>
-      <summary><b>Studio compatibility tools</b> · reusable classic workflow</summary>
-      <p className="muted"><ArrowRight size={14}/> Legacy proven controls remain available here in Studio rather than being mixed into Experiments.</p>
-      <StudioAdvanced/>
-    </details>
   </section>;
 }
