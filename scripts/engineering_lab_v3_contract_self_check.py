@@ -8,9 +8,13 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "engineering-lab-experiments" / "catalog.json"
 FIRMWARE = ROOT / "engineering-lab-experiments" / "firmware"
 
-COMMON_REQUIRED_TOKENS = (
-    "betterboard::measurement::AcquisitionResult",
+EVIDENCE_REQUIRED_TOKENS = (
     "betterboard::experiments::makeEvidenceRecord",
+)
+ACQUISITION_PATH_TOKENS = (
+    "betterboard::measurement::AcquisitionResult",
+    "betterboard::hal::ClockedSensorAdapter",
+    "betterboard::hal::ISensorAdapter",
 )
 PERIODIC_REQUIRED_TOKENS = (
     "betterboard::core::SampleClock",
@@ -44,9 +48,16 @@ def main() -> None:
             fail(f"missing sketch: {path.relative_to(ROOT)}")
         text = path.read_text()
 
-        for token in COMMON_REQUIRED_TOKENS:
+        for token in EVIDENCE_REQUIRED_TOKENS:
             if token not in text:
-                fail(f"{sketch} does not use required v3 contract token: {token}")
+                fail(f"{sketch} does not use required v3 evidence token: {token}")
+
+        if not any(token in text for token in ACQUISITION_PATH_TOKENS):
+            fail(
+                f"{sketch} does not use a recognized v3 acquisition path: "
+                "AcquisitionResult or HAL SensorAdapter"
+            )
+
         if sketch not in EVENT_DRIVEN_SKETCHES:
             for token in PERIODIC_REQUIRED_TOKENS:
                 if token not in text:
