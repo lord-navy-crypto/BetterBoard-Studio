@@ -53,6 +53,11 @@ function readTaskMemory(): BackgroundTask[] {
   }
 }
 
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+}
+
 function Root() {
   const [workspace, setWorkspace] = useState<Workspace>('studio');
   const [cli, setCli] = useState<CliInfo | null>(null);
@@ -65,6 +70,30 @@ function Root() {
     const timer = window.setInterval(() => setTasks(readTaskMemory()), 1200);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && aiOpen) {
+        setAiOpen(false);
+        return;
+      }
+      if (isEditableTarget(event.target) || !(event.metaKey || event.ctrlKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'k') {
+        event.preventDefault();
+        setAiOpen(value => !value);
+        return;
+      }
+      const workspaceShortcut: Record<string, Workspace> = { '1': 'studio', '2': 'observatory', '3': 'experiments' };
+      const nextWorkspace = workspaceShortcut[key];
+      if (nextWorkspace) {
+        event.preventDefault();
+        setWorkspace(nextWorkspace);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [aiOpen]);
 
   const runningTasks = useMemo(() => tasks.filter(task => task.state === 'running'), [tasks]);
   const latestRunning = runningTasks[0];
@@ -142,13 +171,14 @@ function Root() {
       </div>
 
       <nav className="bb-workspace-tabs" aria-label="BetterBoard workspaces">
-        {WORKSPACES.map(item => {
+        {WORKSPACES.map((item, index) => {
           const Icon = item.icon;
           return <button
             key={item.id}
             className={`bb-workspace-tab ${workspace === item.id ? 'active' : ''}`}
             onClick={() => setWorkspace(item.id)}
             aria-pressed={workspace === item.id}
+            title={`${item.label} · ⌘/Ctrl+${index + 1}`}
           >
             <span className="bb-workspace-icon"><Icon size={15}/></span>
             <span><b>{item.label}</b><small>{item.subtitle}</small></span>
@@ -156,7 +186,7 @@ function Root() {
         })}
       </nav>
 
-      <button className={`bb-ai-launch ${aiOpen ? 'active' : ''}`} onClick={() => setAiOpen(value => !value)} aria-pressed={aiOpen} title="Open OpenPenguin local AI bridge"><Bot size={16}/><span><b>OpenPenguin</b><small>local AI bridge</small></span></button>
+      <button className={`bb-ai-launch ${aiOpen ? 'active' : ''}`} onClick={() => setAiOpen(value => !value)} aria-pressed={aiOpen} title="Open OpenPenguin local AI bridge · ⌘/Ctrl+K"><Bot size={16}/><span><b>OpenPenguin</b><small>local AI · ⌘/Ctrl+K</small></span></button>
 
       <div className={`bb-local-state ${selectedPort ? 'connected' : 'disconnected'}`} title={hardwareStatus}>
         <i/>
