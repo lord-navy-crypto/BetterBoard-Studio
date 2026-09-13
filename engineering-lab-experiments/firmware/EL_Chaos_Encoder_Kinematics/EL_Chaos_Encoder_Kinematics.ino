@@ -1,4 +1,5 @@
 #include <BetterBoard.h>
+#include <math.h>
 
 #ifndef BB_COUNTS_PER_REVOLUTION
 #define BB_COUNTS_PER_REVOLUTION 600.0f
@@ -30,8 +31,8 @@ void setup() {
   sampler.arm(micros());
   stream.begin("el-chaos-encoder-kinematics",
                betterboard::experiments::target::NONLINEAR_DYNAMICS_CHAOS,
-               "time_us,count,angle_rad,omega_rps,alpha_rps2",
-               "us,count,rad,rad/s,rad/s^2",
+               "time_us,count,angle_rad,omega_rps,alpha_rps2,revolutions,phase_rad",
+               "us,count,rad,rad/s,rad/s^2,rev,rad",
                BB_SAMPLE_INTERVAL_US);
 }
 
@@ -44,7 +45,10 @@ void loop() {
   interrupts();
 
   const double t = now * 1.0e-6;
-  const double angle = (2.0 * 3.14159265358979323846 * count) / double(BB_COUNTS_PER_REVOLUTION);
+  const double revolutions = count / double(BB_COUNTS_PER_REVOLUTION);
+  const double angle = 2.0 * 3.14159265358979323846 * revolutions;
+  double phase = fmod(angle, 2.0 * 3.14159265358979323846);
+  if (phase < 0.0) phase += 2.0 * 3.14159265358979323846;
   double omega = 0.0;
   double alpha = 0.0;
   if (omega_diff.push(t, angle)) {
@@ -54,5 +58,6 @@ void loop() {
 
   stream.rowBegin(now);
   stream.field(count); stream.field(angle, 7); stream.field(omega, 7); stream.field(alpha, 7);
+  stream.field(revolutions, 7); stream.field(phase, 7);
   stream.rowEnd();
 }
