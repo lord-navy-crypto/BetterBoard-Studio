@@ -34,8 +34,8 @@ def main() -> int:
     }
     assert len(set(versions.values())) == 1, f"version drift detected: {versions}"
 
-    expected_label = f"Studio · {package_version}"
-    assert expected_label in app, f"frontend version label must be {expected_label!r}"
+    assert "import packageMetadata from '../package.json';" in app, "Studio UI must source its displayed version from package.json"
+    assert "Studio · {packageMetadata.version}" in app, "Studio UI must render packageMetadata.version"
     assert "Studio · Alpha 0.7" not in app, "stale handwritten Alpha 0.7 label returned"
 
     print(f"BetterBoard version consistency: PASS ({package_version})")
