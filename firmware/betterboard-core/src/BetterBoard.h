@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/ArduinoClock.h"
 #include "core/Clock.h"
 #include "core/PeriodicSampler.h"
 #include "core/RingBuffer.h"
@@ -9,6 +10,7 @@
 #include "experiments/EngineeringLabTargets.h"
 #include "experiments/EvidenceRecord.h"
 #include "hal/FakeSensor.h"
+#include "hal/SensorAdapter.h"
 #include "math/FiniteDifference.h"
 #include "math/LinearRegression.h"
 #include "math/OnlineStatistics.h"
