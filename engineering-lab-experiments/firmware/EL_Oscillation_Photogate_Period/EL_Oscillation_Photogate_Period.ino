@@ -40,6 +40,7 @@ void loop() {
   const unsigned long dispatch_latency_us = micros() - now;
   static unsigned long previous_us = 0;
   static unsigned long event_index = 0;
+  static unsigned long previous_dropped = 0;
   event_index++;
 
   const unsigned long event_dt_us = previous_us == 0 ? 0 : now - previous_us;
@@ -53,10 +54,11 @@ void loop() {
     quality = betterboard::experiments::evidence::addFlag(
         quality, betterboard::experiments::evidence::DerivedUnavailable);
   }
-  if (dropped > 0) {
+  if (dropped != previous_dropped) {
     quality = betterboard::experiments::evidence::addFlag(
-        quality, betterboard::experiments::evidence::TimingLate);
+        quality, betterboard::experiments::evidence::EventDropped);
   }
+  previous_dropped = dropped;
   previous_us = now;
 
   stream.rowBegin(now);
