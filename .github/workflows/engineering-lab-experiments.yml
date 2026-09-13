@@ -5,14 +5,17 @@ on:
     paths:
       - 'engineering-lab-experiments/**'
       - 'firmware/betterboard-core/**'
+      - 'scripts/engineering_lab_schema_self_check.py'
       - 'docs/ENGINEERING_LAB_EXPERIMENTS.md'
       - '.github/workflows/engineering-lab-experiments.yml'
   push:
     branches:
       - 'feature/engineering-lab-experiments-v1'
+      - 'enhance/**'
     paths:
       - 'engineering-lab-experiments/**'
       - 'firmware/betterboard-core/**'
+      - 'scripts/engineering_lab_schema_self_check.py'
       - 'docs/ENGINEERING_LAB_EXPERIMENTS.md'
       - '.github/workflows/engineering-lab-experiments.yml'
   workflow_dispatch:
@@ -24,26 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate Engineering Lab catalog
-        run: |
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          catalog = json.loads(Path('engineering-lab-experiments/catalog.json').read_text())
-          assert len(catalog) == 9, len(catalog)
-          ids = [e['id'] for e in catalog]
-          sketches = [e['sketch_name'] for e in catalog]
-          assert len(ids) == len(set(ids))
-          assert len(sketches) == len(set(sketches))
-          for entry in catalog:
-              assert entry['columns'][0] == 'time_us'
-              assert len(entry['columns']) == len(entry['units'])
-              assert entry['primary_observable'] in entry['columns']
-              sketch = Path('engineering-lab-experiments/firmware') / entry['sketch_name'] / (entry['sketch_name'] + '.ino')
-              assert sketch.is_file(), sketch
-          print(f'validated {len(catalog)} Engineering Lab experiments')
-          PY
+      - name: Validate Engineering Lab v2 stream schemas
+        run: python3 scripts/engineering_lab_schema_self_check.py
 
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
