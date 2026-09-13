@@ -64,7 +64,7 @@ export default function OpenPenguinBridge({ context }: Props) {
 
   return <div className="panel" style={{ marginTop: 12 }}>
     <div className="panel-title"><Bot size={18}/> OpenPenguin · Local AI</div>
-    <p className="muted">Optional loopback-only bridge. BetterBoard sends structured local context, keeps evidence separate from suggestions, and never treats AI availability as hardware readiness.</p>
+    <p className="muted">Optional loopback-only bridge. BetterBoard probes OpenPenguin's private 127.0.0.1:11435 runtime first and may use an already-running external 127.0.0.1:11434 runtime. It sends structured local context, keeps evidence separate from suggestions, and never treats AI availability as hardware readiness.</p>
     <div className="facts"><span>Local endpoint</span><b><code>{status?.endpoint || 'probing local runtime…'}</code></b><span>Bridge</span><b>{status?.found ? 'Connected' : 'Not connected'}</b></div>
     <div className="action-row"><button className="ghost" disabled={busy} onClick={() => void probe()}><RefreshCw size={14}/> Reload local models</button>{status && <span className={status.found ? 'ok' : 'warn'}>{status.found ? `${status.models.length} local model(s) loaded` : status.error || 'Runtime optional / not connected'}</span>}</div>
     {status?.found && <>
