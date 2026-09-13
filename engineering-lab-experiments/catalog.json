@@ -6,8 +6,8 @@
     "sensor": "MLX90393",
     "sketch_name": "EL_Radia_MLX90393_Field",
     "primary_observable": "bmag_uT",
-    "columns": ["time_us", "bx_uT", "by_uT", "bz_uT", "bmag_uT", "bxy_uT", "azimuth_rad", "elevation_rad"],
-    "units": ["us", "uT", "uT", "uT", "uT", "uT", "rad", "rad"]
+    "columns": ["time_us", "bx_uT", "by_uT", "bz_uT", "bmag_uT", "bxy_uT", "azimuth_rad", "elevation_rad", "sample_dt_us", "read_duration_us", "quality_flags"],
+    "units": ["us", "uT", "uT", "uT", "uT", "uT", "rad", "rad", "us", "us", "bitmask"]
   },
   {
     "id": "el-oscillation-imu-tof",
@@ -16,8 +16,8 @@
     "sensor": "LSM6DSOX + VL53L1X",
     "sketch_name": "EL_Oscillation_LSM6DSOX_VL53L1X",
     "primary_observable": "distance_m",
-    "columns": ["time_us", "distance_m", "ax_mps2", "ay_mps2", "az_mps2", "gx_rps", "gy_rps", "gz_rps"],
-    "units": ["us", "m", "m/s^2", "m/s^2", "m/s^2", "rad/s", "rad/s", "rad/s"]
+    "columns": ["time_us", "distance_m", "ax_mps2", "ay_mps2", "az_mps2", "gx_rps", "gy_rps", "gz_rps", "sample_dt_us", "sensor_skew_us", "read_duration_us", "quality_flags"],
+    "units": ["us", "m", "m/s^2", "m/s^2", "m/s^2", "rad/s", "rad/s", "rad/s", "us", "us", "us", "bitmask"]
   },
   {
     "id": "el-honeycomb-dual-adxl345",
@@ -26,8 +26,8 @@
     "sensor": "ADXL345 x2",
     "sketch_name": "EL_Honeycomb_Dual_ADXL345",
     "primary_observable": "a1_z_mps2",
-    "columns": ["time_us", "a1_x_mps2", "a1_y_mps2", "a1_z_mps2", "a2_x_mps2", "a2_y_mps2", "a2_z_mps2"],
-    "units": ["us", "m/s^2", "m/s^2", "m/s^2", "m/s^2", "m/s^2", "m/s^2"]
+    "columns": ["time_us", "a1_x_mps2", "a1_y_mps2", "a1_z_mps2", "a2_x_mps2", "a2_y_mps2", "a2_z_mps2", "sample_dt_us", "sensor_skew_us", "read_duration_us", "quality_flags"],
+    "units": ["us", "m/s^2", "m/s^2", "m/s^2", "m/s^2", "m/s^2", "m/s^2", "us", "us", "us", "bitmask"]
   },
   {
     "id": "el-chaos-encoder-kinematics",
@@ -36,8 +36,8 @@
     "sensor": "Quadrature encoder",
     "sketch_name": "EL_Chaos_Encoder_Kinematics",
     "primary_observable": "angle_rad",
-    "columns": ["time_us", "count", "angle_rad", "omega_rps", "alpha_rps2", "revolutions", "phase_rad"],
-    "units": ["us", "count", "rad", "rad/s", "rad/s^2", "rev", "rad"]
+    "columns": ["time_us", "count", "angle_rad", "omega_rps", "alpha_rps2", "revolutions", "phase_rad", "sample_dt_us", "read_duration_us", "quality_flags"],
+    "units": ["us", "count", "rad", "rad/s", "rad/s^2", "rev", "rad", "us", "us", "bitmask"]
   },
   {
     "id": "el-oscillation-photogate-period",
@@ -46,8 +46,8 @@
     "sensor": "Photogate",
     "sketch_name": "EL_Oscillation_Photogate_Period",
     "primary_observable": "period_s",
-    "columns": ["time_us", "period_s", "frequency_hz", "event_index"],
-    "units": ["us", "s", "Hz", "count"]
+    "columns": ["time_us", "period_s", "frequency_hz", "event_index", "event_dt_us", "dispatch_latency_us", "dropped_events", "quality_flags"],
+    "units": ["us", "s", "Hz", "count", "us", "us", "count", "bitmask"]
   },
   {
     "id": "el-numerical-adc-reference",
@@ -56,8 +56,8 @@
     "sensor": "10k linear potentiometer / ADC",
     "sketch_name": "EL_Numerical_ADC_Reference",
     "primary_observable": "adc_code",
-    "columns": ["time_us", "adc_code", "normalized", "nominal_voltage_v"],
-    "units": ["us", "code", "1", "V"]
+    "columns": ["time_us", "adc_code", "normalized", "nominal_voltage_v", "quantization_lsb_v", "sample_dt_us", "read_duration_us", "quality_flags"],
+    "units": ["us", "code", "1", "V", "V", "us", "us", "bitmask"]
   },
   {
     "id": "el-force-dynamics-hx711",
@@ -66,8 +66,8 @@
     "sensor": "Load Cell + HX711",
     "sketch_name": "EL_ForceDynamics_HX711",
     "primary_observable": "force_n",
-    "columns": ["time_us", "raw_counts", "force_n", "filtered_force_n", "dfdt_nps"],
-    "units": ["us", "count", "N", "N", "N/s"]
+    "columns": ["time_us", "raw_counts", "force_n", "filtered_force_n", "dfdt_nps", "sample_dt_us", "read_duration_us", "quality_flags"],
+    "units": ["us", "count", "N", "N", "N/s", "us", "us", "bitmask"]
   },
   {
     "id": "el-power-context-ina219",
@@ -76,8 +76,8 @@
     "sensor": "INA219",
     "sketch_name": "EL_PowerContext_INA219",
     "primary_observable": "power_mw",
-    "columns": ["time_us", "bus_v", "current_ma", "power_mw", "energy_mj"],
-    "units": ["us", "V", "mA", "mW", "mJ"]
+    "columns": ["time_us", "bus_v", "current_ma", "power_mw", "energy_mj", "integration_dt_us", "read_duration_us", "quality_flags"],
+    "units": ["us", "V", "mA", "mW", "mJ", "us", "us", "bitmask"]
   },
   {
     "id": "el-numerical-bme280-context",
@@ -86,7 +86,7 @@
     "sensor": "BME280",
     "sketch_name": "EL_Numerical_BME280_Context",
     "primary_observable": "temperature_c",
-    "columns": ["time_us", "temperature_c", "pressure_hpa", "humidity_pct"],
-    "units": ["us", "degC", "hPa", "%"]
+    "columns": ["time_us", "temperature_c", "pressure_hpa", "humidity_pct", "sample_dt_us", "read_duration_us", "quality_flags"],
+    "units": ["us", "degC", "hPa", "%", "us", "us", "bitmask"]
   }
 ]
