@@ -26,8 +26,8 @@ void setup() {
   sampler.reset(micros());
   stream.begin("el-radia-mlx90393-field",
                betterboard::experiments::target::RADIA_MAGNET_STUDIO,
-               "time_us,bx_uT,by_uT,bz_uT,bmag_uT",
-               "us,uT,uT,uT,uT",
+               "time_us,bx_uT,by_uT,bz_uT,bmag_uT,bxy_uT,azimuth_rad,elevation_rad",
+               "us,uT,uT,uT,uT,uT,rad,rad",
                BB_SAMPLE_INTERVAL_US);
 }
 
@@ -37,9 +37,13 @@ void loop() {
 
   float x, y, z;
   if (!mag.readData(&x, &y, &z)) return;
-  const float bmag = sqrtf(x * x + y * y + z * z);
+  const float bxy = sqrtf(x * x + y * y);
+  const float bmag = sqrtf(bxy * bxy + z * z);
+  const float azimuth = atan2f(y, x);
+  const float elevation = atan2f(z, bxy);
 
   stream.rowBegin(now);
   stream.field(x, 4); stream.field(y, 4); stream.field(z, 4); stream.field(bmag, 4);
+  stream.field(bxy, 4); stream.field(azimuth, 7); stream.field(elevation, 7);
   stream.rowEnd();
 }
