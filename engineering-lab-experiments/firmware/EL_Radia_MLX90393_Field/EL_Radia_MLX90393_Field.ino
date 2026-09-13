@@ -14,8 +14,23 @@ struct MagneticSample {
 };
 
 Adafruit_MLX90393 mag;
+
+betterboard::measurement::AcquisitionStatus readMagneticField(
+    void* context, MagneticSample& sample) {
+  Adafruit_MLX90393* sensor = static_cast<Adafruit_MLX90393*>(context);
+  const bool ok = sensor->readData(&sample.x, &sample.y, &sample.z);
+  if (!ok) return betterboard::measurement::AcquisitionStatus::BusError;
+  if (!isfinite(sample.x) || !isfinite(sample.y) || !isfinite(sample.z)) {
+    return betterboard::measurement::AcquisitionStatus::InvalidValue;
+  }
+  return betterboard::measurement::AcquisitionStatus::Ok;
+}
+
 betterboard::core::PeriodicSampler sampler(BB_SAMPLE_INTERVAL_US);
 betterboard::core::SampleClock sample_clock(BB_SAMPLE_INTERVAL_US);
+betterboard::core::ArduinoClock acquisition_clock;
+betterboard::hal::ClockedSensorAdapter<MagneticSample> sensor_adapter(
+    acquisition_clock, &mag, readMagneticField);
 betterboard::experiments::EngineeringLabStream stream(Serial);
 uint32_t sequence_id = 0;
 
@@ -37,7 +52,7 @@ void setup() {
                "time_us,bx_uT,by_uT,bz_uT,bmag_uT,bxy_uT,azimuth_rad,elevation_rad,sample_dt_us,read_duration_us,quality_flags",
                "us,uT,uT,uT,uT,uT,rad,rad,us,us,bitmask",
                BB_SAMPLE_INTERVAL_US,
-               "schema=v2;frame=sensor;mlx90393_transport=i2c;derived=bxy|azimuth|elevation;acquisition_contract=v3");
+               "schema=v2;frame=sensor;mlx90393_transport=i2c;derived=bxy|azimuth|elevation;acquisition_contract=v3;hal_adapter=clocked");
 }
 
 void loop() {
@@ -51,23 +66,7 @@ void loop() {
         flags, betterboard::experiments::evidence::TimingLate);
   }
 
-  const unsigned long read_start_us = micros();
-  MagneticSample sample;
-  const bool ok = mag.readData(&sample.x, &sample.y, &sample.z);
-  const unsigned long read_duration_us = micros() - read_start_us;
-
-  betterboard::measurement::AcquisitionResult<MagneticSample> acquisition;
-  if (ok && isfinite(sample.x) && isfinite(sample.y) && isfinite(sample.z)) {
-    acquisition = betterboard::measurement::AcquisitionResult<MagneticSample>::success(
-        sample, now, read_duration_us);
-  } else {
-    acquisition = betterboard::measurement::AcquisitionResult<MagneticSample>::failure(
-        ok ? betterboard::measurement::AcquisitionStatus::InvalidValue
-           : betterboard::measurement::AcquisitionStatus::BusError,
-        now,
-        read_duration_us);
-  }
-
+  const auto acquisition = sensor_adapter.readAt(now);
   const betterboard::experiments::EvidenceRecord record =
       betterboard::experiments::makeEvidenceRecord(
           ++sequence_id, timing.sample_dt_us, acquisition, flags);

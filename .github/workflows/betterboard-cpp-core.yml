@@ -44,6 +44,13 @@ jobs:
             -o /tmp/betterboard-core-tests
           /tmp/betterboard-core-tests
 
+      - name: Native HAL adapter contract tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            firmware/betterboard-core/tests/test_hal_adapter.cpp \
+            -o /tmp/betterboard-hal-tests
+          /tmp/betterboard-hal-tests
+
       - name: Set up Arduino CLI
         uses: arduino/setup-arduino-cli@v2
 
