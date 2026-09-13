@@ -27,6 +27,7 @@ CHECKS = (
     "developer_example_open_self_check.py",
     "numerical_depth_self_check.py",
     "numeric_error_campaign_self_check.py",
+    "version_consistency_self_check.py",
 )
 
 
