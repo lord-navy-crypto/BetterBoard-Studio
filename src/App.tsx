@@ -98,7 +98,6 @@ export default function App() {
     return [...groups.entries()];
   }, [recipes]);
   const detectedFqbn = activePort?.fqbn ?? '';
-  const profileMismatch = Boolean(detectedFqbn && detectedFqbn !== fqbn);
   const detectedProfileAvailable = Boolean(detectedFqbn && profiles.some(profile => profile.fqbn === detectedFqbn));
 
   useEffect(() => {
@@ -256,6 +255,34 @@ export default function App() {
     }
   }
 
+  async function runHardwareRepair() {
+    if (diagnosis.code === 'profile-mismatch' && detectedProfileAvailable) {
+      setFqbn(detectedFqbn);
+      setPreflight(null);
+      setStatus(`Hardware Doctor applied detected profile ${detectedFqbn}. Run preflight before programming.`);
+      return;
+    }
+    if (diagnosis.code === 'no-board' && ports.length && !selectedPort) {
+      setSelectedPort(ports[0].port);
+      setStatus(`Hardware Doctor selected ${ports[0].port}.`);
+      return;
+    }
+    if (diagnosis.code === 'board-unidentified' || diagnosis.code === 'ready') {
+      await checkPreflight();
+      return;
+    }
+    const detail = await refreshHardware();
+    setStatus(`Hardware Doctor rescanned hardware · ${detail}`);
+  }
+
+  const repairLabel = diagnosis.code === 'profile-mismatch' && detectedProfileAvailable
+    ? 'Use detected profile'
+    : diagnosis.code === 'no-board' && ports.length && !selectedPort
+      ? 'Select detected board'
+      : diagnosis.code === 'board-unidentified' || diagnosis.code === 'ready'
+        ? 'Run preflight'
+        : 'Retry hardware scan';
+
   const nav = [
     ['hardware', Cpu, 'Hardware & Program'], ['circuit', CircuitBoard, 'Circuit Lab'], ['library', Boxes, 'Recipe Library'], ['data', Waves, 'Monitor & Data'],
     ['developer', Code2, 'Developer'],
@@ -294,8 +321,10 @@ export default function App() {
             </select></label>
             <div className="hint">This selection is shared across Studio and Experiments. Switching workspaces no longer creates a second board session.</div>
             {activePort && <div className="device-line"><b>{activePort.port}</b><span>{activePort.protocol}{activePort.fqbn ? ` · detected ${activePort.fqbn}` : ''}</span></div>}
-            <div className="boundary">{diagnosis.severity === 'success' ? <ShieldCheck size={15}/> : <CircleAlert size={15}/>}<span><b>Hardware Doctor · {diagnosis.title}</b><br/>{diagnosis.detail}<br/><small>{diagnosis.action}</small></span></div>
-            {profileMismatch && <div className="boundary"><CircleAlert size={15}/><span>Board profile mismatch · Arduino CLI detected <b>{detectedFqbn}</b> on {activePort?.port}, while BetterBoard is set to <b>{fqbn}</b>. Confirm before compiling or uploading.</span>{detectedProfileAvailable && <button className="ghost" onClick={() => setFqbn(detectedFqbn)}>Use detected profile</button>}</div>}
+            <div className="boundary" style={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flex: '1 1 360px' }}>{diagnosis.severity === 'success' ? <ShieldCheck size={15}/> : <CircleAlert size={15}/>}<span><b>Hardware Doctor · {diagnosis.title}</b><br/>{diagnosis.detail}<br/><small>{diagnosis.action}</small></span></span>
+              <button className={diagnosis.severity === 'success' ? 'ghost' : 'primary'} disabled={busy} onClick={() => void runHardwareRepair()}><Wrench size={14}/>{repairLabel}</button>
+            </div>
           </div>
           <div className="panel">
             <div className="panel-title"><ShieldCheck size={18}/> Recipe preflight</div>
@@ -306,6 +335,7 @@ export default function App() {
               <div><span>Core</span><b className={preflight.core_installed ? 'ok' : 'warn'}>{preflight.core} · {preflight.core_installed ? 'ready' : 'missing'}</b></div>
               <div><span>Libraries</span><b className={!preflight.missing_libraries.length ? 'ok' : 'warn'}>{preflight.required_libraries.length ? (preflight.missing_libraries.length ? `Missing ${preflight.missing_libraries.join(', ')}` : 'ready') : 'none required'}</b></div>
               {preflight.warnings.map(w => <small key={w}><CircleAlert size={13}/>{w}</small>)}
+              {(!preflight.core_installed || preflight.missing_libraries.length > 0) && <div className="action-row"><button className="primary" onClick={() => setTab('developer')}><Wrench size={14}/> Open ecosystem tools</button><button className="ghost" disabled={busy} onClick={() => void checkPreflight()}><RefreshCw size={14}/> Recheck</button></div>}
             </div>}
           </div>
         </section>
