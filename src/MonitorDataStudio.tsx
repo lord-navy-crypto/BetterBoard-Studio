@@ -132,6 +132,7 @@ export default function MonitorDataStudio({
   const [baud, setBaud] = useState(recipe?.baud ?? 115200);
   const [numericOnly, setNumericOnly] = useState(recipe?.capture_mode === 'numeric');
   const [selectedChannel, setSelectedChannel] = useState(0);
+  const [compareChannels, setCompareChannels] = useState(true);
   const [measurement, setMeasurement] = useState<MeasurementResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [txText, setTxText] = useState('');
@@ -173,6 +174,8 @@ export default function MonitorDataStudio({
   const activeColumns = replay?.columns ?? visibleRecipe?.columns ?? [];
   const activeUnits = replay?.units ?? visibleRecipe?.units ?? [];
   const activePrimary = replay?.primary_column ?? visibleRecipe?.primary_column;
+  const selectedColumn = activeColumns[selectedChannel] ?? `channel_${selectedChannel + 1}`;
+  const selectedUnit = activeUnits[selectedChannel] ?? '';
   const serialCopyText = useMemo(() => displayRows.map(row => row.line).join('\n'), [displayRows]);
 
   const numericRows = useMemo(() => displayRows
@@ -194,10 +197,35 @@ export default function MonitorDataStudio({
   }, [displayRows, activeColumns.length, selectedChannel]);
   const channelValues = useMemo(() => channelPoints.map(point => point.y), [channelPoints]);
 
+  const comparableChannelSeries = useMemo(() => {
+    const indexes = activeColumns
+      .map((_, index) => index)
+      .filter(index => (activeUnits[index] ?? '') === selectedUnit);
+    const pointsByIndex = new Map<number, Array<{ x: number; y: number }>>();
+    for (const index of indexes) pointsByIndex.set(index, []);
+    let firstTimestamp: number | null = null;
+    for (const row of displayRows.slice(-MAX_PLOT_POINTS)) {
+      const parts = parseNumericRow(row, activeColumns.length);
+      if (!parts) continue;
+      if (firstTimestamp === null) firstTimestamp = row.hostTimestampMs;
+      const x = (row.hostTimestampMs - firstTimestamp) / 1000;
+      for (const index of indexes) {
+        const value = parts[index];
+        if (Number.isFinite(value)) pointsByIndex.get(index)?.push({ x, y: value });
+      }
+    }
+    return indexes
+      .map(index => ({ label: activeColumns[index] ?? `channel_${index + 1}`, points: pointsByIndex.get(index) ?? [] }))
+      .filter(series => series.points.length > 0);
+  }, [displayRows, activeColumns, activeUnits, selectedUnit]);
+  const canCompareChannels = comparableChannelSeries.length > 1;
+
   const lastValue = channelValues.at(-1);
   const minValue = channelValues.length ? Math.min(...channelValues) : undefined;
   const maxValue = channelValues.length ? Math.max(...channelValues) : undefined;
   const bufferedEvidenceRows = useMemo(() => rows.filter(row => parseNumericRow(row, visibleRecipe?.columns.length ?? 0) !== null), [rows, visibleRecipe?.columns.length]);
+  const bufferedRxRows = useMemo(() => rows.filter(row => row.direction !== 'tx'), [rows]);
+  const incompleteEvidenceRows = Math.max(bufferedRxRows.length - bufferedEvidenceRows.length, 0);
 
   function report(message: string) {
     setMonitorMessage(message);
@@ -480,14 +508,17 @@ export default function MonitorDataStudio({
   const live = monitorState === 'live' || monitorState === 'starting';
   const evidenceRecipe = live ? bufferContext?.recipe : recipe;
   const stateLabel = monitorState === 'live' ? 'LIVE' : monitorState === 'starting' ? 'OPENING' : monitorState === 'error' ? 'ERROR' : 'STOPPED';
-  const selectedColumn = activeColumns[selectedChannel] ?? `channel_${selectedChannel + 1}`;
-  const selectedUnit = activeUnits[selectedChannel] ?? '';
   const activePackage = replay?.session ?? measurement ?? latestMeasurement ?? null;
   const activePackageSamples = replay?.session.sample_count ?? measurement?.samples ?? latestMeasurement?.samples ?? null;
   const contextRecipeTitle = replay?.session.recipe_title ?? bufferContext?.recipe?.title ?? recipe?.title ?? '—';
   const contextPort = replay?.session.port ?? bufferContext?.port ?? selectedPort;
   const contextBaud = replay ? 'recorded session' : (bufferContext?.baud ?? baud);
   const contextRate = replay?.sample_rate_hz ?? visibleRecipe?.sample_rate_hz;
+  const recordTargetPort = live ? bufferContext?.port : selectedPort;
+  const numericSchemaReady = evidenceRecipe?.capture_mode === 'numeric' && (evidenceRecipe.columns?.length ?? 0) > 0;
+  const provenanceReady = Boolean(recordTargetPort && (live ? bufferContext?.fqbn : fqbn) && evidenceRecipe?.id);
+  const structuredRowsReady = !live || bufferedEvidenceRows.length > 0;
+  const recordReady = Boolean(recordTargetPort && numericSchemaReady && provenanceReady && structuredRowsReady);
 
   return <section className="monitor-workspace">
     <div className="monitor-toolbar panel">
@@ -519,13 +550,16 @@ export default function MonitorDataStudio({
 
     <div className="monitor-main-grid">
       <div className="panel monitor-plot-panel">
-        <div className="panel-title"><Waves size={18}/> Live plot</div>
+        <div className="panel-title panel-title-with-action"><span><Waves size={18}/> Live plot</span>{activeColumns.length > 1 && <button className={`ghost mini ${compareChannels && canCompareChannels ? 'active' : ''}`} disabled={!canCompareChannels} onClick={() => setCompareChannels(value => !value)}>{canCompareChannels ? (compareChannels ? `Compare ${comparableChannelSeries.length}` : 'Compare channels') : 'Different units'}</button>}</div>
         {!replay && visibleRecipe?.capture_mode === 'text' ? <div className="empty">This recipe is diagnostic text. Use the Serial Monitor panel instead of numeric plotting.</div> : <>
           <div className="plot-head">
             <div className="metric">{lastValue === undefined ? '—' : lastValue.toFixed(5)} <small>{selectedUnit}</small></div>
             <div className="plot-range"><span>min <b>{minValue === undefined ? '—' : minValue.toFixed(4)}</b></span><span>max <b>{maxValue === undefined ? '—' : maxValue.toFixed(4)}</b></span><span>points <b>{channelValues.length}</b></span></div>
           </div>
-          <EngineeringPlot series={[{ label: selectedColumn, points: channelPoints }]} xLabel="time" xUnit="s" yLabel={selectedColumn} yUnit={selectedUnit} height={300} />
+          {compareChannels && canCompareChannels
+            ? <EngineeringPlot series={comparableChannelSeries} xLabel="time" xUnit="s" yLabel={`${selectedUnit || 'compatible'} channels`} yUnit={selectedUnit} height={300} />
+            : <EngineeringPlot series={[{ label: selectedColumn, points: channelPoints }]} xLabel="time" xUnit="s" yLabel={selectedColumn} yUnit={selectedUnit} height={300} />}
+          {compareChannels && canCompareChannels && <div className="hint">Only channels with the selected channel's unit ({selectedUnit || 'unitless'}) are overlaid. Use the plot legend to hide individual series; select a channel below to change the compatible group.</div>}
           <div className="channel-tabs">
             {activeColumns.map((column, index) => <button key={column} className={selectedChannel === index ? 'active' : ''} onClick={() => setSelectedChannel(index)}><span>{column}</span><b>{latestValues[index] ?? '—'}</b><small>{activeUnits[index] ?? ''}</small></button>)}
           </div>
@@ -550,6 +584,14 @@ export default function MonitorDataStudio({
       <div className="panel monitor-record-panel">
         <div className="panel-title"><Database size={18}/> Record & evidence</div>
         <p className="muted">Monitoring and recording share one evidence path. Live acquisition locks port, board profile, recipe, schema and parameters at stream start so later navigation cannot relabel buffered evidence.</p>
+        <div className="schema-row" style={{ marginBottom: 10 }}>
+          <span>{recordReady ? 'READY TO RECORD' : 'NOT READY'}</span>
+          <span>{numericSchemaReady ? `${evidenceRecipe?.columns.length ?? 0} channel schema ✓` : 'numeric schema needed'}</span>
+          <span>{provenanceReady ? 'provenance target ✓' : 'port/profile/recipe needed'}</span>
+          {live && <span>{structuredRowsReady ? `${bufferedEvidenceRows.length} structured rows ✓` : 'waiting for structured rows'}</span>}
+        </div>
+        {live && incompleteEvidenceRows > 0 && <div className="hint">{incompleteEvidenceRows} received row(s) are not complete recipe-shaped numeric evidence and will not be included in Save live buffer.</div>}
+        {!live && replay && <div className="hint">Replay is read-only review. Recording below starts a fresh 5 s package using the currently selected hardware and recipe; it does not overwrite the historical session.</div>}
         <div className="record-actions">
           <button className="primary" disabled={busy || !(live ? bufferContext?.port : selectedPort) || evidenceRecipe?.capture_mode !== 'numeric' || (live && !bufferedEvidenceRows.length)} onClick={() => void recordMeasurement()}><Save size={15}/> {live ? `Save live buffer (${bufferedEvidenceRows.length})` : 'Record new 5 s package'}</button>
           {live && <span className="record-note"><CircleAlert size={14}/> Saving keeps Live open and uses the context locked when this stream started.</span>}
