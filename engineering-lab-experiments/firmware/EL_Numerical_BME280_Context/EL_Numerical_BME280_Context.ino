@@ -15,8 +15,26 @@ struct EnvironmentSample {
 };
 
 Adafruit_BME280 bme;
+
+betterboard::measurement::AcquisitionStatus readEnvironment(
+    void* context, EnvironmentSample& sample) {
+  Adafruit_BME280* sensor = static_cast<Adafruit_BME280*>(context);
+  sample.temperature_c = sensor->readTemperature();
+  sample.pressure_hpa = sensor->readPressure() / 100.0f;
+  sample.humidity_pct = sensor->readHumidity();
+  if (!isfinite(sample.temperature_c) ||
+      !isfinite(sample.pressure_hpa) ||
+      !isfinite(sample.humidity_pct)) {
+    return betterboard::measurement::AcquisitionStatus::InvalidValue;
+  }
+  return betterboard::measurement::AcquisitionStatus::Ok;
+}
+
 betterboard::core::PeriodicSampler sampler(BB_SAMPLE_INTERVAL_US);
 betterboard::core::SampleClock sample_clock(BB_SAMPLE_INTERVAL_US);
+betterboard::core::ArduinoClock acquisition_clock;
+betterboard::hal::ClockedSensorAdapter<EnvironmentSample> sensor_adapter(
+    acquisition_clock, &bme, readEnvironment);
 betterboard::experiments::EngineeringLabStream stream(Serial);
 uint32_t sequence_id = 0U;
 
@@ -31,11 +49,11 @@ void failSensor() {
 void setup() {
   Serial.begin(115200);
   Wire.begin();
-  const char* configuration = "schema=v2;sensor=BME280;address=0x76;acquisition_contract=v3";
+  const char* configuration = "schema=v2;sensor=BME280;address=0x76;acquisition_contract=v3;hal_adapter=clocked";
   bool ready = bme.begin(0x76, &Wire);
   if (!ready) {
     ready = bme.begin(0x77, &Wire);
-    configuration = "schema=v2;sensor=BME280;address=0x77;acquisition_contract=v3";
+    configuration = "schema=v2;sensor=BME280;address=0x77;acquisition_contract=v3;hal_adapter=clocked";
   }
   if (!ready) failSensor();
   sampler.arm(micros());
@@ -58,28 +76,7 @@ void loop() {
         flags, betterboard::experiments::evidence::TimingLate);
   }
 
-  const uint32_t read_start_us = micros();
-  EnvironmentSample sample;
-  sample.temperature_c = bme.readTemperature();
-  sample.pressure_hpa = bme.readPressure() / 100.0f;
-  sample.humidity_pct = bme.readHumidity();
-  const uint32_t read_duration_us = micros() - read_start_us;
-
-  const bool valid = isfinite(sample.temperature_c) &&
-                     isfinite(sample.pressure_hpa) &&
-                     isfinite(sample.humidity_pct);
-
-  betterboard::measurement::AcquisitionResult<EnvironmentSample> acquisition;
-  if (valid) {
-    acquisition = betterboard::measurement::AcquisitionResult<EnvironmentSample>::success(
-        sample, now, read_duration_us);
-  } else {
-    acquisition = betterboard::measurement::AcquisitionResult<EnvironmentSample>::failure(
-        betterboard::measurement::AcquisitionStatus::InvalidValue,
-        now,
-        read_duration_us);
-  }
-
+  const auto acquisition = sensor_adapter.readAt(now);
   const auto record = betterboard::experiments::makeEvidenceRecord(
       sequence_id++, timing.sample_dt_us, acquisition, flags);
 
