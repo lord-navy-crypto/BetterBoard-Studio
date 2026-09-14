@@ -12,6 +12,7 @@ import {
   summarizeDesign,
   type PlanningModel,
 } from './ExperimentPlanning';
+import EngineeringPlot from './EngineeringPlot';
 
 function fmt(value: number | null | undefined, digits = 4) {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
@@ -54,6 +55,7 @@ export default function ExperimentPlanningWorkbench() {
 
   const x = useMemo(() => table && predictor ? table.columns[predictor] ?? [] : [], [table, predictor]);
   const y = useMemo(() => table && response ? table.columns[response] ?? [] : [], [table, response]);
+  const finiteX = useMemo(() => x.filter(Number.isFinite), [x]);
 
   const analysis = useMemo(() => {
     if (!table || !x.some(Number.isFinite) || predictor === response) return null;
@@ -125,6 +127,26 @@ export default function ExperimentPlanningWorkbench() {
             <Metric label="Largest level gap" value={fmt(result.design.largestGap)} detail="coverage diagnostic"/>
           </div>
           {result.design.conditionWarning && <div className="boundary compact">{result.design.conditionWarning}</div>}
+        </section>
+
+        <section className="panel" style={{ marginTop: 12 }}>
+          <div className="panel-title"><ScanSearch size={17}/> Candidate landscape</div>
+          <EngineeringPlot
+            series={[
+              { label: 'information gain', points: result.plans.map(plan => ({ x: plan.x, y: plan.informationGain })) },
+              { label: 'coverage score', points: result.plans.map(plan => ({ x: plan.x, y: plan.normalizedCoverage })), dashed: true },
+              { label: 'observed x', kind: 'scatter', markerRadius: 3.5, points: finiteX.map(value => ({ x: value, y: 0 })) },
+            ]}
+            xLabel={predictor}
+            yLabel="relative planning score"
+            zeroLine
+            verticalMarkers={[
+              ...(infoPick ? [{ x: infoPick.x, label: 'information' }] : []),
+              ...(coveragePick ? [{ x: coveragePick.x, label: 'coverage' }] : []),
+              ...(replicatePick ? [{ x: replicatePick.x, label: 'replicate' }] : []),
+            ]}
+          />
+          <div className="boundary compact">Information gain and coverage are different objectives and are intentionally drawn together only for comparison. Their vertical scales are not interchangeable physical quantities.</div>
         </section>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 10, marginTop: 12 }}>
