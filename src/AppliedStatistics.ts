@@ -27,6 +27,7 @@ export type ResidualStats = {
   residualStd: number;
   medianResidual: number;
   residualMad: number;
+  residuals: number[];
 };
 
 export type UncertaintyBudget = {
@@ -159,6 +160,7 @@ export function residualAnalysis(observed: number[], reference: number[]): Resid
     residualStd: sampleStd(residuals),
     medianResidual: median(residuals),
     residualMad: mad(residuals),
+    residuals,
   };
 }
 
