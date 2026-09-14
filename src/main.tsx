@@ -7,6 +7,7 @@ import AppliedStatisticsWorkbench from './AppliedStatisticsWorkbench';
 import EngineeringPreparationStudio from './EngineeringPreparationStudio';
 import EvidenceInspector from './EvidenceInspector';
 import ExperimentsHub from './ExperimentsHub';
+import ModelFittingWorkbench from './ModelFittingWorkbench';
 import Observatory from './Observatory';
 import ObservatoryMissionControl from './ObservatoryMissionControl';
 import OpenPenguinBridge from './OpenPenguinBridge';
@@ -108,36 +109,11 @@ function Root() {
     const analyzed = successful.some(task => task.category === 'Analysis');
 
     const steps: WorkflowStep[] = [
-      {
-        label: 'Connect',
-        detail: selectedPort ? (activePort?.board_name || selectedPort) : 'Select hardware',
-        complete: Boolean(selectedPort),
-        active: !selectedPort,
-      },
-      {
-        label: 'Program',
-        detail: programmed ? 'Firmware verified' : 'Prepare / upload',
-        complete: programmed,
-        active: Boolean(selectedPort) && !programmed,
-      },
-      {
-        label: 'Monitor',
-        detail: liveSerial ? 'LIVE' : monitored ? 'Acquisition observed' : 'Acquire data',
-        complete: monitored,
-        active: programmed && !monitored,
-      },
-      {
-        label: 'Evidence',
-        detail: evidenceSaved ? 'Session saved' : 'Save measurement',
-        complete: evidenceSaved,
-        active: monitored && !evidenceSaved,
-      },
-      {
-        label: 'Analyze',
-        detail: analyzed ? 'Analysis recorded' : 'Inspect / handoff',
-        complete: analyzed,
-        active: evidenceSaved && !analyzed,
-      },
+      { label: 'Connect', detail: selectedPort ? (activePort?.board_name || selectedPort) : 'Select hardware', complete: Boolean(selectedPort), active: !selectedPort },
+      { label: 'Program', detail: programmed ? 'Firmware verified' : 'Prepare / upload', complete: programmed, active: Boolean(selectedPort) && !programmed },
+      { label: 'Monitor', detail: liveSerial ? 'LIVE' : monitored ? 'Acquisition observed' : 'Acquire data', complete: monitored, active: programmed && !monitored },
+      { label: 'Evidence', detail: evidenceSaved ? 'Session saved' : 'Save measurement', complete: evidenceSaved, active: monitored && !evidenceSaved },
+      { label: 'Analyze', detail: analyzed ? 'Analysis recorded' : 'Inspect / handoff', complete: analyzed, active: evidenceSaved && !analyzed },
     ];
 
     let nextAction = 'Connect a board in Studio';
@@ -166,33 +142,17 @@ function Root() {
 
   return <div className="bb-root">
     <header className="bb-command-bar rich">
-      <div className="bb-command-brand">
-        <span className="bb-command-mark">B</span>
-        <span><b>BetterBoard</b><small>physical computing studio</small></span>
-      </div>
-
+      <div className="bb-command-brand"><span className="bb-command-mark">B</span><span><b>BetterBoard</b><small>physical computing studio</small></span></div>
       <nav className="bb-workspace-tabs" aria-label="BetterBoard workspaces">
         {WORKSPACES.map((item, index) => {
           const Icon = item.icon;
-          return <button
-            key={item.id}
-            className={`bb-workspace-tab ${workspace === item.id ? 'active' : ''}`}
-            onClick={() => setWorkspace(item.id)}
-            aria-pressed={workspace === item.id}
-            title={`${item.label} · ⌘/Ctrl+${index + 1}`}
-          >
-            <span className="bb-workspace-icon"><Icon size={15}/></span>
-            <span><b>{item.label}</b><small>{item.subtitle}</small></span>
+          return <button key={item.id} className={`bb-workspace-tab ${workspace === item.id ? 'active' : ''}`} onClick={() => setWorkspace(item.id)} aria-pressed={workspace === item.id} title={`${item.label} · ⌘/Ctrl+${index + 1}`}>
+            <span className="bb-workspace-icon"><Icon size={15}/></span><span><b>{item.label}</b><small>{item.subtitle}</small></span>
           </button>;
         })}
       </nav>
-
       <button className={`bb-ai-launch ${aiOpen ? 'active' : ''}`} onClick={() => setAiOpen(value => !value)} aria-pressed={aiOpen} title="Open OpenPenguin local AI bridge · ⌘/Ctrl+K"><Bot size={16}/><span><b>OpenPenguin</b><small>local AI · ⌘/Ctrl+K</small></span></button>
-
-      <div className={`bb-local-state ${selectedPort ? 'connected' : 'disconnected'}`} title={hardwareStatus}>
-        <i/>
-        <span><b>{selectedPort ? (activePort?.board_name || 'Board') : 'No board'}</b><small>{selectedPort || 'select hardware in Studio'}</small></span>
-      </div>
+      <div className={`bb-local-state ${selectedPort ? 'connected' : 'disconnected'}`} title={hardwareStatus}><i/><span><b>{selectedPort ? (activePort?.board_name || 'Board') : 'No board'}</b><small>{selectedPort || 'select hardware in Studio'}</small></span></div>
     </header>
 
     <div className="bb-context-strip" aria-label="Global BetterBoard runtime context">
@@ -205,16 +165,8 @@ function Root() {
     </div>
 
     {workspace === 'studio' && <section className="bb-workflow-rail" aria-label="BetterBoard experiment workflow">
-      <div className="bb-workflow-next">
-        <small>Next action</small>
-        <b>{workflow.nextAction}</b>
-      </div>
-      <div className="bb-workflow-steps">
-        {workflow.steps.map((step, index) => <div key={step.label} className={`bb-workflow-step ${step.complete ? 'complete' : ''} ${step.active ? 'active' : ''}`}>
-          <span className="bb-workflow-number">{step.complete ? '✓' : index + 1}</span>
-          <span><b>{step.label}</b><small>{step.detail}</small></span>
-        </div>)}
-      </div>
+      <div className="bb-workflow-next"><small>Next action</small><b>{workflow.nextAction}</b></div>
+      <div className="bb-workflow-steps">{workflow.steps.map((step, index) => <div key={step.label} className={`bb-workflow-step ${step.complete ? 'complete' : ''} ${step.active ? 'active' : ''}`}><span className="bb-workflow-number">{step.complete ? '✓' : index + 1}</span><span><b>{step.label}</b><small>{step.detail}</small></span></div>)}</div>
     </section>}
 
     <div className="bb-ai-drawer-backdrop" hidden={!aiOpen} onClick={() => setAiOpen(false)} />
@@ -224,7 +176,7 @@ function Root() {
     </aside>
 
     <div className="bb-workspace-frame">
-      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><EvidenceInspector /><AppliedStatisticsWorkbench /><EngineeringPreparationStudio /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><EvidenceInspector /><AppliedStatisticsWorkbench /><ModelFittingWorkbench /><EngineeringPreparationStudio /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><ObservatoryMissionControl /><Observatory /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub /></div>
     </div>
@@ -232,9 +184,5 @@ function Root() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <HardwareSessionProvider>
-      <Root />
-    </HardwareSessionProvider>
-  </React.StrictMode>,
+  <React.StrictMode><HardwareSessionProvider><Root /></HardwareSessionProvider></React.StrictMode>,
 );
