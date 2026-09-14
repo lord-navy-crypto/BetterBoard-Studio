@@ -32,6 +32,7 @@ CHECKS = (
     "time_series_signal_self_check.py",
     "model_fitting_self_check.py",
     "experiment_planning_self_check.py",
+    "math_runtime_capabilities_self_check.py",
 )
 
 
