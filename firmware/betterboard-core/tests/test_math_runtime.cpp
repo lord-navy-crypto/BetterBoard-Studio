@@ -1,7 +1,12 @@
 #include <assert.h>
 #include <math.h>
 
-#include "../src/BetterBoard.h"
+#include "../src/math/ExperimentPlanning.h"
+#include "../src/math/ModelDiagnostics.h"
+#include "../src/math/QuadraticRegression.h"
+#include "../src/math/RobustStatistics.h"
+#include "../src/math/TimeSeriesAnalysis.h"
+#include "../src/signal/ChangeDetection.h"
 
 static bool near(double a, double b, double eps = 1e-6) {
     return fabs(a - b) <= eps;
@@ -10,7 +15,6 @@ static bool near(double a, double b, double eps = 1e-6) {
 int main() {
     using namespace betterboard;
 
-    // Robust statistics and uncertainty budget.
     const double robust_values[] = {1.0, 2.0, 2.0, 3.0, 100.0};
     double scratch[5];
     math::RobustSummary summary{};
@@ -22,14 +26,12 @@ int main() {
     assert(near(math::combinedStandardUncertainty(3.0, 4.0, 0.0), 5.0));
     assert(near(math::expandedUncertainty95(5.0), 9.8));
 
-    // Correlated samples must have lower effective sample size than raw count.
     const double correlated[] = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0};
     const double rho1 = math::autocorrelation(correlated, 8, 1);
     assert(rho1 > 0.5);
     const double neff = math::effectiveSampleSize(correlated, 8, 4);
     assert(neff >= 1.0 && neff < 8.0);
 
-    // Small fixed-memory FFT: one cycle in 8 samples should peak at bin 1.
     math::SmallFFT<8> fft;
     const float sine8[] = {0.0f, 0.70710678f, 1.0f, 0.70710678f, 0.0f, -0.70710678f, -1.0f, -0.70710678f};
     for (float value : sine8) assert(fft.push(value));
@@ -38,7 +40,6 @@ int main() {
     assert(fft.dominantBin() == 1U);
     assert(near(fft.binFrequency(1U, 80.0f), 10.0));
 
-    // Quadratic parameter recovery and model-selection diagnostics.
     math::QuadraticRegression quadratic;
     for (int x = -3; x <= 3; ++x) quadratic.push(static_cast<double>(x), 1.0 + 2.0 * x + 0.5 * x * x);
     const math::QuadraticFitResult qfit = quadratic.result();
@@ -58,7 +59,6 @@ int main() {
     assert(isfinite(diag.aicc));
     assert(isfinite(diag.bic));
 
-    // Streaming change detection.
     signal::EwmaMonitor ewma(0.5);
     assert(near(ewma.push(2.0), 2.0));
     assert(near(ewma.push(4.0), 3.0));
@@ -76,7 +76,6 @@ int main() {
     assert(near(shift.meanShift(), 2.0));
     assert(shift.exceeds(1.0));
 
-    // Lightweight DOE scoring: endpoints provide higher parameter leverage than the center for a linear design.
     math::SequentialPlanner<16> planner(math::PlanningModel::Linear);
     assert(planner.push(-1.0));
     assert(planner.push(0.0));
