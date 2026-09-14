@@ -58,7 +58,7 @@ public:
         }
         out.x = candidate;
         out.information_leverage = fmax(0.0, leverage);
-        out.information_gain = log1p(out.information_leverage);
+        out.information_gain = log(1.0 + out.information_leverage);
         out.coverage_distance = nearest;
         out.replication_count = replication;
         out.extrapolation = candidate < min_x || candidate > max_x;
