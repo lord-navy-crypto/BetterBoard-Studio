@@ -6,6 +6,7 @@ import App from './App';
 import AppliedStatisticsWorkbench from './AppliedStatisticsWorkbench';
 import EngineeringPreparationStudio from './EngineeringPreparationStudio';
 import EvidenceInspector from './EvidenceInspector';
+import ExperimentPlanningWorkbench from './ExperimentPlanningWorkbench';
 import ExperimentsHub from './ExperimentsHub';
 import ModelFittingWorkbench from './ModelFittingWorkbench';
 import Observatory from './Observatory';
@@ -176,7 +177,7 @@ function Root() {
     </aside>
 
     <div className="bb-workspace-frame">
-      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><EvidenceInspector /><AppliedStatisticsWorkbench /><ModelFittingWorkbench /><EngineeringPreparationStudio /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><EvidenceInspector /><AppliedStatisticsWorkbench /><ModelFittingWorkbench /><ExperimentPlanningWorkbench /><EngineeringPreparationStudio /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><ObservatoryMissionControl /><Observatory /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub /></div>
     </div>
