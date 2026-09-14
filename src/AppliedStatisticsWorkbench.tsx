@@ -98,8 +98,8 @@ export default function AppliedStatisticsWorkbench() {
     : null;
 
   return <section className="panel" style={{ margin: '18px auto', maxWidth: 1420 }}>
-    <div className="panel-title"><Sigma size={18}/> Applied Statistics, Uncertainty & Signal Diagnostics</div>
-    <p className="muted">Quantify repeatability, robust center/spread, uncertainty, serial dependence, frequency structure, process drift, and model residuals from the same evidence. Analysis never overwrites the raw measurement record.</p>
+    <div className="panel-title"><Sigma size={18}/> Applied Statistics & Uncertainty · Signal Diagnostics</div>
+    <p className="muted">Quantify repeatability, robust center/spread, uncertainty, serial dependence, frequency structure, process drift, and model residuals from the same evidence. Statistics never overwrite the raw measurement record.</p>
 
     <div className="action-row">
       <label className="ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><Database size={15}/> Import CSV / TSV<input type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" style={{ display: 'none' }} onChange={event => void importFile(event.target.files?.[0] ?? null)}/></label>
