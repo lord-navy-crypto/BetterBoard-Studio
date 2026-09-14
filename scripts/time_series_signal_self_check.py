@@ -41,6 +41,6 @@ for token in (
 assert "cannot prove whether aliasing already occurred" in ui, "aliasing evidence boundary was removed"
 assert "diagnostic candidate, not proof of a causal change point" in ui, "change-point evidence boundary was removed"
 assert "effectiveSampleSize < stats.count * 0.5" in ui, "serial-dependence interpretation was removed"
-assert "Statistics, Uncertainty & Signal Diagnostics" in ui, "integrated signal workbench title was removed"
+assert "Applied Statistics & Uncertainty · Signal Diagnostics" in ui, "integrated signal workbench title was removed"
 
 print("Time-series and signal diagnostics contracts: PASS")
