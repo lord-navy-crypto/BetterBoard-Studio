@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { BarChart3, Database, Sigma } from 'lucide-react';
 import { parseNumericTable, type ParsedNumericTable } from './AppliedStatistics';
 import { deltaAicc, linearRegression, quadraticRegression, type RegressionFit } from './ModelFittingAnalysis';
+import EngineeringPlot from './EngineeringPlot';
 
 function fmt(value: number | null | undefined, digits = 4) {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
@@ -59,6 +60,12 @@ export default function ModelFittingWorkbench() {
 
   const x = useMemo(() => table && xColumn ? table.columns[xColumn] ?? [] : [], [table, xColumn]);
   const y = useMemo(() => table && yColumn ? table.columns[yColumn] ?? [] : [], [table, yColumn]);
+  const aligned = useMemo(() => {
+    const rows: Array<{ x: number; y: number }> = [];
+    const n = Math.min(x.length, y.length);
+    for (let i = 0; i < n; i++) if (Number.isFinite(x[i]) && Number.isFinite(y[i])) rows.push({ x: x[i], y: y[i] });
+    return rows;
+  }, [x, y]);
   const fits = useMemo(() => {
     if (!table || !xColumn || !yColumn || xColumn === yColumn) return [] as RegressionFit[];
     const result: RegressionFit[] = [];
@@ -71,6 +78,11 @@ export default function ModelFittingWorkbench() {
     if (!fits.length) return null;
     return fits.reduce((a, b) => a.diagnostics.aicc <= b.diagnostics.aicc ? a : b);
   }, [fits]);
+  const fitSeries = useMemo(() => fits.map(fit => ({
+    label: fit.model === 'linear' ? 'linear fit' : 'quadratic fit',
+    points: aligned.map((row, index) => ({ x: row.x, y: fit.predictions[index] })).sort((a, b) => a.x - b.x),
+    dashed: fit.model === 'quadratic',
+  })), [fits, aligned]);
 
   const interpretation = useMemo(() => {
     if (fits.length < 2 || !best) return [] as string[];
@@ -104,8 +116,18 @@ export default function ModelFittingWorkbench() {
       </div>
 
       {xColumn === yColumn ? <div className="boundary">Choose different x and y columns before fitting.</div> : fits.length ? <>
+        <section className="panel" style={{ marginTop: 12 }}>
+          <div className="panel-title"><BarChart3 size={17}/> Measured response & candidate fits</div>
+          <EngineeringPlot series={[{ label: 'measured', kind: 'scatter', points: aligned }, ...fitSeries]} xLabel={xColumn} yLabel={yColumn} />
+        </section>
         <div className="engineering-model-grid" style={{ marginTop: 12 }}>
           {fits.map(fit => <FitCard key={fit.model} fit={fit} delta={deltas.find(item => item.model === fit.model)?.delta ?? Number.NaN}/>) }
+        </div>
+        <div className="engineering-model-grid" style={{ marginTop: 12 }}>
+          {fits.map(fit => <section className="panel" key={`${fit.model}-residual`}>
+            <div className="panel-title"><BarChart3 size={16}/>{fit.model === 'linear' ? 'Linear' : 'Quadratic'} residual structure</div>
+            <EngineeringPlot series={[{ label: `${fit.model} residual`, kind: 'scatter', points: aligned.map((row, index) => ({ x: row.x, y: fit.residuals[index] })) }]} xLabel={xColumn} yLabel="residual" zeroLine />
+          </section>)}
         </div>
         <section className="panel" style={{ marginTop: 12 }}>
           <div className="panel-title"><Sigma size={16}/> Model-selection interpretation</div>
