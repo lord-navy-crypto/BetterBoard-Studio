@@ -31,6 +31,7 @@ CHECKS = (
     "applied_statistics_self_check.py",
     "time_series_signal_self_check.py",
     "model_fitting_self_check.py",
+    "experiment_planning_self_check.py",
 )
 
 
