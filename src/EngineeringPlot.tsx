@@ -6,6 +6,27 @@ export type EngineeringSeries = {
   points: Point[];
   dashed?: boolean;
   opacity?: number;
+  kind?: 'line' | 'scatter' | 'stem';
+  markerRadius?: number;
+};
+
+export type EngineeringVerticalMarker = {
+  x: number;
+  label?: string;
+  dashed?: boolean;
+};
+
+export type EngineeringHorizontalMarker = {
+  y: number;
+  label?: string;
+  dashed?: boolean;
+};
+
+export type EngineeringBand = {
+  label?: string;
+  lower: Point[];
+  upper: Point[];
+  opacity?: number;
 };
 
 type Props = {
@@ -16,6 +37,10 @@ type Props = {
   yUnit?: string;
   height?: number;
   tickCount?: number;
+  verticalMarkers?: EngineeringVerticalMarker[];
+  horizontalMarkers?: EngineeringHorizontalMarker[];
+  bands?: EngineeringBand[];
+  zeroLine?: boolean;
 };
 
 const WIDTH = 760;
@@ -24,6 +49,14 @@ const MARGIN = { left: 78, right: 24, top: 20, bottom: 58 };
 
 function finiteSeries(series: EngineeringSeries[]) {
   return series.map(item => ({ ...item, points: item.points.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y)) })).filter(item => item.points.length > 0);
+}
+
+function finiteBands(bands: EngineeringBand[]) {
+  return bands.map(band => ({
+    ...band,
+    lower: band.lower.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y)),
+    upper: band.upper.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y)),
+  })).filter(band => band.lower.length > 1 && band.upper.length > 1);
 }
 
 function paddedRange(min: number, max: number): [number, number] {
@@ -52,8 +85,27 @@ function axisTitle(label: string, unit?: string) {
   return unit ? `${label} (${unit})` : label;
 }
 
-export default function EngineeringPlot({ series, xLabel, xUnit, yLabel, yUnit, height = 310, tickCount = 5 }: Props) {
+function polygonPoints(lower: Point[], upper: Point[], mapX: (x: number) => number, mapY: (y: number) => number) {
+  const lowerPoints = lower.map(point => `${mapX(point.x)},${mapY(point.y)}`);
+  const upperPoints = [...upper].reverse().map(point => `${mapX(point.x)},${mapY(point.y)}`);
+  return [...lowerPoints, ...upperPoints].join(' ');
+}
+
+export default function EngineeringPlot({
+  series,
+  xLabel,
+  xUnit,
+  yLabel,
+  yUnit,
+  height = 310,
+  tickCount = 5,
+  verticalMarkers = [],
+  horizontalMarkers = [],
+  bands = [],
+  zeroLine = false,
+}: Props) {
   const liveSeries = useMemo(() => finiteSeries(series), [series]);
+  const liveBands = useMemo(() => finiteBands(bands), [bands]);
   const [frozen, setFrozen] = useState(false);
   const [snapshot, setSnapshot] = useState<EngineeringSeries[]>(liveSeries);
   const [hiddenLabels, setHiddenLabels] = useState<string[]>([]);
@@ -69,14 +121,22 @@ export default function EngineeringPlot({ series, xLabel, xUnit, yLabel, yUnit, 
 
   const available = frozen ? snapshot : liveSeries;
   const prepared = available.filter(item => !hiddenLabels.includes(item.label));
+  const rangePoints = [
+    ...prepared.flatMap(item => item.points),
+    ...liveBands.flatMap(band => [...band.lower, ...band.upper]),
+    ...verticalMarkers.filter(marker => Number.isFinite(marker.x)).flatMap(marker => [{ x: marker.x, y: 0 }]),
+    ...horizontalMarkers.filter(marker => Number.isFinite(marker.y)).flatMap(marker => [{ x: 0, y: marker.y }]),
+  ];
   const points = prepared.flatMap(item => item.points);
   const ranges = useMemo(() => {
-    if (!points.length) return { x: [0, 1] as [number, number], y: [0, 1] as [number, number] };
+    if (!rangePoints.length) return { x: [0, 1] as [number, number], y: [0, 1] as [number, number] };
+    const xValues = rangePoints.map(point => point.x).filter(Number.isFinite);
+    const yValues = rangePoints.map(point => point.y).filter(Number.isFinite);
     return {
-      x: paddedRange(Math.min(...points.map(point => point.x)), Math.max(...points.map(point => point.x))),
-      y: paddedRange(Math.min(...points.map(point => point.y)), Math.max(...points.map(point => point.y))),
+      x: paddedRange(Math.min(...xValues), Math.max(...xValues)),
+      y: paddedRange(Math.min(...yValues), Math.max(...yValues)),
     };
-  }, [points]);
+  }, [rangePoints]);
 
   const plotWidth = WIDTH - MARGIN.left - MARGIN.right;
   const plotHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
@@ -85,7 +145,7 @@ export default function EngineeringPlot({ series, xLabel, xUnit, yLabel, yUnit, 
   const xTicks = ticks(ranges.x[0], ranges.x[1], tickCount);
   const yTicks = ticks(ranges.y[0], ranges.y[1], tickCount);
 
-  if (!available.flatMap(item => item.points).length) return <div className="empty compact">No finite points available for plotting.</div>;
+  if (!available.flatMap(item => item.points).length && !liveBands.length) return <div className="empty compact">No finite points available for plotting.</div>;
 
   return <div className="engineering-plot" style={{ width: '100%', overflowX: 'auto' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '0 4px 7px' }}>
@@ -101,7 +161,7 @@ export default function EngineeringPlot({ series, xLabel, xUnit, yLabel, yUnit, 
       }}>{frozen ? 'Frozen · resume' : 'Freeze view'}</button>
     </div>
 
-    {!prepared.length ? <div className="empty compact">All series are hidden. Re-enable a series above.</div> : <>
+    {!prepared.length && !liveBands.length ? <div className="empty compact">All series are hidden. Re-enable a series above.</div> : <>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`${axisTitle(yLabel, yUnit)} versus ${axisTitle(xLabel, xUnit)}`} style={{ display: 'block', width: '100%', minWidth: 540, height }}>
         <rect x={MARGIN.left} y={MARGIN.top} width={plotWidth} height={plotHeight} fill="rgba(255,255,255,.012)" stroke="rgba(255,255,255,.05)" />
         {xTicks.map((tick, index) => {
@@ -112,9 +172,25 @@ export default function EngineeringPlot({ series, xLabel, xUnit, yLabel, yUnit, 
           const y = mapY(tick);
           return <g key={`y-${index}`}><line className="engineering-grid-line" x1={MARGIN.left} y1={y} x2={MARGIN.left + plotWidth} y2={y} stroke="rgba(255,255,255,.07)" strokeWidth="1"/><line x1={MARGIN.left - 6} y1={y} x2={MARGIN.left} y2={y} stroke="rgba(210,226,242,.6)" strokeWidth="1"/><text x={MARGIN.left - 10} y={y + 3.5} textAnchor="end" fill="#8395aa" fontSize="10">{formatTick(tick)}</text></g>;
         })}
+        {zeroLine && ranges.y[0] <= 0 && ranges.y[1] >= 0 && <line x1={MARGIN.left} x2={MARGIN.left + plotWidth} y1={mapY(0)} y2={mapY(0)} stroke="rgba(255,255,255,.32)" strokeDasharray="4 4"/>}
+        {liveBands.map((band, index) => <polygon key={`band-${band.label || index}`} points={polygonPoints(band.lower, band.upper, mapX, mapY)} fill="var(--bb-cyan, #70dcff)" opacity={band.opacity ?? 0.12}/>)}
+        {horizontalMarkers.filter(marker => Number.isFinite(marker.y)).map((marker, index) => {
+          const y = mapY(marker.y);
+          return <g key={`h-marker-${index}`}><line x1={MARGIN.left} x2={MARGIN.left + plotWidth} y1={y} y2={y} stroke="var(--bb-amber, #ffc36d)" strokeWidth="1.2" strokeDasharray={marker.dashed === false ? undefined : '6 4'}/>{marker.label && <text x={MARGIN.left + plotWidth - 4} y={y - 5} textAnchor="end" fill="#ffc36d" fontSize="10">{marker.label}</text>}</g>;
+        })}
+        {verticalMarkers.filter(marker => Number.isFinite(marker.x)).map((marker, index) => {
+          const x = mapX(marker.x);
+          return <g key={`v-marker-${index}`}><line x1={x} x2={x} y1={MARGIN.top} y2={MARGIN.top + plotHeight} stroke="var(--bb-amber, #ffc36d)" strokeWidth="1.2" strokeDasharray={marker.dashed === false ? undefined : '6 4'}/>{marker.label && <text x={Math.min(x + 5, MARGIN.left + plotWidth - 4)} y={MARGIN.top + 13} fill="#ffc36d" fontSize="10">{marker.label}</text>}</g>;
+        })}
         <line className="engineering-axis-line" x1={MARGIN.left} y1={MARGIN.top + plotHeight} x2={MARGIN.left + plotWidth} y2={MARGIN.top + plotHeight} stroke="rgba(222,236,250,.82)" strokeWidth="1.3"/>
         <line className="engineering-axis-line" x1={MARGIN.left} y1={MARGIN.top} x2={MARGIN.left} y2={MARGIN.top + plotHeight} stroke="rgba(222,236,250,.82)" strokeWidth="1.3"/>
-        {prepared.map((item, index) => <polyline key={`${item.label}-${index}`} points={item.points.map(point => `${mapX(point.x)},${mapY(point.y)}`).join(' ')} fill="none" stroke={index === 0 ? 'var(--bb-cyan, #70dcff)' : 'var(--bb-amber, #ffc36d)'} strokeWidth="2" strokeDasharray={item.dashed ? '7 5' : undefined} opacity={item.opacity ?? 1} vectorEffect="non-scaling-stroke"/>)}
+        {prepared.map((item, index) => {
+          const stroke = index === 0 ? 'var(--bb-cyan, #70dcff)' : 'var(--bb-amber, #ffc36d)';
+          const kind = item.kind ?? 'line';
+          if (kind === 'scatter') return <g key={`${item.label}-${index}`}>{item.points.map((point, pointIndex) => <circle key={pointIndex} cx={mapX(point.x)} cy={mapY(point.y)} r={item.markerRadius ?? 3.2} fill={stroke} opacity={item.opacity ?? 1}/>)}</g>;
+          if (kind === 'stem') return <g key={`${item.label}-${index}`}>{item.points.map((point, pointIndex) => <g key={pointIndex}><line x1={mapX(point.x)} x2={mapX(point.x)} y1={mapY(Math.max(0, ranges.y[0]))} y2={mapY(point.y)} stroke={stroke} strokeWidth="1.4" opacity={item.opacity ?? 1}/><circle cx={mapX(point.x)} cy={mapY(point.y)} r={item.markerRadius ?? 2.3} fill={stroke} opacity={item.opacity ?? 1}/></g>)}</g>;
+          return <polyline key={`${item.label}-${index}`} points={item.points.map(point => `${mapX(point.x)},${mapY(point.y)}`).join(' ')} fill="none" stroke={stroke} strokeWidth="2" strokeDasharray={item.dashed ? '7 5' : undefined} opacity={item.opacity ?? 1} vectorEffect="non-scaling-stroke"/>;
+        })}
         <text x={MARGIN.left + plotWidth / 2} y={HEIGHT - 10} textAnchor="middle" fill="#c7d8e8" fontSize="11" fontWeight="600">{axisTitle(xLabel, xUnit)}</text>
         <text x="17" y={MARGIN.top + plotHeight / 2} textAnchor="middle" transform={`rotate(-90 17 ${MARGIN.top + plotHeight / 2})`} fill="#c7d8e8" fontSize="11" fontWeight="600">{axisTitle(yLabel, yUnit)}</text>
       </svg>
