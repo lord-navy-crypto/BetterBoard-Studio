@@ -12,6 +12,24 @@ math::SmallFFT<8> spectrum;
 static const double kCalibrationX[] = {-3, -2, -1, 0, 1, 2, 3};
 static const double kCalibrationY[] = {8.5, 5.0, 2.5, 1.0, 0.5, 1.0, 2.5};
 
+static void printCapabilities() {
+  const auto caps = math::currentMathRuntimeCapabilities();
+  Serial.print("#BB_MATH_CAPS,");
+  Serial.print(caps.protocol_version); Serial.print(',');
+  Serial.print(caps.profile); Serial.print(',');
+  Serial.print(caps.recommended_fft_points); Serial.print(',');
+  Serial.print(caps.recommended_window_points); Serial.print(',');
+  Serial.print(caps.recommended_planner_observations); Serial.print(',');
+  Serial.print(caps.robust_statistics ? 1 : 0); Serial.print(',');
+  Serial.print(caps.uncertainty_budget ? 1 : 0); Serial.print(',');
+  Serial.print(caps.autocorrelation ? 1 : 0); Serial.print(',');
+  Serial.print(caps.small_fft ? 1 : 0); Serial.print(',');
+  Serial.print(caps.quadratic_regression ? 1 : 0); Serial.print(',');
+  Serial.print(caps.model_diagnostics ? 1 : 0); Serial.print(',');
+  Serial.print(caps.change_detection ? 1 : 0); Serial.print(',');
+  Serial.println(caps.sequential_planning ? 1 : 0);
+}
+
 void setup() {
   Serial.begin(115200);
   for (size_t i = 0; i < 7; ++i) {
@@ -24,6 +42,7 @@ void setup() {
   planner.score(2.5, next);
 
   Serial.println("#BETTERBOARD_MATH_RUNTIME/1");
+  printCapabilities();
   Serial.print("FIT,"); Serial.print(fit.intercept, 6); Serial.print(',');
   Serial.print(fit.linear, 6); Serial.print(','); Serial.println(fit.quadratic, 6);
   Serial.print("DOE,"); Serial.print(next.x, 6); Serial.print(',');
