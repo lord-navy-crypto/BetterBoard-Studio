@@ -7,16 +7,19 @@ on:
       - 'sensor-suite/firmware/**'
       - 'docs/BETTERBOARD_CPP_ARCHITECTURE.md'
       - 'docs/CPP_FIRMWARE_DEVELOPER_GUIDE.md'
+      - 'docs/CPP_MATH_RUNTIME.md'
       - '.github/workflows/betterboard-cpp-core.yml'
   push:
     branches:
       - 'feature/betterboard-cpp-core-v1'
       - 'enhance/**'
+      - 'cpp/**'
     paths:
       - 'firmware/betterboard-core/**'
       - 'sensor-suite/firmware/**'
       - 'docs/BETTERBOARD_CPP_ARCHITECTURE.md'
       - 'docs/CPP_FIRMWARE_DEVELOPER_GUIDE.md'
+      - 'docs/CPP_MATH_RUNTIME.md'
       - '.github/workflows/betterboard-cpp-core.yml'
   workflow_dispatch:
 
@@ -44,6 +47,23 @@ jobs:
             -o /tmp/betterboard-core-tests
           /tmp/betterboard-core-tests
 
+      - name: Native embedded math runtime tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            firmware/betterboard-core/tests/test_math_runtime.cpp \
+            firmware/betterboard-core/src/core/PeriodicSampler.cpp \
+            firmware/betterboard-core/src/math/OnlineStatistics.cpp \
+            firmware/betterboard-core/src/math/RmsAccumulator.cpp \
+            firmware/betterboard-core/src/math/TrapezoidIntegrator.cpp \
+            firmware/betterboard-core/src/math/FiniteDifference.cpp \
+            firmware/betterboard-core/src/math/LinearRegression.cpp \
+            firmware/betterboard-core/src/signal/ExponentialMovingAverage.cpp \
+            firmware/betterboard-core/src/signal/PeakHold.cpp \
+            firmware/betterboard-core/src/signal/ThresholdTrigger.cpp \
+            firmware/betterboard-core/src/signal/HysteresisLatch.cpp \
+            -o /tmp/betterboard-math-runtime-tests
+          /tmp/betterboard-math-runtime-tests
+
       - name: Native HAL adapter contract tests
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror \
@@ -67,6 +87,12 @@ jobs:
 
       - name: Compile C++ core example for ESP32-S3
         run: arduino-cli compile --fqbn esp32:esp32:esp32s3 --library firmware/betterboard-core firmware/betterboard-core/examples/ADCNoiseCore
+
+      - name: Compile math runtime fusion for UNO
+        run: arduino-cli compile --fqbn arduino:avr:uno --library firmware/betterboard-core firmware/betterboard-core/examples/MathRuntimeFusion
+
+      - name: Compile math runtime fusion for ESP32-S3
+        run: arduino-cli compile --fqbn esp32:esp32:esp32s3 --library firmware/betterboard-core firmware/betterboard-core/examples/MathRuntimeFusion
 
       - name: Compile migrated Sensor Suite sketch for UNO
         run: arduino-cli compile --fqbn arduino:avr:uno --library firmware/betterboard-core sensor-suite/firmware/ADC_NoiseStatistics
