@@ -29,6 +29,7 @@ CHECKS = (
     "numeric_error_campaign_self_check.py",
     "version_consistency_self_check.py",
     "applied_statistics_self_check.py",
+    "time_series_signal_self_check.py",
 )
 
 
