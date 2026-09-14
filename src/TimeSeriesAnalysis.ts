@@ -18,19 +18,26 @@ export type SpectrumStats = {
   highFrequencyPowerFraction: number;
   aliasingRisk: 'low' | 'inspect' | 'high';
   peaks: SpectrumPeak[];
+  bins: SpectrumPeak[];
 };
+export type EwmaPoint = { index: number; value: number; upperLimit: number; lowerLimit: number; alarm: boolean };
 export type EwmaStats = {
   lambda: number;
   alarmCount: number;
   firstAlarmIndex: number | null;
   maxStandardizedDeviation: number;
+  center: number | null;
+  trace: EwmaPoint[];
 };
+export type CusumPoint = { index: number; positive: number; negative: number; alarm: boolean };
 export type CusumStats = {
   referenceSigma: number;
   decisionSigma: number;
   alarmCount: number;
   firstAlarmIndex: number | null;
   alarmIndices: number[];
+  decisionThreshold: number | null;
+  trace: CusumPoint[];
 };
 export type ChangePointStats = {
   index: number | null;
@@ -169,49 +176,56 @@ export function spectrumAnalysis(values: number[], sampleRateHz: number): Spectr
     highFrequencyPowerFraction: highFraction,
     aliasingRisk,
     peaks: sorted.slice(0, 8),
+    bins: powers,
   };
 }
 
 export function ewmaAnalysis(values: number[], lambda = 0.2, sigmaLimit = 3): EwmaStats {
   const clean = finite(values);
-  if (clean.length < 3) return { lambda, alarmCount: 0, firstAlarmIndex: null, maxStandardizedDeviation: 0 };
+  if (clean.length < 3) return { lambda, alarmCount: 0, firstAlarmIndex: null, maxStandardizedDeviation: 0, center: null, trace: [] };
   const clampedLambda = Math.min(1, Math.max(0.01, lambda));
   const m = mean(clean);
   const sd = sampleStd(clean);
-  if (!(sd > 0)) return { lambda: clampedLambda, alarmCount: 0, firstAlarmIndex: null, maxStandardizedDeviation: 0 };
+  if (!(sd > 0)) return { lambda: clampedLambda, alarmCount: 0, firstAlarmIndex: null, maxStandardizedDeviation: 0, center: m, trace: clean.map((value, index) => ({ index, value, upperLimit: m, lowerLimit: m, alarm: false })) };
   let z = m;
   let alarms = 0;
   let first: number | null = null;
   let maxDeviation = 0;
+  const trace: EwmaPoint[] = [];
   for (let i = 0; i < clean.length; i++) {
     z = clampedLambda * clean[i] + (1 - clampedLambda) * z;
     const transientFactor = Math.sqrt((clampedLambda / (2 - clampedLambda)) * (1 - (1 - clampedLambda) ** (2 * (i + 1))));
     const sigmaZ = sd * transientFactor;
     const standardized = sigmaZ > 0 ? Math.abs(z - m) / sigmaZ : 0;
     maxDeviation = Math.max(maxDeviation, standardized);
-    if (standardized > sigmaLimit) {
+    const alarm = standardized > sigmaLimit;
+    if (alarm) {
       alarms++;
       if (first === null) first = i;
     }
+    trace.push({ index: i, value: z, upperLimit: m + sigmaLimit * sigmaZ, lowerLimit: m - sigmaLimit * sigmaZ, alarm });
   }
-  return { lambda: clampedLambda, alarmCount: alarms, firstAlarmIndex: first, maxStandardizedDeviation: maxDeviation };
+  return { lambda: clampedLambda, alarmCount: alarms, firstAlarmIndex: first, maxStandardizedDeviation: maxDeviation, center: m, trace };
 }
 
 export function cusumAnalysis(values: number[], referenceSigma = 0.5, decisionSigma = 5): CusumStats {
   const clean = finite(values);
   const sd = sampleStd(clean);
-  if (clean.length < 3 || !(sd > 0)) return { referenceSigma, decisionSigma, alarmCount: 0, firstAlarmIndex: null, alarmIndices: [] };
+  if (clean.length < 3 || !(sd > 0)) return { referenceSigma, decisionSigma, alarmCount: 0, firstAlarmIndex: null, alarmIndices: [], decisionThreshold: null, trace: [] };
   const m = mean(clean);
   const k = Math.max(0, referenceSigma) * sd;
   const h = Math.max(0.1, decisionSigma) * sd;
   let positive = 0;
   let negative = 0;
   const alarms: number[] = [];
+  const trace: CusumPoint[] = [];
   for (let i = 0; i < clean.length; i++) {
     const deviation = clean[i] - m;
     positive = Math.max(0, positive + deviation - k);
     negative = Math.min(0, negative + deviation + k);
-    if (positive > h || negative < -h) {
+    const alarm = positive > h || negative < -h;
+    trace.push({ index: i, positive, negative, alarm });
+    if (alarm) {
       alarms.push(i);
       positive = 0;
       negative = 0;
@@ -223,6 +237,8 @@ export function cusumAnalysis(values: number[], referenceSigma = 0.5, decisionSi
     alarmCount: alarms.length,
     firstAlarmIndex: alarms[0] ?? null,
     alarmIndices: alarms,
+    decisionThreshold: h,
+    trace,
   };
 }
 
