@@ -14,6 +14,7 @@
 #include "math/ExperimentPlanning.h"
 #include "math/FiniteDifference.h"
 #include "math/LinearRegression.h"
+#include "math/MathRuntimeCapabilities.h"
 #include "math/ModelDiagnostics.h"
 #include "math/OnlineStatistics.h"
 #include "math/QuadraticRegression.h"
