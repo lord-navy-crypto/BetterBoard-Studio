@@ -8,6 +8,7 @@ import type { BackgroundTask, TaskCategory, TaskState } from './TaskCenter';
 import RuntimeLog from './RuntimeLog';
 import EngineeringPlot from './EngineeringPlot';
 import CopyButton from './CopyButton';
+import { enabledMathRuntimeCapabilities, parseMathRuntimeCapabilities } from './mathRuntimeCapabilities';
 
 type RecipeSpec = {
   id: string;
@@ -177,6 +178,18 @@ export default function MonitorDataStudio({
   const selectedColumn = activeColumns[selectedChannel] ?? `channel_${selectedChannel + 1}`;
   const selectedUnit = activeUnits[selectedChannel] ?? '';
   const serialCopyText = useMemo(() => displayRows.map(row => row.line).join('\n'), [displayRows]);
+  const mathRuntimeCapabilities = useMemo(() => {
+    for (let index = displayRows.length - 1; index >= 0; index -= 1) {
+      if (displayRows[index].direction === 'tx') continue;
+      const parsed = parseMathRuntimeCapabilities(displayRows[index].line);
+      if (parsed) return parsed;
+    }
+    return null;
+  }, [displayRows]);
+  const mathRuntimeLabels = useMemo(
+    () => mathRuntimeCapabilities ? enabledMathRuntimeCapabilities(mathRuntimeCapabilities) : [],
+    [mathRuntimeCapabilities],
+  );
 
   const numericRows = useMemo(() => displayRows
     .map(row => parseNumericRow(row, activeColumns.length))
@@ -611,6 +624,13 @@ export default function MonitorDataStudio({
           <span>Declared rate</span><b>{contextRate ? `${contextRate} Hz` : 'event / unspecified'}</b>
           <span>Primary</span><b>{activePrimary || selectedColumn}</b>
         </div>
+        <div className="boundary" style={{ marginTop: 12 }}>
+          <CircleAlert size={14}/>
+          {mathRuntimeCapabilities ? <span><b>Embedded math runtime · {mathRuntimeCapabilities.profile}</b> · protocol v{mathRuntimeCapabilities.protocolVersion} · FFT ≤ {mathRuntimeCapabilities.recommendedFftPoints} · window ≤ {mathRuntimeCapabilities.recommendedWindowPoints} · planner ≤ {mathRuntimeCapabilities.recommendedPlannerObservations}. Board-side analysis is a real-time derived layer; desktop re-analysis and raw evidence remain authoritative for deeper validation.</span> : <span>No embedded math capability announcement detected in the current serial buffer. BetterBoard will continue with desktop analysis only.</span>}
+        </div>
+        {mathRuntimeCapabilities && <div className="schema-row" style={{ marginTop: 10 }}>
+          {mathRuntimeLabels.map(label => <span key={label}>{label} ✓</span>)}
+        </div>}
       </div>
     </div>
 
