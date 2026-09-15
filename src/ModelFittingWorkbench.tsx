@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Database, Sigma } from 'lucide-react';
 import { parseNumericTable, type ParsedNumericTable } from './AppliedStatistics';
 import { deltaAicc, linearRegression, quadraticRegression, type RegressionFit } from './ModelFittingAnalysis';
 import EngineeringPlot from './EngineeringPlot';
+import { externalEvidenceSource, useEvidenceVisualization } from './EvidenceVisualizationContext';
 
 function fmt(value: number | null | undefined, digits = 4) {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
@@ -25,10 +26,7 @@ function FitCard({ fit, delta }: { fit: RegressionFit; delta: number }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         <thead><tr><th>parameter</th><th>estimate</th><th>SE</th><th>95% CI</th></tr></thead>
         <tbody>{fit.parameters.map(parameter => <tr key={parameter.name}>
-          <td>{parameter.name}</td>
-          <td>{fmt(parameter.estimate, 6)}</td>
-          <td>{fmt(parameter.standardError, 6)}</td>
-          <td>{fmt(parameter.ci95Low, 6)} … {fmt(parameter.ci95High, 6)}</td>
+          <td>{parameter.name}</td><td>{fmt(parameter.estimate, 6)}</td><td>{fmt(parameter.standardError, 6)}</td><td>{fmt(parameter.ci95Low, 6)} … {fmt(parameter.ci95High, 6)}</td>
         </tr>)}</tbody>
       </table>
     </div>
@@ -38,10 +36,19 @@ function FitCard({ fit, delta }: { fit: RegressionFit; delta: number }) {
 
 export default function ModelFittingWorkbench() {
   const [table, setTable] = useState<ParsedNumericTable | null>(null);
-  const [source, setSource] = useState('No table loaded');
+  const [sourceLabel, setSourceLabel] = useState('No table loaded');
   const [xColumn, setXColumn] = useState('');
   const [yColumn, setYColumn] = useState('');
   const [error, setError] = useState('');
+  const shared = useEvidenceVisualization();
+  const effectiveTable = table ?? shared.source?.table ?? null;
+  const effectiveSourceLabel = table ? sourceLabel : shared.source?.label ?? sourceLabel;
+
+  useEffect(() => {
+    if (!effectiveTable) return;
+    if (!effectiveTable.headers.includes(xColumn)) setXColumn(effectiveTable.headers[0] ?? '');
+    if (!effectiveTable.headers.includes(yColumn) || yColumn === (effectiveTable.headers[0] ?? '')) setYColumn(effectiveTable.headers[1] ?? effectiveTable.headers[0] ?? '');
+  }, [effectiveTable, xColumn, yColumn]);
 
   async function importFile(file: File | null) {
     if (!file) return;
@@ -50,7 +57,8 @@ export default function ModelFittingWorkbench() {
       setTable(parsed);
       setXColumn(parsed.headers[0] ?? '');
       setYColumn(parsed.headers[1] ?? parsed.headers[0] ?? '');
-      setSource(file.name);
+      setSourceLabel(file.name);
+      shared.setSource(externalEvidenceSource(file.name, parsed));
       setError('');
     } catch (cause) {
       setError(String(cause));
@@ -58,8 +66,8 @@ export default function ModelFittingWorkbench() {
     }
   }
 
-  const x = useMemo(() => table && xColumn ? table.columns[xColumn] ?? [] : [], [table, xColumn]);
-  const y = useMemo(() => table && yColumn ? table.columns[yColumn] ?? [] : [], [table, yColumn]);
+  const x = useMemo(() => effectiveTable && xColumn ? effectiveTable.columns[xColumn] ?? [] : [], [effectiveTable, xColumn]);
+  const y = useMemo(() => effectiveTable && yColumn ? effectiveTable.columns[yColumn] ?? [] : [], [effectiveTable, yColumn]);
   const aligned = useMemo(() => {
     const rows: Array<{ x: number; y: number }> = [];
     const n = Math.min(x.length, y.length);
@@ -67,22 +75,15 @@ export default function ModelFittingWorkbench() {
     return rows;
   }, [x, y]);
   const fits = useMemo(() => {
-    if (!table || !xColumn || !yColumn || xColumn === yColumn) return [] as RegressionFit[];
+    if (!effectiveTable || !xColumn || !yColumn || xColumn === yColumn) return [] as RegressionFit[];
     const result: RegressionFit[] = [];
     try { result.push(linearRegression(x, y)); } catch {}
     try { result.push(quadraticRegression(x, y)); } catch {}
     return result;
-  }, [table, xColumn, yColumn, x, y]);
+  }, [effectiveTable, xColumn, yColumn, x, y]);
   const deltas = useMemo(() => deltaAicc(fits), [fits]);
-  const best = useMemo(() => {
-    if (!fits.length) return null;
-    return fits.reduce((a, b) => a.diagnostics.aicc <= b.diagnostics.aicc ? a : b);
-  }, [fits]);
-  const fitSeries = useMemo(() => fits.map(fit => ({
-    label: fit.model === 'linear' ? 'linear fit' : 'quadratic fit',
-    points: aligned.map((row, index) => ({ x: row.x, y: fit.predictions[index] })).sort((a, b) => a.x - b.x),
-    dashed: fit.model === 'quadratic',
-  })), [fits, aligned]);
+  const best = useMemo(() => fits.length ? fits.reduce((a, b) => a.diagnostics.aicc <= b.diagnostics.aicc ? a : b) : null, [fits]);
+  const fitSeries = useMemo(() => fits.map(fit => ({ label: fit.model === 'linear' ? 'linear fit' : 'quadratic fit', points: aligned.map((row, index) => ({ x: row.x, y: fit.predictions[index] })).sort((a, b) => a.x - b.x), dashed: fit.model === 'quadratic' })), [fits, aligned]);
 
   const interpretation = useMemo(() => {
     if (fits.length < 2 || !best) return [] as string[];
@@ -102,40 +103,21 @@ export default function ModelFittingWorkbench() {
   return <section className="panel" style={{ margin: '18px auto', maxWidth: 1420 }}>
     <div className="panel-title"><Sigma size={18}/> Parameter Estimation & Model Comparison</div>
     <p className="muted">Estimate model parameters with uncertainty, inspect residual fit quality, and compare simple candidate models without equating best fit with physical truth.</p>
-
-    <div className="action-row">
-      <label className="ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><Database size={15}/> Import CSV / TSV<input type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" style={{ display: 'none' }} onChange={event => void importFile(event.target.files?.[0] ?? null)}/></label>
-      <span className="muted">{source}</span>
-    </div>
+    <div className="action-row"><label className="ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><Database size={15}/> Import CSV / TSV<input type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" style={{ display: 'none' }} onChange={event => void importFile(event.target.files?.[0] ?? null)}/></label><span className="muted">{effectiveSourceLabel}{!table && shared.source ? ` · ${shared.source.provenanceLabel}` : ''}</span></div>
     {error && <div className="boundary">{error}</div>}
 
-    {table && <>
+    {effectiveTable && <>
       <div className="engineering-model-grid" style={{ marginTop: 12 }}>
-        <label className="panel">x / predictor<select value={xColumn} onChange={event => setXColumn(event.target.value)}>{table.headers.map(header => <option key={header} value={header}>{header}</option>)}</select></label>
-        <label className="panel">y / observed response<select value={yColumn} onChange={event => setYColumn(event.target.value)}>{table.headers.map(header => <option key={header} value={header}>{header}</option>)}</select></label>
+        <label className="panel">x / predictor<select value={xColumn} onChange={event => setXColumn(event.target.value)}>{effectiveTable.headers.map(header => <option key={header} value={header}>{header}</option>)}</select></label>
+        <label className="panel">y / observed response<select value={yColumn} onChange={event => setYColumn(event.target.value)}>{effectiveTable.headers.map(header => <option key={header} value={header}>{header}</option>)}</select></label>
       </div>
-
       {xColumn === yColumn ? <div className="boundary">Choose different x and y columns before fitting.</div> : fits.length ? <>
-        <section className="panel" style={{ marginTop: 12 }}>
-          <div className="panel-title"><BarChart3 size={17}/> Measured response & candidate fits</div>
-          <EngineeringPlot series={[{ label: 'measured', kind: 'scatter', points: aligned }, ...fitSeries]} xLabel={xColumn} yLabel={yColumn} />
-        </section>
-        <div className="engineering-model-grid" style={{ marginTop: 12 }}>
-          {fits.map(fit => <FitCard key={fit.model} fit={fit} delta={deltas.find(item => item.model === fit.model)?.delta ?? Number.NaN}/>) }
-        </div>
-        <div className="engineering-model-grid" style={{ marginTop: 12 }}>
-          {fits.map(fit => <section className="panel" key={`${fit.model}-residual`}>
-            <div className="panel-title"><BarChart3 size={16}/>{fit.model === 'linear' ? 'Linear' : 'Quadratic'} residual structure</div>
-            <EngineeringPlot series={[{ label: `${fit.model} residual`, kind: 'scatter', points: aligned.map((row, index) => ({ x: row.x, y: fit.residuals[index] })) }]} xLabel={xColumn} yLabel="residual" zeroLine />
-          </section>)}
-        </div>
-        <section className="panel" style={{ marginTop: 12 }}>
-          <div className="panel-title"><Sigma size={16}/> Model-selection interpretation</div>
-          {interpretation.map(note => <div key={note} className="boundary compact">{note}</div>)}
-        </section>
+        <section className="panel" style={{ marginTop: 12 }}><div className="panel-title"><BarChart3 size={17}/> Measured response & candidate fits</div><EngineeringPlot series={[{ label: 'measured', kind: 'scatter', points: aligned }, ...fitSeries]} xLabel={xColumn} yLabel={yColumn} /></section>
+        <div className="engineering-model-grid" style={{ marginTop: 12 }}>{fits.map(fit => <FitCard key={fit.model} fit={fit} delta={deltas.find(item => item.model === fit.model)?.delta ?? Number.NaN}/>)}</div>
+        <div className="engineering-model-grid" style={{ marginTop: 12 }}>{fits.map(fit => <section className="panel" key={`${fit.model}-residual`}><div className="panel-title"><BarChart3 size={16}/>{fit.model === 'linear' ? 'Linear' : 'Quadratic'} residual structure</div><EngineeringPlot series={[{ label: `${fit.model} residual`, kind: 'scatter', points: aligned.map((row, index) => ({ x: row.x, y: fit.residuals[index] })) }]} xLabel={xColumn} yLabel="residual" zeroLine /></section>)}</div>
+        <section className="panel" style={{ marginTop: 12 }}><div className="panel-title"><Sigma size={16}/> Model-selection interpretation</div>{interpretation.map(note => <div key={note} className="boundary compact">{note}</div>)}</section>
       </> : <div className="boundary">The selected columns do not contain enough well-conditioned aligned observations for the candidate models.</div>}
     </>}
-
     <div className="boundary">AICc/BIC compare candidate models under their statistical assumptions. A lower score does not establish causality, mechanism, calibration quality, or physical truth; validate the chosen model on new evidence.</div>
   </section>;
 }
