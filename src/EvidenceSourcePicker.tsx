@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Database, RefreshCw } from 'lucide-react';
 import type { ParsedNumericTable } from './AppliedStatistics';
-import { measurementEvidenceSource, useEvidenceVisualization } from './EvidenceVisualizationContext';
+import { measurementEvidenceSource, useEvidenceVisualization, type EvidenceVisualizationSource } from './EvidenceVisualizationContext';
+import { useRunComparison } from './RunComparisonContext';
 
 type MeasurementSessionSummary = {
   directory: string;
@@ -47,6 +48,7 @@ function tableFromReplay(replay: MeasurementReplay): ParsedNumericTable {
 
 export default function EvidenceSourcePicker() {
   const shared = useEvidenceVisualization();
+  const comparison = useRunComparison();
   const [sessions, setSessions] = useState<MeasurementSessionSummary[]>([]);
   const [selectedDirectory, setSelectedDirectory] = useState('');
   const [busy, setBusy] = useState(false);
@@ -70,28 +72,34 @@ export default function EvidenceSourcePicker() {
 
   const selected = useMemo(() => sessions.find(session => session.directory === selectedDirectory) ?? null, [sessions, selectedDirectory]);
 
-  async function useSelected() {
-    if (!selected) return;
+  async function loadSelectedSource(): Promise<EvidenceVisualizationSource | null> {
+    if (!selected) return null;
+    const replay = await invoke<MeasurementReplay>('measurement_session_load', { directory: selected.directory });
+    const table = tableFromReplay(replay);
+    const numericRows = replay.rows.filter(row => row.numeric);
+    const origin = numericRows[0]?.host_timestamp_ms ?? 0;
+    return measurementEvidenceSource({
+      sourceId: selected.directory,
+      label: `${selected.recipe_title} · ${new Date(selected.created_at_utc).toLocaleString()}`,
+      table,
+      units: replay.units,
+      primaryColumn: replay.primary_column ?? null,
+      sampleRateHz: replay.sample_rate_hz ?? null,
+      timestamps: numericRows.map(row => (row.host_timestamp_ms - origin) / 1000),
+      recipeId: selected.recipe_id ?? null,
+      recipeTitle: selected.recipe_title,
+      evidenceDirectory: selected.directory,
+      csvPath: selected.csv_path,
+      metadataPath: selected.metadata_path,
+    });
+  }
+
+  async function withSelected(action: (source: EvidenceVisualizationSource) => void) {
+    if (!selected || busy) return;
     setBusy(true);
     try {
-      const replay = await invoke<MeasurementReplay>('measurement_session_load', { directory: selected.directory });
-      const table = tableFromReplay(replay);
-      const numericRows = replay.rows.filter(row => row.numeric);
-      const origin = numericRows[0]?.host_timestamp_ms ?? 0;
-      shared.setSource(measurementEvidenceSource({
-        sourceId: selected.directory,
-        label: `${selected.recipe_title} · ${new Date(selected.created_at_utc).toLocaleString()}`,
-        table,
-        units: replay.units,
-        primaryColumn: replay.primary_column ?? null,
-        sampleRateHz: replay.sample_rate_hz ?? null,
-        timestamps: numericRows.map(row => (row.host_timestamp_ms - origin) / 1000),
-        recipeId: selected.recipe_id ?? null,
-        recipeTitle: selected.recipe_title,
-        evidenceDirectory: selected.directory,
-        csvPath: selected.csv_path,
-        metadataPath: selected.metadata_path,
-      }));
+      const source = await loadSelectedSource();
+      if (source) action(source);
       setError('');
     } catch (cause) {
       setError(String(cause));
@@ -107,10 +115,12 @@ export default function EvidenceSourcePicker() {
         {!sessions.length && <option value="">No saved measurement sessions</option>}
         {sessions.map(session => <option key={session.directory} value={session.directory}>{session.recipe_title} · {session.sample_count} samples · {new Date(session.created_at_utc).toLocaleString()}</option>)}
       </select>
-      <button className="primary" disabled={busy || !selected} onClick={() => void useSelected()}>Use as analysis evidence</button>
+      <button className="primary" disabled={busy || !selected} onClick={() => void withSelected(source => shared.setSource(source))}>Use as analysis evidence</button>
+      <button className="ghost" disabled={busy || !selected} onClick={() => void withSelected(comparison.setRunA)}>Set as Run A</button>
+      <button className="ghost" disabled={busy || !selected} onClick={() => void withSelected(comparison.setRunB)}>Set as Run B</button>
       <button className="ghost" disabled={busy} onClick={() => void refresh()}><RefreshCw size={13}/> Refresh</button>
     </div>
     {error && <div className="boundary compact">{error}</div>}
-    <small className="muted">Selecting a session shares its numeric table and metadata with Statistics, Models and Experiment Design. Derived results stay downstream and are not written back into the saved package.</small>
+    <small className="muted">Selecting a session shares its numeric table and metadata with Statistics, Models and Experiment Design. Run A / Run B stay separate comparison inputs; derived results are never written back into either saved package.</small>
   </div>;
 }
