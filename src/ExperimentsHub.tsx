@@ -2,6 +2,7 @@ import { Activity, CheckCircle2, FlaskConical, Magnet, Sigma } from 'lucide-reac
 import CampaignVisualization from './CampaignVisualization';
 import CopyButton from './CopyButton';
 import EspressifCapabilityPanel from './EspressifCapabilityPanel';
+import EngineeringExperimentLibrary from './EngineeringExperimentLibrary';
 
 // Legacy structural selectors retired by the Studio preparation migration:
 // hidden={tool!=='numerical'}
@@ -56,9 +57,9 @@ export default function ExperimentsHub() {
     <section className="experiment-bridge-hero">
       <div>
         <div className="eyebrow">Engineering Lab experiments</div>
-        <h1>Experiments contains campaigns, not preparation tools.</h1>
-        <p>Reusable capture, evidence preparation, bridge/export and expert analyzers belong in Studio. This workspace is only for experiments built around a concrete Engineering Lab scientific question.</p>
-        <p className="muted">Connect with Engineering Lab through Studio's <b>BetterBoard → Engineering Lab handoff</b>. Preparation surfaces such as <b>Numerical Error Analysis</b>, <b>RADIA Magnet Studio</b> compatibility and other <b>Expert workflows</b> remain in Studio rather than being duplicated here.</p>
+        <h1>Experiments contains campaigns and the complete dedicated experiment code library.</h1>
+        <p>Campaign views explain the scientific question. The code library below exposes the actual Engineering Lab firmware and host analyzers used to run, inspect, verify and upload those experiments.</p>
+        <p className="muted">Reusable capture and preparation remain shared with Studio, but experiment-specific code is no longer hidden behind path labels: the real repository source is directly inspectable here.</p>
       </div>
     </section>
 
@@ -74,6 +75,7 @@ export default function ExperimentsHub() {
     </section>
 
     <CampaignVisualization />
+    <EngineeringExperimentLibrary />
     <EspressifCapabilityPanel />
 
     <section className="panel" style={{ maxWidth: 1420, margin: '14px auto 50px' }}>
