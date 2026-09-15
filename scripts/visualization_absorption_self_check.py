@@ -79,6 +79,8 @@ def main() -> int:
     primitive = read("src/PrimitiveObservatory.tsx")
     assert "HOST-DERIVED" in primitive, "Host-derived provenance label must remain visible"
     assert "DEVICE-DERIVED" in primitive, "Device-derived provenance label must remain visible"
+    assert "SignalHealthRail" in primitive and "healthSummary" in primitive, "Signal Health must consume live primitive observatory results"
+    assert "computeHostPrimitiveObservability" in primitive, "Signal Health must stay attached to the canonical host primitive engine"
 
     hub = read("src/AnalysisVisualizationHub.tsx")
     assert "<NumericalErrorVisualWorkbench /><NumericalResultVisualization />" in hub, "Numerical depth results must be on the normal Numerical Reliability surface"
