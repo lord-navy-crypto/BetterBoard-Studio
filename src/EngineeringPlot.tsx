@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
 type Point = { x: number; y: number };
 export type EngineeringSeries = {
@@ -49,6 +49,10 @@ type Props = {
   compact?: boolean;
   selectedPoint?: EngineeringSelectedPoint | null;
   eventMarkers?: EngineeringEventMarker[];
+  selectedX?: number | null;
+  selectedRange?: [number, number] | null;
+  onSelectedXChange?: (x: number | null) => void;
+  onRangeSelect?: (range: [number, number] | null) => void;
   onPointSelect?: (point: EngineeringPointSelection) => void;
 };
 
@@ -101,6 +105,11 @@ function polygonPoints(lower: Point[], upper: Point[], mapX: (x: number) => numb
   return [...lowerPoints, ...upperPoints].join(' ');
 }
 
+function normalizedRange(range: [number, number] | null | undefined): [number, number] | null {
+  if (!range || !Number.isFinite(range[0]) || !Number.isFinite(range[1]) || range[0] === range[1]) return null;
+  return range[0] < range[1] ? range : [range[1], range[0]];
+}
+
 export default function EngineeringPlot({
   series,
   xLabel,
@@ -117,6 +126,10 @@ export default function EngineeringPlot({
   compact = false,
   selectedPoint = null,
   eventMarkers = [],
+  selectedX = null,
+  selectedRange = null,
+  onSelectedXChange,
+  onRangeSelect,
   onPointSelect,
 }: Props) {
   const liveSeries = useMemo(() => finiteSeries(series), [series]);
@@ -129,6 +142,8 @@ export default function EngineeringPlot({
   const [frozen, setFrozen] = useState(false);
   const [snapshot, setSnapshot] = useState<EngineeringSeries[]>(liveSeries);
   const [hiddenLabels, setHiddenLabels] = useState<string[]>([]);
+  const brushStartRef = useRef<{ clientX: number; dataX: number } | null>(null);
+  const suppressClickRef = useRef(false);
 
   useEffect(() => {
     if (!frozen) setSnapshot(liveSeries.map(item => ({ ...item, points: [...item.points] })));
@@ -160,11 +175,12 @@ export default function EngineeringPlot({
     if (!xValues.length || !yValues.length) {
       return { x: [0, 1] as [number, number], y: [0, 1] as [number, number] };
     }
+    const inspectedRange = normalizedRange(selectedRange);
     return {
-      x: paddedRange(Math.min(...xValues), Math.max(...xValues)),
+      x: inspectedRange ?? paddedRange(Math.min(...xValues), Math.max(...xValues)),
       y: paddedRange(Math.min(...yValues), Math.max(...yValues)),
     };
-  }, [dataPoints, resolvedVerticalMarkers, resolvedHorizontalMarkers, selectedPoint, zeroLine]);
+  }, [dataPoints, resolvedVerticalMarkers, resolvedHorizontalMarkers, selectedPoint, selectedRange, zeroLine]);
 
   const margin = compact ? COMPACT_MARGIN : MARGIN;
   const viewHeight = compact ? 210 : HEIGHT;
@@ -178,8 +194,42 @@ export default function EngineeringPlot({
 
   if (!available.flatMap(item => item.points).length && !liveBands.length) return <div className="empty compact">No finite points available for plotting.</div>;
 
-  function selectablePoint(item: EngineeringSeries, point: Point, index: number, stroke: string) {
-    if (!onPointSelect) return null;
+  function eventDataX(event: ReactPointerEvent<SVGSVGElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const viewX = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * WIDTH;
+    const clampedViewX = Math.min(margin.left + plotWidth, Math.max(margin.left, viewX));
+    const fraction = (clampedViewX - margin.left) / Math.max(plotWidth, Number.EPSILON);
+    return ranges.x[0] + fraction * (ranges.x[1] - ranges.x[0]);
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) {
+    if (!onRangeSelect || event.button !== 0) return;
+    brushStartRef.current = { clientX: event.clientX, dataX: eventDataX(event) };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function handlePointerUp(event: ReactPointerEvent<SVGSVGElement>) {
+    const start = brushStartRef.current;
+    brushStartRef.current = null;
+    if (!start || !onRangeSelect) return;
+    const distance = Math.abs(event.clientX - start.clientX);
+    if (distance < 6) return;
+    const endX = eventDataX(event);
+    const range: [number, number] = start.dataX < endX ? [start.dataX, endX] : [endX, start.dataX];
+    suppressClickRef.current = true;
+    onRangeSelect(range);
+  }
+
+  function handlePlotClick(event: ReactPointerEvent<SVGSVGElement>) {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    if (onSelectedXChange) onSelectedXChange(eventDataX(event));
+  }
+
+  function selectablePoint(item: EngineeringSeries, point: Point, index: number) {
+    if (!onPointSelect && !onSelectedXChange) return null;
     return <circle
       key={`hit-${item.label}-${index}`}
       cx={mapX(point.x)}
@@ -188,10 +238,16 @@ export default function EngineeringPlot({
       fill="transparent"
       stroke="transparent"
       style={{ cursor: 'crosshair' }}
-      onClick={() => onPointSelect({ ...point, series: item.label })}
+      onClick={event => {
+        event.stopPropagation();
+        onSelectedXChange?.(point.x);
+        onPointSelect?.({ ...point, series: item.label });
+      }}
       aria-label={`Select ${item.label} x ${formatTick(point.x)} y ${formatTick(point.y)}`}
     ><title>{`${item.label} · ${axisTitle(xLabel, xUnit)} ${formatTick(point.x)} · ${axisTitle(yLabel, yUnit)} ${formatTick(point.y)}`}</title></circle>;
   }
+
+  const cursorVisible = Number.isFinite(selectedX) && selectedX !== null && selectedX >= ranges.x[0] && selectedX <= ranges.x[1];
 
   return <div className={`engineering-plot ${compact ? 'compact' : ''}`} style={{ width: '100%', overflowX: 'auto' }}>
     {!compact && <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '0 4px 7px' }}>
@@ -201,14 +257,25 @@ export default function EngineeringPlot({
           return <button key={item.label} className={`ghost mini ${hidden ? '' : 'active'}`} aria-pressed={!hidden} onClick={() => setHiddenLabels(current => hidden ? current.filter(label => label !== item.label) : [...current, item.label])}>{hidden ? '○' : '●'} {item.label}</button>;
         })}
       </div>
-      <button className={`ghost mini ${frozen ? 'active' : ''}`} onClick={() => {
-        if (!frozen) setSnapshot(liveSeries.map(item => ({ ...item, points: [...item.points] })));
-        setFrozen(value => !value);
-      }}>{frozen ? 'Frozen · resume' : 'Freeze view'}</button>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {normalizedRange(selectedRange) && onRangeSelect && <button className="ghost mini" onClick={() => onRangeSelect(null)}>Reset range</button>}
+        <button className={`ghost mini ${frozen ? 'active' : ''}`} onClick={() => {
+          if (!frozen) setSnapshot(liveSeries.map(item => ({ ...item, points: [...item.points] })));
+          setFrozen(value => !value);
+        }}>{frozen ? 'Frozen · resume' : 'Freeze view'}</button>
+      </div>
     </div>}
 
     {!prepared.length && !liveBands.length ? <div className="empty compact">All series are hidden. Re-enable a series above.</div> : <>
-      <svg viewBox={`0 0 ${WIDTH} ${viewHeight}`} role="img" aria-label={`${axisTitle(yLabel, yUnit)} versus ${axisTitle(xLabel, xUnit)}`} style={{ display: 'block', width: '100%', minWidth: compact ? 420 : 540, height: renderedHeight }}>
+      <svg
+        viewBox={`0 0 ${WIDTH} ${viewHeight}`}
+        role="img"
+        aria-label={`${axisTitle(yLabel, yUnit)} versus ${axisTitle(xLabel, xUnit)}`}
+        style={{ display: 'block', width: '100%', minWidth: compact ? 420 : 540, height: renderedHeight, touchAction: onRangeSelect ? 'pan-y' : undefined }}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onClick={handlePlotClick}
+      >
         <rect x={margin.left} y={margin.top} width={plotWidth} height={plotHeight} fill="rgba(255,255,255,.012)" stroke="rgba(255,255,255,.05)" />
         {xTicks.map((tick, index) => {
           const x = mapX(tick);
@@ -228,14 +295,18 @@ export default function EngineeringPlot({
           const x = mapX(marker.x);
           return <g key={`v-marker-${index}`}><line x1={x} x2={x} y1={margin.top} y2={margin.top + plotHeight} stroke="var(--bb-amber, #ffc36d)" strokeWidth="1.2" strokeDasharray={marker.dashed === false ? undefined : '6 4'}/>{marker.label && <text x={Math.min(x + 5, margin.left + plotWidth - 4)} y={margin.top + 13} fill="#ffc36d" fontSize="10">{marker.label}</text>}</g>;
         })}
+        {cursorVisible && selectedX !== null && <g>
+          <line x1={mapX(selectedX)} x2={mapX(selectedX)} y1={margin.top} y2={margin.top + plotHeight} stroke="rgba(255,255,255,.56)" strokeDasharray="3 3" />
+          <text x={Math.min(mapX(selectedX) + 5, margin.left + plotWidth - 4)} y={margin.top + plotHeight - 7} fill="#dfeaf5" fontSize="10">x {formatTick(selectedX)}</text>
+        </g>}
         <line className="engineering-axis-line" x1={margin.left} y1={margin.top + plotHeight} x2={margin.left + plotWidth} y2={margin.top + plotHeight} stroke="rgba(222,236,250,.82)" strokeWidth="1.3"/>
         <line className="engineering-axis-line" x1={margin.left} y1={margin.top} x2={margin.left} y2={margin.top + plotHeight} stroke="rgba(222,236,250,.82)" strokeWidth="1.3"/>
         {prepared.map((item, index) => {
           const stroke = index === 0 ? 'var(--bb-cyan, #70dcff)' : 'var(--bb-amber, #ffc36d)';
           const kind = item.kind ?? 'line';
-          if (kind === 'scatter') return <g key={`${item.label}-${index}`}>{item.points.map((point, pointIndex) => <circle key={pointIndex} cx={mapX(point.x)} cy={mapY(point.y)} r={item.markerRadius ?? 3.2} fill={stroke} opacity={item.opacity ?? 1}/>)}{item.points.map((point, pointIndex) => selectablePoint(item, point, pointIndex, stroke))}</g>;
-          if (kind === 'stem') return <g key={`${item.label}-${index}`}>{item.points.map((point, pointIndex) => <g key={pointIndex}><line x1={mapX(point.x)} x2={mapX(point.x)} y1={mapY(Math.max(0, ranges.y[0]))} y2={mapY(point.y)} stroke={stroke} strokeWidth="1.4" opacity={item.opacity ?? 1}/><circle cx={mapX(point.x)} cy={mapY(point.y)} r={item.markerRadius ?? 2.3} fill={stroke} opacity={item.opacity ?? 1}/></g>)}{item.points.map((point, pointIndex) => selectablePoint(item, point, pointIndex, stroke))}</g>;
-          return <g key={`${item.label}-${index}`}><polyline points={item.points.map(point => `${mapX(point.x)},${mapY(point.y)}`).join(' ')} fill="none" stroke={stroke} strokeWidth="2" strokeDasharray={item.dashed ? '7 5' : undefined} opacity={item.opacity ?? 1} vectorEffect="non-scaling-stroke"/>{item.points.map((point, pointIndex) => selectablePoint(item, point, pointIndex, stroke))}</g>;
+          if (kind === 'scatter') return <g key={`${item.label}-${index}`}>{item.points.map((point, pointIndex) => <circle key={pointIndex} cx={mapX(point.x)} cy={mapY(point.y)} r={item.markerRadius ?? 3.2} fill={stroke} opacity={item.opacity ?? 1}/>)}{item.points.map((point, pointIndex) => selectablePoint(item, point, pointIndex))}</g>;
+          if (kind === 'stem') return <g key={`${item.label}-${index}`}>{item.points.map((point, pointIndex) => <g key={pointIndex}><line x1={mapX(point.x)} x2={mapX(point.x)} y1={mapY(Math.max(0, ranges.y[0]))} y2={mapY(point.y)} stroke={stroke} strokeWidth="1.4" opacity={item.opacity ?? 1}/><circle cx={mapX(point.x)} cy={mapY(point.y)} r={item.markerRadius ?? 2.3} fill={stroke} opacity={item.opacity ?? 1}/></g>)}{item.points.map((point, pointIndex) => selectablePoint(item, point, pointIndex))}</g>;
+          return <g key={`${item.label}-${index}`}><polyline points={item.points.map(point => `${mapX(point.x)},${mapY(point.y)}`).join(' ')} fill="none" stroke={stroke} strokeWidth="2" strokeDasharray={item.dashed ? '7 5' : undefined} opacity={item.opacity ?? 1} vectorEffect="non-scaling-stroke"/>{item.points.map((point, pointIndex) => selectablePoint(item, point, pointIndex))}</g>;
         })}
         {selectedPoint && Number.isFinite(selectedPoint.x) && Number.isFinite(selectedPoint.y) && <g>
           <line x1={mapX(selectedPoint.x)} x2={mapX(selectedPoint.x)} y1={margin.top} y2={margin.top + plotHeight} stroke="rgba(255,255,255,.44)" strokeDasharray="3 3"/>
