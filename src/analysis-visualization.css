@@ -60,6 +60,43 @@
   display: none !important;
 }
 
+.signal-health-rail {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 7px;
+  margin: 12px 0;
+}
+
+.signal-health-item {
+  min-width: 0;
+  min-height: 88px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 5px 8px;
+  align-items: start;
+  justify-content: stretch;
+  text-align: left;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line, #2a333c);
+  background: rgba(255,255,255,.025);
+}
+
+.signal-health-item:disabled { cursor: default; opacity: 1; }
+.signal-health-item > span { display: grid; min-width: 0; gap: 2px; }
+.signal-health-item > span small { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; opacity: .68; }
+.signal-health-item > em { grid-column: 1 / -1; font-size: 10px; line-height: 1.35; font-style: normal; color: var(--muted, #8e99a7); }
+.signal-health-item.nominal,
+.signal-health-item.consistent { border-color: rgba(119, 207, 153, .38); }
+.signal-health-item.inspect,
+.signal-health-item.parameter-mismatch { border-color: rgba(235, 188, 98, .44); }
+.signal-health-item.active { border-color: rgba(105, 166, 255, .46); }
+.signal-health-item.disagreement { border-color: rgba(235, 111, 111, .5); }
+.signal-health-item.host-only,
+.signal-health-item.unavailable { opacity: .72; }
+.signal-health-boundary { grid-column: 1 / -1; font-size: 10px; color: var(--muted, #8e99a7); }
+
 .observatory-readiness-pipeline {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -135,17 +172,23 @@
 .campaign-matrix td { padding: 9px 10px; border-bottom: 1px solid var(--line, #2a333c); text-align: left; vertical-align: top; }
 .campaign-matrix th { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; opacity: .7; }
 
+@media (max-width: 1180px) {
+  .signal-health-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 @media (max-width: 1100px) {
   .observatory-readiness-pipeline { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 920px) {
-  .analysis-view-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analysis-view-rail,
+  .signal-health-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .observatory-readiness-pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 620px) {
   .analysis-view-rail,
+  .signal-health-rail,
   .observatory-readiness-pipeline { grid-template-columns: 1fr; }
   .analysis-view-tab small { white-space: normal; }
 }
