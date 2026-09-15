@@ -7,6 +7,7 @@ import {
 import type { BackgroundTask, TaskCategory, TaskState } from './TaskCenter';
 import RuntimeLog from './RuntimeLog';
 import EngineeringPlot from './EngineeringPlot';
+import PrimitiveObservatory from './PrimitiveObservatory';
 import CopyButton from './CopyButton';
 import { enabledMathRuntimeCapabilities, parseMathRuntimeCapabilities } from './mathRuntimeCapabilities';
 
@@ -577,6 +578,12 @@ export default function MonitorDataStudio({
             {activeColumns.map((column, index) => <button key={column} className={selectedChannel === index ? 'active' : ''} onClick={() => setSelectedChannel(index)}><span>{column}</span><b>{latestValues[index] ?? '—'}</b><small>{activeUnits[index] ?? ''}</small></button>)}
           </div>
           {!activeColumns.length && <div className="empty compact">Numeric CSV is visible, but this dataset does not declare channel names.</div>}
+          <PrimitiveObservatory
+            samples={channelPoints.map(point => ({ timeS: point.x, value: point.y }))}
+            channelLabel={selectedColumn}
+            unit={selectedUnit}
+            contextLabel={replay ? 'REPLAY' : live ? 'LIVE' : 'BUFFER'}
+          />
         </>}
       </div>
 
