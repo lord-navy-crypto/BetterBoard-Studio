@@ -1,3 +1,5 @@
+import './phase6-interaction.css';
+
 export type EngineeringStatus = 'READY' | 'ACTIVE' | 'WARNING' | 'BLOCKED' | 'UNAVAILABLE';
 
 export type EngineeringStatusNode = {
