@@ -227,7 +227,7 @@ def main() -> int:
         assert token in observatory, token
     assert not (ROOT / 'src' / 'LearningHub.tsx').exists()
     assert "id: 'learning'" not in main_text
-    for token in ['Connect with Engineering Lab','BetterBoard → Engineering Lab handoff','Numerical Error Analysis','Oscillation & Numerical Integration','RADIA Magnet Studio']:
+    for token in ['Campaigns','Complete Experiment Code Library','Run / Program handoff','Studio → Monitor & Data','Numerical Error Analysis','Oscillation & Numerical Integration','RADIA Magnet Studio']:
         assert token in hub, token
     assert 'Capture 7 s & Analyze' in numerical
     assert 'Capture Complete Campaign & Analyze' in numerical
@@ -352,5 +352,5 @@ main=(ROOT/'src/main.tsx').read_text(); obs=(ROOT/'src/Observatory.tsx').read_te
 assert "id: 'learning'" not in main
 for token in ['System Observatory','Latest data observation','Engineering Lab bridge readiness','OpenPenguin','Recipe & device inventory']:
     assert token in obs, f'Observatory lost {token}'
-for token in ['Connect with Engineering Lab','BetterBoard → Engineering Lab handoff','Numerical evidence preparation','Magnet evidence preparation']:
+for token in ['Campaigns','Complete Experiment Code Library','Run / Program handoff','Studio → Monitor & Data']:
     assert token in exp, f'Engineering Lab Experiments lost {token}'
