@@ -57,9 +57,9 @@ export default function ExperimentsHub() {
     <section className="experiment-bridge-hero">
       <div>
         <div className="eyebrow">Engineering Lab experiments</div>
-        <h1>Experiments contains campaigns and the complete dedicated experiment code library.</h1>
-        <p>Campaign views explain the scientific question. The code library below exposes the actual Engineering Lab firmware and host analyzers used to run, inspect, verify and upload those experiments.</p>
-        <p className="muted">Reusable capture and preparation remain shared with Studio, but experiment-specific code is no longer hidden behind path labels: the real repository source is directly inspectable here.</p>
+        <h1>Campaigns plus the complete dedicated experiment code library.</h1>
+        <p><b>Experiments contains campaigns, not preparation tools.</b> Experiment-specific firmware, analyzers and bridges are part of the campaigns themselves, so their real repository source is exposed here rather than hidden behind path labels.</p>
+        <p className="muted">Reusable capture, generic evidence preparation and expert Numerical/Magnet workbenches remain in Studio. The code library below is specifically the Engineering Lab experiment layer: inspect it, verify firmware against the selected board, and upload through BetterBoard's existing backend.</p>
       </div>
     </section>
 
