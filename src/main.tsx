@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
-import { Bot, CircuitBoard, FlaskConical, RadioTower, X } from 'lucide-react';
+import { Bot, CircuitBoard, Focus, FlaskConical, RadioTower, X } from 'lucide-react';
 import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
 import EngineeringStatusMap, { type EngineeringStatusNode } from './EngineeringStatusMap';
@@ -56,20 +56,48 @@ function Root() {
   const [cli, setCli] = useState<CliInfo | null>(null);
   const [tasks, setTasks] = useState<BackgroundTask[]>(readTaskMemory);
   const [aiOpen, setAiOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
   const { source: evidenceSource } = useEvidenceVisualization();
   const { selectedPort, activePort, hardwareStatus, fqbn, profiles, diagnosis } = useHardwareSession();
 
   useEffect(() => {
     void invoke<CliInfo>('arduino_cli_discovery').then(setCli).catch(() => setCli({ found: false }));
-    const timer = window.setInterval(() => setTasks(readTaskMemory()), 1200);
-    return () => window.clearInterval(timer);
+
+    const onTasksChanged = (event: Event) => {
+      const detail = (event as CustomEvent<BackgroundTask[]>).detail;
+      setTasks(Array.isArray(detail) ? detail : readTaskMemory());
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === TASK_MEMORY_KEY) setTasks(readTaskMemory());
+    };
+    const resyncTasks = () => setTasks(readTaskMemory());
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') resyncTasks();
+    };
+
+    window.addEventListener('betterboard:tasks-changed', onTasksChanged);
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', resyncTasks);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('betterboard:tasks-changed', onTasksChanged);
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', resyncTasks);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && aiOpen) {
-        setAiOpen(false);
-        return;
+      if (event.key === 'Escape') {
+        if (aiOpen) {
+          setAiOpen(false);
+          return;
+        }
+        if (focusMode) {
+          setFocusMode(false);
+          return;
+        }
       }
       if (isEditableTarget(event.target) || !(event.metaKey || event.ctrlKey)) return;
       const key = event.key.toLowerCase();
@@ -87,7 +115,7 @@ function Root() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [aiOpen]);
+  }, [aiOpen, focusMode]);
 
   const runningTasks = useMemo(() => tasks.filter(task => task.state === 'running'), [tasks]);
   const latestRunning = runningTasks[0];
@@ -153,7 +181,7 @@ function Root() {
 
   const lastProgram = successfulTasks.find(task => task.category === 'Program');
 
-  return <div className="bb-root">
+  return <div className={`bb-root ${focusMode ? 'focus-mode' : ''}`}>
     <header className="bb-command-bar rich">
       <div className="bb-command-brand"><span className="bb-command-mark">B</span><span><b>BetterBoard</b><small>physical computing studio</small></span></div>
       <nav className="bb-workspace-tabs" aria-label="BetterBoard workspaces">
@@ -164,6 +192,7 @@ function Root() {
           </button>;
         })}
       </nav>
+      <button className={`bb-focus-launch ${focusMode ? 'active' : ''}`} onClick={() => setFocusMode(value => !value)} aria-pressed={focusMode} title="Focus mode keeps critical status visible while hiding secondary navigation"><Focus size={15}/><span><b>{focusMode ? 'Exit focus' : 'Focus mode'}</b><small>{focusMode ? 'Esc to exit' : 'presentation / experiment'}</small></span></button>
       <button className={`bb-ai-launch ${aiOpen ? 'active' : ''}`} onClick={() => setAiOpen(value => !value)} aria-pressed={aiOpen} title="Open OpenPenguin local AI bridge · ⌘/Ctrl+K"><Bot size={16}/><span><b>OpenPenguin</b><small>local AI · ⌘/Ctrl+K</small></span></button>
       <div className={`bb-local-state ${selectedPort ? 'connected' : 'disconnected'}`} title={hardwareStatus}><i/><span><b>{selectedPort ? (activePort?.board_name || 'Board') : 'No board'}</b><small>{selectedPort || 'select hardware in Studio'}</small></span></div>
     </header>
@@ -177,11 +206,11 @@ function Root() {
       <span className="bb-context-current"><b>Current</b>{latestRunning?.detail || hardwareStatus}</span>
     </div>
 
-    {workspace === 'studio' && <>
+    {workspace === 'studio' && <div className="bb-engineering-overview">
       <EngineeringStatusMap nodes={statusNodes} onNavigate={navigateStatus}/>
       <HardwareTopology toolchainReady={Boolean(cli?.found)} selectedPort={selectedPort} activePort={activePort} selectedFqbn={fqbn} profiles={profiles} diagnosis={diagnosis} requiredLibraries={null} missingLibraries={null} firmwareLabel={lastProgram?.title ?? null} firmwareReady={Boolean(lastProgram)}/>
       <div className="boundary compact" style={{ maxWidth: 1504, margin: '8px auto 0' }}><b>Next action</b> · {workflowNextAction}</div>
-    </>}
+    </div>}
 
     <div className="bb-ai-drawer-backdrop" hidden={!aiOpen} onClick={() => setAiOpen(false)} />
     <aside className="bb-ai-drawer" hidden={!aiOpen} aria-label="OpenPenguin local AI bridge">
