@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Activity, BarChart3, Database, RadioTower, Sigma, Waves } from 'lucide-react';
 import {
   linearTrend,
@@ -16,6 +16,7 @@ import {
   spectrumAnalysis,
 } from './TimeSeriesAnalysis';
 import EngineeringPlot from './EngineeringPlot';
+import { externalEvidenceSource, useEvidenceVisualization } from './EvidenceVisualizationContext';
 
 function fmt(value: number | null | undefined, digits = 4) {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
@@ -24,22 +25,28 @@ function fmt(value: number | null | undefined, digits = 4) {
 }
 
 function Metric({ label, value, detail }: { label: string; value: string; detail?: string }) {
-  return <div className="panel" style={{ padding: 12 }}>
-    <span className="eyebrow">{label}</span>
-    <b style={{ display: 'block', fontSize: 20, marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{value}</b>
-    {detail && <small className="muted">{detail}</small>}
-  </div>;
+  return <div className="panel" style={{ padding: 12 }}><span className="eyebrow">{label}</span><b style={{ display: 'block', fontSize: 20, marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{value}</b>{detail && <small className="muted">{detail}</small>}</div>;
 }
 
 export default function AppliedStatisticsWorkbench() {
   const [table, setTable] = useState<ParsedNumericTable | null>(null);
-  const [source, setSource] = useState('No table loaded');
+  const [sourceLabel, setSourceLabel] = useState('No table loaded');
   const [observed, setObserved] = useState('');
   const [reference, setReference] = useState('');
   const [sensorStandard, setSensorStandard] = useState('0');
   const [scalePercent, setScalePercent] = useState('0');
   const [sampleRateHz, setSampleRateHz] = useState('50');
   const [error, setError] = useState('');
+  const shared = useEvidenceVisualization();
+  const effectiveTable = table ?? shared.source?.table ?? null;
+  const effectiveSourceLabel = table ? sourceLabel : shared.source?.label ?? sourceLabel;
+
+  useEffect(() => {
+    if (!effectiveTable) return;
+    if (!effectiveTable.headers.includes(observed)) setObserved(effectiveTable.headers[0] ?? '');
+    if (reference && (!effectiveTable.headers.includes(reference) || reference === observed)) setReference('');
+    if (!table && shared.source?.sampleRateHz && shared.source.sampleRateHz > 0) setSampleRateHz(String(shared.source.sampleRateHz));
+  }, [effectiveTable, observed, reference, table, shared.source]);
 
   async function importFile(file: File | null) {
     if (!file) return;
@@ -48,7 +55,8 @@ export default function AppliedStatisticsWorkbench() {
       setTable(parsed);
       setObserved(parsed.headers[0] ?? '');
       setReference('');
-      setSource(file.name);
+      setSourceLabel(file.name);
+      shared.setSource(externalEvidenceSource(file.name, parsed));
       setError('');
     } catch (cause) {
       setError(String(cause));
@@ -56,7 +64,7 @@ export default function AppliedStatisticsWorkbench() {
     }
   }
 
-  const observedValues = useMemo(() => table && observed ? table.columns[observed] ?? [] : [], [table, observed]);
+  const observedValues = useMemo(() => effectiveTable && observed ? effectiveTable.columns[observed] ?? [] : [], [effectiveTable, observed]);
   const observedTrace = useMemo(() => observedValues.map((value, index) => ({ x: index, y: value })).filter(point => Number.isFinite(point.y)), [observedValues]);
   const stats = useMemo(() => observedValues.some(Number.isFinite) ? summarize(observedValues) : null, [observedValues]);
   const trend = useMemo(() => observedValues.some(Number.isFinite) ? linearTrend(observedValues) : null, [observedValues]);
@@ -66,10 +74,10 @@ export default function AppliedStatisticsWorkbench() {
   ] : [], [trend, observedTrace]);
   const budget = useMemo(() => stats ? uncertaintyBudget(observedValues, Number(sensorStandard) || 0, Number(scalePercent) || 0) : null, [stats, observedValues, sensorStandard, scalePercent]);
   const residuals = useMemo(() => {
-    if (!table || !reference || reference === observed) return null;
-    try { return residualAnalysis(observedValues, table.columns[reference] ?? []); }
+    if (!effectiveTable || !reference || reference === observed) return null;
+    try { return residualAnalysis(observedValues, effectiveTable.columns[reference] ?? []); }
     catch { return null; }
-  }, [table, observed, reference, observedValues]);
+  }, [effectiveTable, observed, reference, observedValues]);
 
   const dependence = useMemo(() => observedValues.some(Number.isFinite) ? dependenceAnalysis(observedValues, 80) : null, [observedValues]);
   const spectrum = useMemo(() => {
@@ -99,133 +107,40 @@ export default function AppliedStatisticsWorkbench() {
     return notes;
   }, [stats, trend, budget, dependence, spectrum, ewma, cusum, changePoint]);
 
-  const effectiveSe = stats && dependence && dependence.effectiveSampleSize > 0
-    ? stats.sampleStd / Math.sqrt(dependence.effectiveSampleSize)
-    : null;
+  const effectiveSe = stats && dependence && dependence.effectiveSampleSize > 0 ? stats.sampleStd / Math.sqrt(dependence.effectiveSampleSize) : null;
 
   return <section className="panel" style={{ margin: '18px auto', maxWidth: 1420 }}>
     <div className="panel-title"><Sigma size={18}/> Applied Statistics & Uncertainty · Signal Diagnostics</div>
     <p className="muted">Quantify repeatability, robust center/spread, uncertainty, serial dependence, frequency structure, process drift, and model residuals from the same evidence. Statistics never overwrite the raw measurement record.</p>
-
-    <div className="action-row">
-      <label className="ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><Database size={15}/> Import CSV / TSV<input type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" style={{ display: 'none' }} onChange={event => void importFile(event.target.files?.[0] ?? null)}/></label>
-      <span className="muted">{source}</span>
-    </div>
+    <div className="action-row"><label className="ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}><Database size={15}/> Import CSV / TSV<input type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" style={{ display: 'none' }} onChange={event => void importFile(event.target.files?.[0] ?? null)}/></label><span className="muted">{effectiveSourceLabel}{!table && shared.source ? ` · ${shared.source.provenanceLabel}` : ''}</span></div>
     {error && <div className="boundary">{error}</div>}
 
-    {table && <>
+    {effectiveTable && <>
       <div className="engineering-model-grid" style={{ marginTop: 12 }}>
-        <label className="panel">Observed column<select value={observed} onChange={event => setObserved(event.target.value)}>{table.headers.map(header => <option key={header} value={header}>{header}</option>)}</select></label>
-        <label className="panel">Reference / model column<select value={reference} onChange={event => setReference(event.target.value)}><option value="">None</option>{table.headers.filter(header => header !== observed).map(header => <option key={header} value={header}>{header}</option>)}</select></label>
+        <label className="panel">Observed column<select value={observed} onChange={event => setObserved(event.target.value)}>{effectiveTable.headers.map(header => <option key={header} value={header}>{header}</option>)}</select></label>
+        <label className="panel">Reference / model column<select value={reference} onChange={event => setReference(event.target.value)}><option value="">None</option>{effectiveTable.headers.filter(header => header !== observed).map(header => <option key={header} value={header}>{header}</option>)}</select></label>
         <label className="panel">Sample rate (Hz)<input inputMode="decimal" value={sampleRateHz} onChange={event => setSampleRateHz(event.target.value)}/><small className="muted">Used only for frequency-axis interpretation</small></label>
         <label className="panel">Sensor standard uncertainty<input inputMode="decimal" value={sensorStandard} onChange={event => setSensorStandard(event.target.value)}/><small className="muted">Absolute 1σ, same unit as observed column</small></label>
         <label className="panel">Scale uncertainty<input inputMode="decimal" value={scalePercent} onChange={event => setScalePercent(event.target.value)}/><small className="muted">Relative 1σ, percent of measured mean</small></label>
       </div>
 
       {stats && trend && budget && <>
-        <div className="observatory-facts" style={{ marginTop: 12 }}>
-          <span>Accepted table rows</span><b>{table.acceptedRows}</b>
-          <span>Rejected rows</span><b>{table.rejectedRows}</b>
-          <span>Numeric columns</span><b>{table.headers.length}</b>
-          <span>Delimiter</span><b>{table.delimiter === '\t' ? 'TAB' : table.delimiter}</b>
-        </div>
+        <div className="observatory-facts" style={{ marginTop: 12 }}><span>Accepted table rows</span><b>{effectiveTable.acceptedRows}</b><span>Rejected rows</span><b>{effectiveTable.rejectedRows}</b><span>Numeric columns</span><b>{effectiveTable.headers.length}</b><span>Delimiter</span><b>{effectiveTable.delimiter === '\t' ? 'TAB' : effectiveTable.delimiter}</b></div>
+        <section className="panel" style={{ marginTop: 12 }}><div className="panel-title"><Activity size={17}/> Evidence trace & drift</div><EngineeringPlot series={[{ label: observed, points: observedTrace }, { label: 'linear trend', points: trendTrace, dashed: true }]} xLabel="sample" yLabel={observed} horizontalMarkers={[{ y: stats.mean, label: 'mean' }]} /></section>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8, marginTop: 12 }}><Metric label="Mean" value={fmt(stats.mean)} detail={`n = ${stats.count}`}/><Metric label="Median" value={fmt(stats.median)} detail={`MAD ${fmt(stats.mad)}`}/><Metric label="10% trimmed mean" value={fmt(stats.trimmedMean10)} detail="robust center check"/><Metric label="Sample std" value={fmt(stats.sampleStd)} detail={`robust σ ≈ ${fmt(stats.robustSigma)}`}/></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8, marginTop: 8 }}><Metric label="Standard error" value={fmt(stats.standardError)} detail="naive independent-sample Type A"/><Metric label="95% mean interval" value={`${fmt(stats.ci95Low)} … ${fmt(stats.ci95High)}`} detail="t-based, independence assumed"/><Metric label="Robust outliers" value={`${stats.outlierCount}`} detail={`${(100 * stats.outlierFraction).toFixed(1)}% · MAD rule`}/><Metric label="Linear drift" value={fmt(trend.slopePerSample, 6)} detail={`per sample · R² ${fmt(trend.rSquared, 3)}`}/></div>
 
-        <section className="panel" style={{ marginTop: 12 }}>
-          <div className="panel-title"><Activity size={17}/> Evidence trace & drift</div>
-          <EngineeringPlot series={[{ label: observed, points: observedTrace }, { label: 'linear trend', points: trendTrace, dashed: true }]} xLabel="sample" yLabel={observed} horizontalMarkers={[{ y: stats.mean, label: 'mean' }]} />
-        </section>
+        {dependence && <section className="panel" style={{ marginTop: 12 }}><div className="panel-title"><Activity size={17}/> Serial dependence & effective information</div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}><Metric label="Lag-1 correlation" value={fmt(dependence.lag1, 3)} detail="adjacent-sample dependence"/><Metric label="Effective sample size" value={fmt(dependence.effectiveSampleSize, 1)} detail={`of ${stats.count} observations`}/><Metric label="Dependence-adjusted SE" value={fmt(effectiveSe)} detail="sample std / √n_eff"/><Metric label="Decorrelation lag" value={dependence.decorrelationLag === null ? '—' : String(dependence.decorrelationLag)} detail="first |ACF| < 1/e"/></div><div style={{ marginTop: 10 }}><EngineeringPlot series={[{ label: 'autocorrelation', kind: 'stem', points: dependence.autocorrelation.map(point => ({ x: point.lag, y: point.correlation })) }]} xLabel="lag" yLabel="correlation" zeroLine verticalMarkers={dependence.decorrelationLag === null ? [] : [{ x: dependence.decorrelationLag, label: 'decorrelation' }]} /></div><details style={{ marginTop: 10 }}><summary>Autocorrelation diagnostic · first {dependence.autocorrelation.length - 1} lags</summary><div style={{ maxHeight: 220, overflow: 'auto', marginTop: 8 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>lag</th><th>correlation</th></tr></thead><tbody>{dependence.autocorrelation.slice(1).map(point => <tr key={point.lag}><td>{point.lag}</td><td>{fmt(point.correlation, 4)}</td></tr>)}</tbody></table></div></details><div className="boundary compact">Effective sample size is an autocorrelation-based approximation. Strong nonstationarity, long-memory behavior, periodicity, or irregular sampling can invalidate this simple correction.</div></section>}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8, marginTop: 12 }}>
-          <Metric label="Mean" value={fmt(stats.mean)} detail={`n = ${stats.count}`}/>
-          <Metric label="Median" value={fmt(stats.median)} detail={`MAD ${fmt(stats.mad)}`}/>
-          <Metric label="10% trimmed mean" value={fmt(stats.trimmedMean10)} detail="robust center check"/>
-          <Metric label="Sample std" value={fmt(stats.sampleStd)} detail={`robust σ ≈ ${fmt(stats.robustSigma)}`}/>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8, marginTop: 8 }}>
-          <Metric label="Standard error" value={fmt(stats.standardError)} detail="naive independent-sample Type A"/>
-          <Metric label="95% mean interval" value={`${fmt(stats.ci95Low)} … ${fmt(stats.ci95High)}`} detail="t-based, independence assumed"/>
-          <Metric label="Robust outliers" value={`${stats.outlierCount}`} detail={`${(100 * stats.outlierFraction).toFixed(1)}% · MAD rule`}/>
-          <Metric label="Linear drift" value={fmt(trend.slopePerSample, 6)} detail={`per sample · R² ${fmt(trend.rSquared, 3)}`}/>
-        </div>
+        {spectrum && <section className="panel" style={{ marginTop: 12 }}><div className="panel-title"><Waves size={17}/> Frequency-domain diagnostic</div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}><Metric label="Dominant frequency" value={`${fmt(spectrum.dominantFrequencyHz, 3)} Hz`} detail={`${(100 * spectrum.dominantPowerFraction).toFixed(1)}% of non-DC power`}/><Metric label="Spectral centroid" value={`${fmt(spectrum.spectralCentroidHz, 3)} Hz`} detail="power-weighted frequency"/><Metric label="Nyquist" value={`${fmt(spectrum.nyquistHz, 2)} Hz`} detail={`FFT ${spectrum.fftSize}`}/><Metric label="Near-Nyquist power" value={`${(100 * spectrum.highFrequencyPowerFraction).toFixed(1)}%`} detail={`risk: ${spectrum.aliasingRisk}`}/></div><div style={{ marginTop: 10 }}><EngineeringPlot series={[{ label: 'power spectrum', kind: 'stem', points: spectrum.bins.map(bin => ({ x: bin.frequencyHz, y: bin.power })) }]} xLabel="frequency" xUnit="Hz" yLabel="power" verticalMarkers={spectrum.dominantFrequencyHz === null ? [] : [{ x: spectrum.dominantFrequencyHz, label: 'dominant' }, { x: spectrum.nyquistHz, label: 'Nyquist' }]} /></div><details style={{ marginTop: 10 }}><summary>Top spectral peaks</summary><div style={{ overflow: 'auto', marginTop: 8 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>peak</th><th>frequency Hz</th><th>power</th></tr></thead><tbody>{spectrum.peaks.map((peak, index) => <tr key={`${peak.frequencyHz}-${index}`}><td>{index + 1}</td><td>{fmt(peak.frequencyHz, 4)}</td><td>{fmt(peak.power, 4)}</td></tr>)}</tbody></table></div></details><div className="boundary compact">A spectrum computed after sampling cannot prove whether aliasing already occurred. Power close to Nyquist is only a sampling-risk indicator. Verify acquisition rate and anti-alias filtering against the physical signal bandwidth.</div></section>}
 
-        {dependence && <section className="panel" style={{ marginTop: 12 }}>
-          <div className="panel-title"><Activity size={17}/> Serial dependence & effective information</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}>
-            <Metric label="Lag-1 correlation" value={fmt(dependence.lag1, 3)} detail="adjacent-sample dependence"/>
-            <Metric label="Effective sample size" value={fmt(dependence.effectiveSampleSize, 1)} detail={`of ${stats.count} observations`}/>
-            <Metric label="Dependence-adjusted SE" value={fmt(effectiveSe)} detail="sample std / √n_eff"/>
-            <Metric label="Decorrelation lag" value={dependence.decorrelationLag === null ? '—' : String(dependence.decorrelationLag)} detail="first |ACF| < 1/e"/>
-          </div>
-          <div style={{ marginTop: 10 }}><EngineeringPlot series={[{ label: 'autocorrelation', kind: 'stem', points: dependence.autocorrelation.map(point => ({ x: point.lag, y: point.correlation })) }]} xLabel="lag" yLabel="correlation" zeroLine verticalMarkers={dependence.decorrelationLag === null ? [] : [{ x: dependence.decorrelationLag, label: 'decorrelation' }]} /></div>
-          <details style={{ marginTop: 10 }}><summary>Autocorrelation diagnostic · first {dependence.autocorrelation.length - 1} lags</summary><div style={{ maxHeight: 220, overflow: 'auto', marginTop: 8 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>lag</th><th>correlation</th></tr></thead><tbody>{dependence.autocorrelation.slice(1).map(point => <tr key={point.lag}><td>{point.lag}</td><td>{fmt(point.correlation, 4)}</td></tr>)}</tbody></table></div></details>
-          <div className="boundary compact">Effective sample size is an autocorrelation-based approximation. Strong nonstationarity, long-memory behavior, periodicity, or irregular sampling can invalidate this simple correction.</div>
-        </section>}
+        {ewma && cusum && changePoint && <section className="panel" style={{ marginTop: 12 }}><div className="panel-title"><RadioTower size={17}/> Process shift & stability diagnostics</div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}><Metric label="EWMA alarms" value={String(ewma.alarmCount)} detail={ewma.firstAlarmIndex === null ? 'none' : `first near sample ${ewma.firstAlarmIndex}`}/><Metric label="EWMA max deviation" value={`${fmt(ewma.maxStandardizedDeviation, 2)} σ`} detail={`λ = ${ewma.lambda}`}/><Metric label="CUSUM alarms" value={String(cusum.alarmCount)} detail={cusum.firstAlarmIndex === null ? 'none' : `first near sample ${cusum.firstAlarmIndex}`}/><Metric label="Mean-shift candidate" value={changePoint.index === null ? '—' : String(changePoint.index)} detail={`score ${fmt(changePoint.score, 2)}`}/></div><div className="engineering-model-grid" style={{ marginTop: 10 }}><section className="panel"><div className="panel-title">EWMA control view</div><EngineeringPlot series={[{ label: observed, points: observedTrace, opacity: 0.35 }, { label: 'EWMA', points: ewma.trace.map(point => ({ x: point.index, y: point.value })) }]} xLabel="sample" yLabel={observed} bands={ewma.trace.length ? [{ label: 'EWMA limits', lower: ewma.trace.map(point => ({ x: point.index, y: point.lowerLimit })), upper: ewma.trace.map(point => ({ x: point.index, y: point.upperLimit })), opacity: 0.10 }] : []} verticalMarkers={[...(changePoint.index === null ? [] : [{ x: changePoint.index, label: 'mean shift' }]), ...ewma.trace.filter(point => point.alarm).slice(0, 12).map(point => ({ x: point.index, label: 'EWMA alarm' }))]} /></section><section className="panel"><div className="panel-title">CUSUM accumulation</div><EngineeringPlot series={[{ label: 'positive CUSUM', points: cusum.trace.map(point => ({ x: point.index, y: point.positive })) }, { label: 'negative CUSUM', points: cusum.trace.map(point => ({ x: point.index, y: point.negative })) }]} xLabel="sample" yLabel="cumulative deviation" zeroLine horizontalMarkers={cusum.decisionThreshold === null ? [] : [{ y: cusum.decisionThreshold, label: '+ decision' }, { y: -cusum.decisionThreshold, label: '- decision' }]} verticalMarkers={cusum.alarmIndices.slice(0, 12).map(index => ({ x: index, label: 'alarm' }))} /></section></div>{changePoint.index !== null && <div className="observatory-facts" style={{ marginTop: 8 }}><span>Mean before</span><b>{fmt(changePoint.meanBefore)}</b><span>Mean after</span><b>{fmt(changePoint.meanAfter)}</b><span>CUSUM reference</span><b>{cusum.referenceSigma}σ</b><span>CUSUM decision</span><b>{cusum.decisionSigma}σ</b></div>}<div className="boundary compact">EWMA, CUSUM, and the mean-shift scan are diagnostics against a run-wide baseline. An alarm is not automatically a fault: settling, commanded changes, real physical events, or regime changes can all trigger them.</div></section>}
 
-        {spectrum && <section className="panel" style={{ marginTop: 12 }}>
-          <div className="panel-title"><Waves size={17}/> Frequency-domain diagnostic</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}>
-            <Metric label="Dominant frequency" value={`${fmt(spectrum.dominantFrequencyHz, 3)} Hz`} detail={`${(100 * spectrum.dominantPowerFraction).toFixed(1)}% of non-DC power`}/>
-            <Metric label="Spectral centroid" value={`${fmt(spectrum.spectralCentroidHz, 3)} Hz`} detail="power-weighted frequency"/>
-            <Metric label="Nyquist" value={`${fmt(spectrum.nyquistHz, 2)} Hz`} detail={`FFT ${spectrum.fftSize}`}/>
-            <Metric label="Near-Nyquist power" value={`${(100 * spectrum.highFrequencyPowerFraction).toFixed(1)}%`} detail={`risk: ${spectrum.aliasingRisk}`}/>
-          </div>
-          <div style={{ marginTop: 10 }}><EngineeringPlot series={[{ label: 'power spectrum', kind: 'stem', points: spectrum.bins.map(bin => ({ x: bin.frequencyHz, y: bin.power })) }]} xLabel="frequency" xUnit="Hz" yLabel="power" verticalMarkers={spectrum.dominantFrequencyHz === null ? [] : [{ x: spectrum.dominantFrequencyHz, label: 'dominant' }, { x: spectrum.nyquistHz, label: 'Nyquist' }]} /></div>
-          <details style={{ marginTop: 10 }}><summary>Top spectral peaks</summary><div style={{ overflow: 'auto', marginTop: 8 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>peak</th><th>frequency Hz</th><th>power</th></tr></thead><tbody>{spectrum.peaks.map((peak, index) => <tr key={`${peak.frequencyHz}-${index}`}><td>{index + 1}</td><td>{fmt(peak.frequencyHz, 4)}</td><td>{fmt(peak.power, 4)}</td></tr>)}</tbody></table></div></details>
-          <div className="boundary compact">A spectrum computed after sampling cannot prove whether aliasing already occurred. Power close to Nyquist is only a sampling-risk indicator. Verify acquisition rate and anti-alias filtering against the physical signal bandwidth.</div>
-        </section>}
-
-        {ewma && cusum && changePoint && <section className="panel" style={{ marginTop: 12 }}>
-          <div className="panel-title"><RadioTower size={17}/> Process shift & stability diagnostics</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}>
-            <Metric label="EWMA alarms" value={String(ewma.alarmCount)} detail={ewma.firstAlarmIndex === null ? 'none' : `first near sample ${ewma.firstAlarmIndex}`}/>
-            <Metric label="EWMA max deviation" value={`${fmt(ewma.maxStandardizedDeviation, 2)} σ`} detail={`λ = ${ewma.lambda}`}/>
-            <Metric label="CUSUM alarms" value={String(cusum.alarmCount)} detail={cusum.firstAlarmIndex === null ? 'none' : `first near sample ${cusum.firstAlarmIndex}`}/>
-            <Metric label="Mean-shift candidate" value={changePoint.index === null ? '—' : String(changePoint.index)} detail={`score ${fmt(changePoint.score, 2)}`}/>
-          </div>
-          <div className="engineering-model-grid" style={{ marginTop: 10 }}>
-            <section className="panel">
-              <div className="panel-title">EWMA control view</div>
-              <EngineeringPlot series={[{ label: observed, points: observedTrace, opacity: 0.35 }, { label: 'EWMA', points: ewma.trace.map(point => ({ x: point.index, y: point.value })) }]} xLabel="sample" yLabel={observed} bands={ewma.trace.length ? [{ label: 'EWMA limits', lower: ewma.trace.map(point => ({ x: point.index, y: point.lowerLimit })), upper: ewma.trace.map(point => ({ x: point.index, y: point.upperLimit })), opacity: 0.10 }] : []} verticalMarkers={[...(changePoint.index === null ? [] : [{ x: changePoint.index, label: 'mean shift' }]), ...ewma.trace.filter(point => point.alarm).slice(0, 12).map(point => ({ x: point.index, label: 'EWMA alarm' }))]} />
-            </section>
-            <section className="panel">
-              <div className="panel-title">CUSUM accumulation</div>
-              <EngineeringPlot series={[{ label: 'positive CUSUM', points: cusum.trace.map(point => ({ x: point.index, y: point.positive })) }, { label: 'negative CUSUM', points: cusum.trace.map(point => ({ x: point.index, y: point.negative })) }]} xLabel="sample" yLabel="cumulative deviation" zeroLine horizontalMarkers={cusum.decisionThreshold === null ? [] : [{ y: cusum.decisionThreshold, label: '+ decision' }, { y: -cusum.decisionThreshold, label: '- decision' }]} verticalMarkers={cusum.alarmIndices.slice(0, 12).map(index => ({ x: index, label: 'alarm' }))} />
-            </section>
-          </div>
-          {changePoint.index !== null && <div className="observatory-facts" style={{ marginTop: 8 }}><span>Mean before</span><b>{fmt(changePoint.meanBefore)}</b><span>Mean after</span><b>{fmt(changePoint.meanAfter)}</b><span>CUSUM reference</span><b>{cusum.referenceSigma}σ</b><span>CUSUM decision</span><b>{cusum.decisionSigma}σ</b></div>}
-          <div className="boundary compact">EWMA, CUSUM, and the mean-shift scan are diagnostics against a run-wide baseline. An alarm is not automatically a fault: settling, commanded changes, real physical events, or regime changes can all trigger them.</div>
-        </section>}
-
-        <section className="panel" style={{ marginTop: 12 }}>
-          <div className="panel-title"><BarChart3 size={17}/> Uncertainty budget</div>
-          <div className="observatory-facts">
-            <span>Type A / repeatability</span><b>{fmt(budget.typeAStandard)}</b>
-            <span>Sensor contribution</span><b>{fmt(budget.sensorStandard)}</b>
-            <span>Scale contribution</span><b>{fmt(budget.scaleStandard)}</b>
-            <span>Combined standard u</span><b>{fmt(budget.combinedStandard)}</b>
-            <span>Expanded 95% ≈ 1.96u</span><b>± {fmt(budget.expanded95)}</b>
-          </div>
-          <div className="boundary compact">Assumes the Type A, sensor, and scale terms are independent standard uncertainties. Correlated calibration terms require a covariance-aware model rather than root-sum-of-squares. The displayed Type A term is still the ordinary independent-sample estimate; compare it with the dependence-adjusted SE above when serial correlation is material.</div>
-        </section>
-
-        {residuals && <section className="panel" style={{ marginTop: 12 }}>
-          <div className="panel-title"><BarChart3 size={17}/> Residual analysis · observed − reference</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}>
-            <Metric label="Bias" value={fmt(residuals.bias)} detail="mean residual"/>
-            <Metric label="MAE" value={fmt(residuals.mae)} />
-            <Metric label="RMSE" value={fmt(residuals.rmse)} />
-            <Metric label="Residual std" value={fmt(residuals.residualStd)} detail={`median ${fmt(residuals.medianResidual)}`}/>
-          </div>
-          <div style={{ marginTop: 10 }}><EngineeringPlot series={[{ label: 'residual', kind: 'scatter', points: residuals.residuals.map((value, index) => ({ x: index, y: value })) }]} xLabel="aligned sample" yLabel="residual" zeroLine horizontalMarkers={[{ y: residuals.bias, label: 'bias' }]} /></div>
-        </section>}
-
-        <section className="panel" style={{ marginTop: 12 }}>
-          <div className="panel-title"><Sigma size={17}/> Engineering interpretation</div>
-          {interpretation.map(note => <div key={note} className="boundary compact">{note}</div>)}
-        </section>
+        <section className="panel" style={{ marginTop: 12 }}><div className="panel-title"><BarChart3 size={17}/> Uncertainty budget</div><div className="observatory-facts"><span>Type A / repeatability</span><b>{fmt(budget.typeAStandard)}</b><span>Sensor contribution</span><b>{fmt(budget.sensorStandard)}</b><span>Scale contribution</span><b>{fmt(budget.scaleStandard)}</b><span>Combined standard u</span><b>{fmt(budget.combinedStandard)}</b><span>Expanded 95% ≈ 1.96u</span><b>± {fmt(budget.expanded95)}</b></div><div className="boundary compact">Assumes the Type A, sensor, and scale terms are independent standard uncertainties. Correlated calibration terms require a covariance-aware model rather than root-sum-of-squares. The displayed Type A term is still the ordinary independent-sample estimate; compare it with the dependence-adjusted SE above when serial correlation is material.</div></section>
+        {residuals && <section className="panel" style={{ marginTop: 12 }}><div className="panel-title"><BarChart3 size={17}/> Residual analysis · observed − reference</div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}><Metric label="Bias" value={fmt(residuals.bias)} detail="mean residual"/><Metric label="MAE" value={fmt(residuals.mae)} /><Metric label="RMSE" value={fmt(residuals.rmse)} /><Metric label="Residual std" value={fmt(residuals.residualStd)} detail={`median ${fmt(residuals.medianResidual)}`}/></div><div style={{ marginTop: 10 }}><EngineeringPlot series={[{ label: 'residual', kind: 'scatter', points: residuals.residuals.map((value, index) => ({ x: index, y: value })) }]} xLabel="aligned sample" yLabel="residual" zeroLine horizontalMarkers={[{ y: residuals.bias, label: 'bias' }]} /></div></section>}
+        <section className="panel" style={{ marginTop: 12 }}><div className="panel-title"><Sigma size={17}/> Engineering interpretation</div>{interpretation.map(note => <div key={note} className="boundary compact">{note}</div>)}</section>
       </>}
     </>}
-
     <div className="boundary">These summaries estimate statistical and signal behavior of the imported evidence. They do not establish traceable calibration, causal independence, stationarity, physical ground truth, model correctness, or pre-sampling bandwidth.</div>
   </section>;
 }
