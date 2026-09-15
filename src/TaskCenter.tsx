@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, CircleX, Eraser, Search, TerminalSquare } from 'lucide-react';
 import CopyButton from './CopyButton';
 import { deriveTaskTimeline, formatTaskDuration, taskElapsedMs } from './taskPresentation';
@@ -48,6 +48,11 @@ export default function TaskCenterPanel({ tasks, onCancel, onClearFinished }: Pr
     if (!needle) return categoryTasks;
     return categoryTasks.filter(task => [task.title, task.detail, ...task.logs].join('\n').toLowerCase().includes(needle));
   }, [tasks, category, logQuery]);
+
+  useEffect(() => {
+    const snapshot = tasks.map(({ cancel: _cancel, ...task }) => ({ ...task, cancel: undefined }));
+    window.dispatchEvent(new CustomEvent<BackgroundTask[]>('betterboard:tasks-changed', { detail: snapshot }));
+  }, [tasks]);
 
   return <section className="task-center panel">
     <div className="task-center-head">
