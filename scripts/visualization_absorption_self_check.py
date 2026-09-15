@@ -30,6 +30,22 @@ def main() -> int:
         "Signal & Statistics",
         "Experiment Design",
         "Engineering Preparation",
+        "NumericalResultVisualization",
+        "MagnetResultVisualization",
+    )
+    require(
+        "src/NumericalResultVisualization.tsx",
+        "betterboard.bench02-numerical-error/0.2",
+        "betterboard.bench03-summary/0.2",
+        "HOST-DERIVED ANALYZER",
+        "MCU EVIDENCE + HOST REFERENCE",
+    )
+    require(
+        "src/MagnetResultVisualization.tsx",
+        "betterboard.magnet-bench02/0.1",
+        "MEASURED + BASELINE-CORRECTED",
+        "MEASUREMENT ↔ MODEL DERIVED COMPARISON",
+        "MEASURED ↔ MODEL ↔ RESIDUAL",
     )
     require("src/SignalHealthRail.tsx", "Timing", "Noise / RMS", "Host ↔ Device")
     require(
@@ -39,12 +55,17 @@ def main() -> int:
         "Session History",
         "Task Activity",
     )
-    require(
-        "src/EngineeringPreparationStudio.tsx",
-        "NumericalResultVisualization",
-        "MagnetResultVisualization",
-    )
     require("src/ExperimentsHub.tsx", "CampaignVisualization")
+    require(
+        "src/EngineeringPlot.tsx",
+        "compact?: boolean",
+        "selectedPoint?",
+        "eventMarkers?",
+        "onPointSelect?",
+        "verticalMarkers",
+        "horizontalMarkers",
+        "zeroLine",
+    )
 
     monitor = read("src/MonitorDataStudio.tsx")
     assert "parseNumericRow" in monitor, "Existing raw-evidence parser boundary must remain present"
@@ -52,6 +73,10 @@ def main() -> int:
     primitive = read("src/PrimitiveObservatory.tsx")
     assert "HOST-DERIVED" in primitive, "Host-derived provenance label must remain visible"
     assert "DEVICE-DERIVED" in primitive, "Device-derived provenance label must remain visible"
+
+    hub = read("src/AnalysisVisualizationHub.tsx")
+    assert "<NumericalErrorVisualWorkbench /><NumericalResultVisualization />" in hub, "Numerical depth results must be on the normal Numerical Reliability surface"
+    assert "<EngineeringPreparationStudio /><MagnetResultVisualization />" in hub, "Magnetic analyzer results must be on the normal preparation surface"
 
     print("Visualization absorption contract: PASS")
     return 0
