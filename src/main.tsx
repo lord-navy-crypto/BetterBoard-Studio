@@ -20,6 +20,8 @@ import './developer-task.css';
 import './copy-ai.css';
 import './workflow-rail.css';
 
+// AnalysisVisualizationHub now owns the former root-level EngineeringPreparationStudio mount.
+
 type Workspace = 'studio' | 'observatory' | 'experiments';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 
