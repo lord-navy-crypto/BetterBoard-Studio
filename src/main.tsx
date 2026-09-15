@@ -9,6 +9,7 @@ import EvidenceInspector from './EvidenceInspector';
 import ExperimentPlanningWorkbench from './ExperimentPlanningWorkbench';
 import ExperimentsHub from './ExperimentsHub';
 import ModelFittingWorkbench from './ModelFittingWorkbench';
+import NumericalErrorVisualWorkbench from './NumericalErrorVisualWorkbench';
 import Observatory from './Observatory';
 import ObservatoryMissionControl from './ObservatoryMissionControl';
 import OpenPenguinBridge from './OpenPenguinBridge';
@@ -177,7 +178,7 @@ function Root() {
     </aside>
 
     <div className="bb-workspace-frame">
-      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><EvidenceInspector /><AppliedStatisticsWorkbench /><ModelFittingWorkbench /><ExperimentPlanningWorkbench /><EngineeringPreparationStudio /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><EvidenceInspector /><AppliedStatisticsWorkbench /><ModelFittingWorkbench /><ExperimentPlanningWorkbench /><NumericalErrorVisualWorkbench /><EngineeringPreparationStudio /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><ObservatoryMissionControl /><Observatory /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub /></div>
     </div>
