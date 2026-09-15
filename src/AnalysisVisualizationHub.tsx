@@ -9,7 +9,9 @@ import MagnetResultVisualization from './MagnetResultVisualization';
 import ModelFittingWorkbench from './ModelFittingWorkbench';
 import NumericalErrorVisualWorkbench from './NumericalErrorVisualWorkbench';
 import NumericalResultVisualization from './NumericalResultVisualization';
+import EngineeringPlot from './EngineeringPlot';
 import { useEvidenceVisualization } from './EvidenceVisualizationContext';
+import { useRunComparison } from './RunComparisonContext';
 import './analysis-visualization.css';
 
 type AnalysisView = 'evidence' | 'statistics' | 'models' | 'design' | 'numerical' | 'preparation';
@@ -25,8 +27,27 @@ const VIEWS = [
 
 export default function AnalysisVisualizationHub() {
   const [active, setActive] = useState<AnalysisView>('evidence');
-  const { source } = useEvidenceVisualization();
+  const shared = useEvidenceVisualization();
+  const { source } = shared;
+  const comparison = useRunComparison();
   const activeView = useMemo(() => VIEWS.find(view => view.id === active)!, [active]);
+
+  const commonComparisonColumn = useMemo(() => {
+    if (!comparison.runA || !comparison.runB) return null;
+    const preferred = comparison.runA.primaryColumn;
+    if (preferred && comparison.runB.table.headers.includes(preferred)) return preferred;
+    return comparison.runA.table.headers.find(header => comparison.runB?.table.headers.includes(header)) ?? null;
+  }, [comparison.runA, comparison.runB]);
+
+  const comparisonSeries = useMemo(() => {
+    if (!comparison.runA || !comparison.runB || !commonComparisonColumn) return [];
+    const aValues = comparison.runA.table.columns[commonComparisonColumn] ?? [];
+    const bValues = comparison.runB.table.columns[commonComparisonColumn] ?? [];
+    return [
+      { label: `Run A · ${comparison.runA.label}`, points: aValues.map((y, x) => ({ x, y })).filter(point => Number.isFinite(point.y)) },
+      { label: `Run B · ${comparison.runB.label}`, points: bValues.map((y, x) => ({ x, y })).filter(point => Number.isFinite(point.y)), dashed: true },
+    ];
+  }, [comparison.runA, comparison.runB, commonComparisonColumn]);
 
   return <section className="analysis-visualization-hub" style={{ maxWidth: 1460, margin: '20px auto 60px' }}>
     <div className="panel" style={{ marginBottom: 12 }}>
@@ -39,6 +60,24 @@ export default function AnalysisVisualizationHub() {
       </div>
 
       <EvidenceSourcePicker />
+
+      {(comparison.runA || comparison.runB) && <div className="panel" style={{ marginTop: 10 }}>
+        <div className="panel-title">Run A ↔ Run B comparison</div>
+        <div className="analysis-source-banner">
+          <span><b>Run A</b><small>{comparison.runA?.label ?? 'not selected'}</small></span>
+          <span><b>Run B</b><small>{comparison.runB?.label ?? 'not selected'}</small></span>
+        </div>
+        <div className="action-row">
+          <button className="ghost" disabled={!comparison.runA} onClick={() => comparison.runA && shared.setSource(comparison.runA)}>Analyze Run A</button>
+          <button className="ghost" disabled={!comparison.runB} onClick={() => comparison.runB && shared.setSource(comparison.runB)}>Analyze Run B</button>
+          <button className="ghost" onClick={comparison.clearComparison}>Clear comparison</button>
+        </div>
+        {comparison.runA && comparison.runB && commonComparisonColumn && comparisonSeries.length > 0
+          ? <><div className="hint">Raw overlay of common channel <b>{commonComparisonColumn}</b> by sample index. This visual does not claim automatic clock/time alignment between runs.</div><EngineeringPlot series={comparisonSeries} xLabel="sample index" yLabel={commonComparisonColumn} height={230}/></>
+          : comparison.runA && comparison.runB
+            ? <div className="empty compact">The selected runs do not expose a common numeric column for a safe raw overlay. Keep them separate and analyze each run explicitly.</div>
+            : <div className="empty compact">Select both Run A and Run B from Saved BetterBoard evidence.</div>}
+      </div>}
 
       <div className="analysis-view-rail" role="tablist" aria-label="Analysis and visualization views">
         {VIEWS.map(view => {
