@@ -66,6 +66,9 @@ jobs:
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_SignalChainLabV1
           arduino-cli compile --fqbn arduino:avr:uno src-tauri/resources/firmware/NumericError_EventTimingLabV1
 
+      - name: Compile device primitive result firmware for UNO
+        run: arduino-cli compile --fqbn arduino:avr:uno --libraries firmware/betterboard-core firmware/betterboard-core/examples/PrimitiveResultTelemetry
+
       - name: Install Tauri Linux build dependencies
         run: |
           sudo apt-get update
