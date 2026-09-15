@@ -24,6 +24,7 @@ import './workspace-shell.css';
 import './developer-task.css';
 import './copy-ai.css';
 import './workflow-rail.css';
+import './phase6.css';
 
 type Workspace = 'studio' | 'observatory' | 'experiments';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
