@@ -62,9 +62,6 @@ function compileDiagnostics(text: string, activeFileName: string): Diagnostic[] 
   while ((match = regex.exec(text))) {
     const sourcePath = match[1].trim().replace(/\\/g, '/');
     const sourceFile = sourcePath.split('/').filter(Boolean).pop()?.toLowerCase() ?? '';
-    // Arduino CLI compiles the entire sketch/project directory. Only attach a
-    // Monaco marker when the compiler diagnostic belongs to the file currently
-    // open in the editor; diagnostics for sibling files remain in Run output.
     if (active && sourceFile !== active) continue;
     rows.push({
       line: Number(match[2]),
@@ -98,49 +95,36 @@ export default function DeveloperIDE({
   const [templateId, setTemplateId] = useState(initialDraft?.templateId ?? recipe?.id ?? '');
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const [recoveredAt, setRecoveredAt] = useState(initialDraft?.updatedAt ?? 0);
+  const [revealPosition, setRevealPosition] = useState<{ line: number; column?: number } | null>(null);
 
   useEffect(() => {
     const canonicalKey = `${recipe?.id ?? ''}\n${canonicalSource}`;
     if (canonicalKey === appliedCanonicalRef.current && !recoveredDraftRef.current) return;
-
     if (recoveredDraftRef.current) {
       const draftRecipe = initialDraftRef.current?.recipeId ?? '';
       if (!recipe?.id || !draftRecipe || draftRecipe === recipe.id) return;
-      // A recovered draft belongs to another context. Preserve it in the editor
-      // rather than silently deleting user work; the user can explicitly load a
-      // recipe template when they intend to replace it.
       recoveredDraftRef.current = false;
       setOutput(`Recipe selection changed to ${recipe.title}, but the recovered Developer draft was preserved. Save it or explicitly load a recipe template to replace it.`);
       onStatus('Developer preserved recovered edits while the recipe selection changed.');
       return;
     }
-
     if (dirty) {
       setOutput(`Recipe/source selection changed to ${recipe?.title || 'blank sketch'}, but unsaved Developer edits were preserved. Save them or use Load recipe template to replace the editor explicitly.`);
       onStatus('Developer preserved unsaved edits while the recipe/source selection changed.');
       return;
     }
-
     appliedCanonicalRef.current = canonicalKey;
     setSource(canonicalSource || BLANK_SKETCH);
     setSketchName(safeDefaultName(recipe?.sketch_name));
     setSavedDir(''); setProjectDir(''); setProjectFileName('');
     setOutput(`Loaded ${recipe?.title || 'blank sketch'} as the editing starting point.`);
-    setDirty(false); setDiagnostics([]); setTemplateId(recipe?.id ?? '');
+    setDirty(false); setDiagnostics([]); setTemplateId(recipe?.id ?? ''); setRevealPosition(null);
   }, [recipe?.id, recipe?.title, canonicalSource, dirty, onStatus]);
 
   useEffect(() => {
     if (!dirty) return;
     const timer = window.setTimeout(() => {
-      saveDeveloperDraft({
-        source,
-        sketchName,
-        projectDir,
-        projectFileName,
-        savedDir,
-        templateId,
-        recipeId: recipe?.id ?? '',
-      });
+      saveDeveloperDraft({ source, sketchName, projectDir, projectFileName, savedDir, templateId, recipeId: recipe?.id ?? '' });
     }, 500);
     return () => window.clearTimeout(timer);
   }, [dirty, source, sketchName, projectDir, projectFileName, savedDir, templateId, recipe?.id]);
@@ -182,7 +166,7 @@ export default function DeveloperIDE({
 
   async function verify() {
     if (busy) return;
-    setBusy(true); setDiagnostics([]);
+    setBusy(true); setDiagnostics([]); setRevealPosition(null);
     const task = onTaskStart('Program', `Verify · ${projectFileName || sketchName}`, `Saving and compiling for ${fqbn}…`);
     try {
       const dir = await saveCurrent(false); if (!dir) throw new Error('Save failed before compile');
@@ -200,7 +184,7 @@ export default function DeveloperIDE({
   async function runUpload() {
     if (busy) return;
     if (!selectedPort) { onStatus('Select a serial device before Run / Upload.'); return; }
-    setBusy(true); setDiagnostics([]);
+    setBusy(true); setDiagnostics([]); setRevealPosition(null);
     const task = onTaskStart('Program', `Run / Upload · ${projectFileName || sketchName}`, `Compile → upload to ${selectedPort}`);
     try {
       const dir = await saveCurrent(false); if (!dir) throw new Error('Save failed before upload');
@@ -210,8 +194,9 @@ export default function DeveloperIDE({
       onTaskLog(task, `Uploading to ${selectedPort}…`);
       const uploadResult = await invoke<string>('upload_sketch', { sketchDir: dir, fqbn, port: selectedPort });
       const combined = [compileResult.trim(), uploadResult.trim()].filter(Boolean).join('\n\n');
-      setOutput(combined || 'Compile & upload succeeded.'); onTaskLog(task, uploadResult.trim() || 'Upload succeeded.');
-      onTaskFinish(task, 'done', `Uploaded to ${selectedPort}`); onStatus(`Developer sketch uploaded to ${selectedPort}.`);
+      setOutput(`DEVICE READY · ${selectedPort}\n\n${combined || 'Compile & upload succeeded.'}`);
+      onTaskLog(task, uploadResult.trim() || 'Upload succeeded.');
+      onTaskFinish(task, 'done', `Uploaded to ${selectedPort}`); onStatus(`Developer sketch uploaded to ${selectedPort}. DEVICE READY; open Monitor & Data explicitly when you want serial acquisition.`);
     } catch (error) {
       const text = String(error); setOutput(text); setDiagnostics(compileDiagnostics(text, diagnosticFileName)); onTaskLog(task, text);
       onTaskFinish(task, 'failed', 'Run / Upload failed'); onStatus(`Developer run failed: ${text}`);
@@ -224,7 +209,7 @@ export default function DeveloperIDE({
     const task = onTaskStart('Program', `Format · ${projectFileName || sketchName}`, 'Formatting Arduino/C++ source with clang-format…');
     try {
       const formatted = await invoke<string>('developer_format_source', { source });
-      setSource(formatted); setDirty(true); setDiagnostics([]);
+      setSource(formatted); setDirty(true); setDiagnostics([]); setRevealPosition(null);
       const detail = 'Formatted source with clang-format. Review changes, then Save or Verify.';
       setOutput(detail); onTaskLog(task, detail); onTaskFinish(task, 'done', detail); onStatus(detail);
     } catch (error) {
@@ -238,7 +223,7 @@ export default function DeveloperIDE({
     recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
     appliedCanonicalRef.current = `${recipe?.id ?? ''}\n${canonicalSource}`;
     setSource(canonicalSource || BLANK_SKETCH); setSketchName(safeDefaultName(recipe?.sketch_name));
-    setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]);
+    setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]); setRevealPosition(null);
     setOutput(`Reset editor to canonical ${recipe?.sketch_name || 'blank'} source.`);
   }
 
@@ -250,7 +235,7 @@ export default function DeveloperIDE({
       const text = await invoke<string>('recipe_source', { recipeId: template.id });
       recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
       appliedCanonicalRef.current = `${template.id}\n${text}`;
-      setSource(text); setSketchName(safeDefaultName(template.sketch_name)); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]);
+      setSource(text); setSketchName(safeDefaultName(template.sketch_name)); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]); setRevealPosition(null);
       setOutput(`Loaded recipe template: ${template.title}`); setView('editor');
     } catch (error) { setOutput(`Template load failed: ${error}`); }
   }
@@ -270,7 +255,7 @@ export default function DeveloperIDE({
   function newSketch() {
     if (dirty && !window.confirm('Create a new sketch and replace the current unsaved Developer edits?')) return;
     recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
-    setSource(BLANK_SKETCH); setSketchName('BetterBoardSketch'); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(true); setDiagnostics([]);
+    setSource(BLANK_SKETCH); setSketchName('BetterBoardSketch'); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(true); setDiagnostics([]); setRevealPosition(null);
     setOutput('New blank Arduino sketch. Draft autosave is active until the first explicit Save.'); setView('editor');
   }
 
@@ -278,7 +263,7 @@ export default function DeveloperIDE({
     if (dirty && !window.confirm('The current unsaved edits are protected by Draft Recovery. Open another project file now?')) return false;
     recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
     setSource(nextSource); setProjectFileName(fileName); setProjectDir(directory); setSavedDir(directory);
-    setSketchName(safeDefaultName(fileName.replace(/\.[^.]+$/, ''))); setDirty(false); setDiagnostics([]); setView('editor');
+    setSketchName(safeDefaultName(fileName.replace(/\.[^.]+$/, ''))); setDirty(false); setDiagnostics([]); setRevealPosition(null); setView('editor');
     setOutput(`Opened project file: ${fileName}\n${directory}`);
     return true;
   }
@@ -305,7 +290,7 @@ export default function DeveloperIDE({
       </div>}
     </div>
 
-    {view === 'editor' && <div className="developer-ide-grid">
+    {view === 'editor' && <div className="developer-ide-grid developer-engineering-split">
       <div className="panel developer-editor-panel">
         <div className="developer-filebar">
           <label>Template<select value={templateId} onChange={event => setTemplateId(event.target.value)}><option value="">Blank / current</option>{recipes.map(item => <option key={item.id} value={item.id}>{item.user_defined ? 'My Library · ' : ''}{item.title}</option>)}</select></label>
@@ -316,10 +301,14 @@ export default function DeveloperIDE({
           <span>{sourceFacts.lines} lines · {sourceFacts.chars} chars</span>
           {diagnostics.length > 0 && <span className="diagnostic-count">{diagnostics.length} current-file diagnostic(s)</span>}
         </div>
-        <div className="smart-editor-host"><SmartArduinoEditor value={source} readOnly={busy} diagnostics={diagnostics} onChange={value => { setSource(value); setDirty(true); }} /></div>
+        <div className="smart-editor-host"><SmartArduinoEditor value={source} readOnly={busy} diagnostics={diagnostics} revealPosition={revealPosition} onChange={value => { setSource(value); setDirty(true); }} /></div>
       </div>
 
       <div className="developer-side">
+        <div className="panel developer-diagnostics-panel">
+          <div className="panel-title"><TerminalSquare size={18}/> Diagnostics</div>
+          {!diagnostics.length ? <div className="empty compact">No current-file compiler diagnostics. Sibling-file diagnostics remain visible in Run output.</div> : <div className="developer-diagnostic-list">{diagnostics.map((diagnostic, index) => <button key={`${diagnostic.line}:${diagnostic.column ?? 1}:${index}`} className={`developer-diagnostic ${diagnostic.severity ?? 'error'}`} onClick={() => setRevealPosition({ line: diagnostic.line, column: diagnostic.column })}><b>{diagnostic.severity ?? 'error'} · line {diagnostic.line}{diagnostic.column ? `:${diagnostic.column}` : ''}</b><span>{diagnostic.message}</span></button>)}</div>}
+        </div>
         <div className="panel developer-output-panel"><div className="panel-title panel-title-with-action"><span><Play size={18}/> Run output</span><CopyButton text={output} label="Copy output" /></div><pre className="terminal developer-output">{output}</pre></div>
         <div className="panel">
           <div className="panel-title"><TerminalSquare size={18}/> Runtime facts</div>
