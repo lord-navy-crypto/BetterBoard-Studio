@@ -84,6 +84,7 @@ def main() -> int:
         "Sensor Suite",
         "BetterBoard Firmware",
         "Host Analysis & Bridges",
+        "loadSource",
         "developer_sketch_save",
         "compile_sketch",
         "upload_sketch",
@@ -91,6 +92,8 @@ def main() -> int:
         "Verify",
         "Upload",
     )
+    experiment_library = read("src/EngineeringExperimentLibrary.tsx")
+    assert "eager: true" not in experiment_library, "Experiment source files must be lazy-loaded instead of inflating the startup bundle"
     require(
         "src/EngineeringPlot.tsx",
         "compact?: boolean",
