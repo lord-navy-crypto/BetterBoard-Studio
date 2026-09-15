@@ -3,6 +3,7 @@ import { BarChart3, Database, FlaskConical, LineChart, Sigma, Wrench } from 'luc
 import AppliedStatisticsWorkbench from './AppliedStatisticsWorkbench';
 import EngineeringPreparationStudio from './EngineeringPreparationStudio';
 import EvidenceInspector from './EvidenceInspector';
+import EvidenceSourcePicker from './EvidenceSourcePicker';
 import ExperimentPlanningWorkbench from './ExperimentPlanningWorkbench';
 import MagnetResultVisualization from './MagnetResultVisualization';
 import ModelFittingWorkbench from './ModelFittingWorkbench';
@@ -36,6 +37,8 @@ export default function AnalysisVisualizationHub() {
         <span><b>{source?.label ?? 'No shared evidence selected'}</b><small>{source?.provenanceLabel ?? 'Select saved evidence or import an external table in an analysis view'}</small></span>
         {source && <span className="schema-row"><span>{source.columns.length} numeric channel(s)</span>{source.sampleRateHz ? <span>{source.sampleRateHz} Hz declared</span> : null}{source.recipeTitle ? <span>{source.recipeTitle}</span> : null}</span>}
       </div>
+
+      <EvidenceSourcePicker />
 
       <div className="analysis-view-rail" role="tablist" aria-label="Analysis and visualization views">
         {VIEWS.map(view => {
