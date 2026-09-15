@@ -25,11 +25,13 @@ type AssetFamily =
   | 'BetterBoard Firmware'
   | 'Host Analysis & Bridges';
 
+type SourceLoader = () => Promise<string>;
+
 type CodeAsset = {
   key: string;
   label: string;
   path: string;
-  source: string;
+  loadSource: SourceLoader;
   kind: AssetKind;
   family: AssetFamily;
   sketchName?: string;
@@ -39,9 +41,9 @@ type CodeAsset = {
 const experimentCatalog = experimentCatalogJson as ExperimentSpec[];
 const catalogBySketch = new Map(experimentCatalog.map(item => [item.sketch_name, item]));
 
-// Source code is intentionally discovered from the repository instead of being
-// duplicated in a hand-maintained UI registry. New experiment firmware/tools in
-// these trees automatically become visible in Experiments on the next build.
+// Discover every supported source path at build time, but do not embed every
+// source body in the startup chunk. Vite creates lazy source chunks and the UI
+// loads a file only when the user opens/verifies/uploads it.
 const firmwareModules = import.meta.glob(
   [
     '../engineering-lab-experiments/firmware/**/*.ino',
@@ -49,13 +51,13 @@ const firmwareModules = import.meta.glob(
     '../sensor-suite/firmware/**/*.ino',
     '../firmware/betterboard-core/examples/**/*.ino',
   ],
-  { eager: true, query: '?raw', import: 'default' },
-) as Record<string, string>;
+  { query: '?raw', import: 'default' },
+) as Record<string, () => Promise<string>>;
 
 const pythonModules = import.meta.glob(
   '../scripts/*.py',
-  { eager: true, query: '?raw', import: 'default' },
-) as Record<string, string>;
+  { query: '?raw', import: 'default' },
+) as Record<string, () => Promise<string>>;
 
 const FAMILY_ORDER: AssetFamily[] = [
   'Dedicated Engineering Lab',
@@ -93,7 +95,7 @@ function firmwareFamily(path: string): AssetFamily {
 }
 
 function makeFirmwareAssets(): CodeAsset[] {
-  return Object.entries(firmwareModules).map(([modulePath, source]) => {
+  return Object.entries(firmwareModules).map(([modulePath, loadSource]) => {
     const path = repositoryPath(modulePath);
     const sketchName = filenameWithoutExtension(path);
     const catalog = catalogBySketch.get(sketchName);
@@ -101,7 +103,7 @@ function makeFirmwareAssets(): CodeAsset[] {
       key: path,
       label: catalog?.title ?? humanize(sketchName),
       path,
-      source,
+      loadSource,
       kind: 'firmware' as const,
       family: firmwareFamily(path),
       sketchName,
@@ -111,13 +113,13 @@ function makeFirmwareAssets(): CodeAsset[] {
 }
 
 function makePythonAssets(): CodeAsset[] {
-  return Object.entries(pythonModules).map(([modulePath, source]) => {
+  return Object.entries(pythonModules).map(([modulePath, loadSource]) => {
     const path = repositoryPath(modulePath);
     return {
       key: path,
       label: humanize(filenameWithoutExtension(path)),
       path,
-      source,
+      loadSource,
       kind: 'analysis' as const,
       family: 'Host Analysis & Bridges' as const,
     };
@@ -149,6 +151,7 @@ export default function EngineeringExperimentLibrary() {
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState<'All' | AssetFamily>('All');
   const [active, setActive] = useState<CodeAsset | null>(null);
+  const [activeSource, setActiveSource] = useState('');
   const [status, setStatus] = useState('Select any experiment or analysis tool to inspect its real repository source code.');
   const [busy, setBusy] = useState(false);
 
@@ -159,22 +162,41 @@ export default function EngineeringExperimentLibrary() {
     return ALL_ASSETS.filter(asset => (family === 'All' || asset.family === family) && (!needle || assetSearchText(asset).includes(needle)));
   }, [query, family]);
 
-  function viewAsset(asset: CodeAsset) {
-    setActive(asset);
-    setStatus(`Loaded ${asset.path} · ${asset.source.split(/\r?\n/).length} lines · real repository source`);
+  async function loadSource(asset: CodeAsset) {
+    const source = await asset.loadSource();
+    if (!source.trim()) throw new Error(`Source is empty: ${asset.path}`);
+    return source;
   }
 
-  function activeFirmware() {
+  async function viewAsset(asset: CodeAsset) {
+    if (busy) return;
+    setBusy(true);
+    setActive(asset);
+    setActiveSource('');
+    setStatus(`Loading ${asset.path}…`);
+    try {
+      const source = await loadSource(asset);
+      setActiveSource(source);
+      setStatus(`Loaded ${asset.path} · ${source.split(/\r?\n/).length} lines · real repository source`);
+    } catch (error) {
+      setStatus(`Source load failed: ${error}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function activeFirmware() {
     if (!active || active.kind !== 'firmware' || !active.sketchName) throw new Error('Select a firmware experiment first.');
-    if (!active.source.trim()) throw new Error('Firmware source is empty.');
-    return { source: active.source, sketchName: active.sketchName };
+    const source = activeSource || await loadSource(active);
+    if (!activeSource) setActiveSource(source);
+    return { source, sketchName: active.sketchName };
   }
 
   async function verifyFirmware() {
     if (busy) return;
     setBusy(true);
     try {
-      const firmware = activeFirmware();
+      const firmware = await activeFirmware();
       setStatus(`Saving ${firmware.sketchName} and compiling for ${fqbn}…`);
       const sketchDir = await invoke<string>('developer_sketch_save', { sketchName: firmware.sketchName, source: firmware.source });
       const result = await invoke<string>('compile_sketch', { sketchDir, fqbn });
@@ -194,7 +216,7 @@ export default function EngineeringExperimentLibrary() {
     }
     setBusy(true);
     try {
-      const firmware = activeFirmware();
+      const firmware = await activeFirmware();
       setStatus(`Compile → upload ${firmware.sketchName} to ${selectedPort}…`);
       const sketchDir = await invoke<string>('developer_sketch_save', { sketchName: firmware.sketchName, source: firmware.source });
       await invoke<string>('compile_sketch', { sketchDir, fqbn });
@@ -209,7 +231,7 @@ export default function EngineeringExperimentLibrary() {
 
   return <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }}>
     <div className="panel-title"><FlaskConical size={18}/> Complete Experiment Code Library</div>
-    <p className="muted">Repository-driven source browser. It discovers dedicated Engineering Lab firmware, Numerical Reliability firmware, ESP32 research firmware, Sensor Suite firmware, BetterBoard firmware examples/resources, and host Python analysis/bridge tools directly from the real source trees.</p>
+    <p className="muted">Repository-driven source browser. It discovers dedicated Engineering Lab firmware, Numerical Reliability firmware, ESP32 research firmware, Sensor Suite firmware, BetterBoard firmware examples/resources, and host Python analysis/bridge tools directly from the real source trees. Source bodies are loaded only when opened, so full repository coverage does not inflate the startup path.</p>
 
     <div className="boundary"><CheckCircle2 size={14}/> {ALL_ASSETS.length} source files connected to UI · {experimentCatalog.length}/{experimentCatalog.length} dedicated Engineering Lab catalog experiments enriched with scientific metadata · no hand-maintained per-file visibility list.</div>
 
@@ -236,7 +258,7 @@ export default function EngineeringExperimentLibrary() {
         </div>
         <p className="muted"><code>{asset.path}</code></p>
         <div className="action-row">
-          <button onClick={() => viewAsset(asset)}><Code2 size={15}/> View source</button>
+          <button onClick={() => void viewAsset(asset)} disabled={busy}><Code2 size={15}/> View source</button>
           <CopyButton text={asset.path} label="Copy path"/>
         </div>
       </article>)}
@@ -257,10 +279,10 @@ export default function EngineeringExperimentLibrary() {
       {active?.kind === 'firmware' && <div className="action-row" style={{ marginTop: 10 }}>
         <button onClick={() => void verifyFirmware()} disabled={busy || !diagnosis.canCompile}><Play size={15}/> Verify</button>
         <button onClick={() => void uploadFirmware()} disabled={busy || !selectedPort || !diagnosis.canUpload}><Upload size={15}/> Upload</button>
-        <CopyButton text={active.source} label="Copy source"/>
+        {activeSource && <CopyButton text={activeSource} label="Copy source"/>}
       </div>}
-      {active?.kind === 'analysis' && <div className="action-row" style={{ marginTop: 10 }}><CopyButton text={active.source} label="Copy source"/></div>}
-      {active ? <pre style={{ marginTop: 12, maxHeight: 620, overflow: 'auto', whiteSpace: 'pre', textAlign: 'left' }}>{active.source}</pre> : <div className="empty compact" style={{ marginTop: 12 }}>Choose <b>View source</b> on any firmware or host tool.</div>}
+      {active?.kind === 'analysis' && activeSource && <div className="action-row" style={{ marginTop: 10 }}><CopyButton text={activeSource} label="Copy source"/></div>}
+      {activeSource ? <pre style={{ marginTop: 12, maxHeight: 620, overflow: 'auto', whiteSpace: 'pre', textAlign: 'left' }}>{activeSource}</pre> : <div className="empty compact" style={{ marginTop: 12 }}>{busy ? 'Loading source…' : 'Choose View source on any firmware or host tool.'}</div>}
     </section>
   </section>;
 }
