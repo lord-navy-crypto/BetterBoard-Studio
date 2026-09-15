@@ -4,12 +4,14 @@ import { invoke } from '@tauri-apps/api/core';
 import { Bot, CircuitBoard, FlaskConical, RadioTower, X } from 'lucide-react';
 import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
+import EngineeringStatusMap, { type EngineeringStatusNode } from './EngineeringStatusMap';
 import ExperimentsHub from './ExperimentsHub';
+import HardwareTopology from './HardwareTopology';
 import Observatory from './Observatory';
 import ObservatoryMissionControl from './ObservatoryMissionControl';
 import ObservatoryVisualSummary from './ObservatoryVisualSummary';
 import OpenPenguinBridge from './OpenPenguinBridge';
-import { EvidenceVisualizationProvider } from './EvidenceVisualizationContext';
+import { EvidenceVisualizationProvider, useEvidenceVisualization } from './EvidenceVisualizationContext';
 import { EngineeringAnnotationsProvider } from './EngineeringAnnotations';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
 import { RunComparisonProvider } from './RunComparisonContext';
@@ -23,26 +25,12 @@ import './developer-task.css';
 import './copy-ai.css';
 import './workflow-rail.css';
 
-// AnalysisVisualizationHub now owns the former root-level EngineeringPreparationStudio mount.
-
 type Workspace = 'studio' | 'observatory' | 'experiments';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 
-type WorkflowStep = {
-  label: string;
-  detail: string;
-  complete: boolean;
-  active?: boolean;
-};
-
 const TASK_MEMORY_KEY = 'betterboard.task-center.v1';
 
-const WORKSPACES: Array<{
-  id: Workspace;
-  label: string;
-  subtitle: string;
-  icon: typeof CircuitBoard;
-}> = [
+const WORKSPACES: Array<{ id: Workspace; label: string; subtitle: string; icon: typeof CircuitBoard }> = [
   { id: 'studio', label: 'Studio', subtitle: 'build · monitor · prepare · handoff', icon: CircuitBoard },
   { id: 'observatory', label: 'Observatory', subtitle: 'runtime · evidence · system state', icon: RadioTower },
   { id: 'experiments', label: 'Experiments', subtitle: 'Engineering Lab campaigns', icon: FlaskConical },
@@ -68,7 +56,8 @@ function Root() {
   const [cli, setCli] = useState<CliInfo | null>(null);
   const [tasks, setTasks] = useState<BackgroundTask[]>(readTaskMemory);
   const [aiOpen, setAiOpen] = useState(false);
-  const { selectedPort, activePort, hardwareStatus, fqbn } = useHardwareSession();
+  const { source: evidenceSource } = useEvidenceVisualization();
+  const { selectedPort, activePort, hardwareStatus, fqbn, profiles, diagnosis } = useHardwareSession();
 
   useEffect(() => {
     void invoke<CliInfo>('arduino_cli_discovery').then(setCli).catch(() => setCli({ found: false }));
@@ -103,34 +92,53 @@ function Root() {
   const runningTasks = useMemo(() => tasks.filter(task => task.state === 'running'), [tasks]);
   const latestRunning = runningTasks[0];
   const liveSerial = runningTasks.find(task => task.category === 'Monitor' && /live serial/i.test(task.title));
+  const successfulTasks = useMemo(() => tasks.filter(task => task.state === 'done'), [tasks]);
+  const programmed = successfulTasks.some(task => task.category === 'Program' && /upload|compile/i.test(task.title));
+  const monitored = Boolean(liveSerial) || successfulTasks.some(task => task.category === 'Monitor');
+  const evidenceSaved = Boolean(evidenceSource) || successfulTasks.some(task => task.category === 'Evidence');
+  const analyzed = successfulTasks.some(task => task.category === 'Analysis');
+  const programRunning = runningTasks.some(task => task.category === 'Program');
 
-  const workflow = useMemo(() => {
-    const successful = tasks.filter(task => task.state === 'done');
-    const programmed = successful.some(task => task.category === 'Program' && /upload|compile/i.test(task.title));
-    const monitored = Boolean(liveSerial) || successful.some(task => task.category === 'Monitor');
-    const evidenceSaved = successful.some(task => task.category === 'Evidence');
-    const analyzed = successful.some(task => task.category === 'Analysis');
+  const workflowNextAction = useMemo(() => {
+    if (!cli?.found) return 'Restore the Arduino toolchain';
+    if (!selectedPort) return 'Connect and select hardware';
+    if (!programmed) return 'Prepare or upload firmware';
+    if (liveSerial) return 'Save the live run as evidence';
+    if (!monitored) return 'Start Monitor & Data';
+    if (!evidenceSaved) return 'Save the captured measurement';
+    if (!analyzed) return 'Analyze or compare the evidence';
+    return 'Start the next experiment';
+  }, [cli?.found, selectedPort, programmed, liveSerial, monitored, evidenceSaved, analyzed]);
 
-    const steps: WorkflowStep[] = [
-      { label: 'Connect', detail: selectedPort ? (activePort?.board_name || selectedPort) : 'Select hardware', complete: Boolean(selectedPort), active: !selectedPort },
-      { label: 'Program', detail: programmed ? 'Firmware verified' : 'Prepare / upload', complete: programmed, active: Boolean(selectedPort) && !programmed },
-      { label: 'Monitor', detail: liveSerial ? 'LIVE' : monitored ? 'Acquisition observed' : 'Acquire data', complete: monitored, active: programmed && !monitored },
-      { label: 'Evidence', detail: evidenceSaved ? 'Session saved' : 'Save measurement', complete: evidenceSaved, active: monitored && !evidenceSaved },
-      { label: 'Analyze', detail: analyzed ? 'Analysis recorded' : 'Inspect / handoff', complete: analyzed, active: evidenceSaved && !analyzed },
+  const statusNodes = useMemo<EngineeringStatusNode[]>(() => {
+    const hardwareState: EngineeringStatusNode['status'] = diagnosis.code === 'ready'
+      ? 'READY'
+      : diagnosis.code === 'scanning' ? 'ACTIVE'
+        : diagnosis.code === 'board-unidentified' ? 'WARNING'
+          : diagnosis.code === 'no-board' || diagnosis.code === 'system-ports-only' ? 'UNAVAILABLE'
+            : 'BLOCKED';
+    return [
+      { id: 'toolchain', label: 'Toolchain', status: cli === null ? 'ACTIVE' : cli.found ? 'READY' : 'BLOCKED', detail: cli?.found ? (cli.version || 'Arduino CLI available') : cli === null ? 'Detecting Arduino CLI…' : 'Arduino CLI unavailable' },
+      { id: 'hardware', label: 'Hardware', status: hardwareState, detail: diagnosis.title },
+      { id: 'firmware', label: 'Firmware', status: programRunning ? 'ACTIVE' : programmed ? 'READY' : diagnosis.canCompile ? 'WARNING' : 'BLOCKED', detail: programRunning ? 'Compile/upload running' : programmed ? 'Verified program task completed' : diagnosis.canCompile ? 'Ready to verify firmware' : diagnosis.action },
+      { id: 'acquisition', label: 'Acquisition', status: liveSerial ? 'ACTIVE' : monitored ? 'READY' : selectedPort ? 'WARNING' : 'UNAVAILABLE', detail: liveSerial ? 'Live serial acquisition' : monitored ? 'Acquisition observed' : selectedPort ? 'Open Monitor & Data to acquire' : 'No selected board' },
+      { id: 'evidence', label: 'Evidence', status: evidenceSaved ? 'READY' : liveSerial ? 'WARNING' : 'UNAVAILABLE', detail: evidenceSource?.label || (evidenceSaved ? 'Saved evidence available' : liveSerial ? 'Live data is not yet saved evidence' : 'No shared evidence selected') },
+      { id: 'analysis', label: 'Analysis', status: analyzed ? 'READY' : evidenceSaved ? 'WARNING' : 'UNAVAILABLE', detail: analyzed ? 'Analysis task completed' : evidenceSaved ? 'Evidence ready for analysis' : 'Select or save evidence first' },
     ];
+  }, [diagnosis, cli, programRunning, programmed, liveSerial, monitored, selectedPort, evidenceSaved, evidenceSource?.label, analyzed]);
 
-    let nextAction = 'Connect a board in Studio';
-    if (!cli?.found) nextAction = 'Restore the Arduino toolchain';
-    else if (!selectedPort) nextAction = 'Connect and select hardware';
-    else if (!programmed) nextAction = 'Prepare or upload firmware';
-    else if (liveSerial) nextAction = 'Save the live run as evidence';
-    else if (!monitored) nextAction = 'Start Monitor & Data';
-    else if (!evidenceSaved) nextAction = 'Save the captured measurement';
-    else if (!analyzed) nextAction = 'Analyze or prepare the handoff';
-    else nextAction = 'Start the next experiment';
-
-    return { steps, nextAction };
-  }, [tasks, liveSerial, selectedPort, activePort?.board_name, cli?.found]);
+  function navigateStatus(node: EngineeringStatusNode) {
+    if (node.id === 'evidence') {
+      setWorkspace('observatory');
+      return;
+    }
+    setWorkspace('studio');
+    if (node.id === 'analysis') {
+      window.setTimeout(() => document.querySelector('.analysis-visualization-hub')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    } else {
+      window.setTimeout(() => document.querySelector('.app')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    }
+  }
 
   const openPenguinContext = useMemo(() => [
     `Workspace: ${workspace}`,
@@ -140,8 +148,10 @@ function Root() {
     `Acquisition: ${liveSerial ? 'LIVE' : 'idle'}`,
     `Running tasks: ${runningTasks.length}`,
     `Current status: ${latestRunning?.detail || hardwareStatus}`,
-    `Recommended next action: ${workflow.nextAction}`,
-  ].join('\n'), [workspace, cli?.found, fqbn, selectedPort, activePort?.board_name, liveSerial, runningTasks.length, latestRunning?.detail, hardwareStatus, workflow.nextAction]);
+    `Recommended next action: ${workflowNextAction}`,
+  ].join('\n'), [workspace, cli?.found, fqbn, selectedPort, activePort?.board_name, liveSerial, runningTasks.length, latestRunning?.detail, hardwareStatus, workflowNextAction]);
+
+  const lastProgram = successfulTasks.find(task => task.category === 'Program');
 
   return <div className="bb-root">
     <header className="bb-command-bar rich">
@@ -167,10 +177,11 @@ function Root() {
       <span className="bb-context-current"><b>Current</b>{latestRunning?.detail || hardwareStatus}</span>
     </div>
 
-    {workspace === 'studio' && <section className="bb-workflow-rail" aria-label="BetterBoard experiment workflow">
-      <div className="bb-workflow-next"><small>Next action</small><b>{workflow.nextAction}</b></div>
-      <div className="bb-workflow-steps">{workflow.steps.map((step, index) => <div key={step.label} className={`bb-workflow-step ${step.complete ? 'complete' : ''} ${step.active ? 'active' : ''}`}><span className="bb-workflow-number">{step.complete ? '✓' : index + 1}</span><span><b>{step.label}</b><small>{step.detail}</small></span></div>)}</div>
-    </section>}
+    {workspace === 'studio' && <>
+      <EngineeringStatusMap nodes={statusNodes} onNavigate={navigateStatus}/>
+      <HardwareTopology toolchainReady={Boolean(cli?.found)} selectedPort={selectedPort} activePort={activePort} selectedFqbn={fqbn} profiles={profiles} diagnosis={diagnosis} requiredLibraries={null} missingLibraries={null} firmwareLabel={lastProgram?.title ?? null} firmwareReady={Boolean(lastProgram)}/>
+      <div className="boundary compact" style={{ maxWidth: 1504, margin: '8px auto 0' }}><b>Next action</b> · {workflowNextAction}</div>
+    </>}
 
     <div className="bb-ai-drawer-backdrop" hidden={!aiOpen} onClick={() => setAiOpen(false)} />
     <aside className="bb-ai-drawer" hidden={!aiOpen} aria-label="OpenPenguin local AI bridge">
