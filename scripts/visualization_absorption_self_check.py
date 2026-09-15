@@ -33,6 +33,12 @@ def main() -> int:
         "NumericalResultVisualization",
         "MagnetResultVisualization",
     )
+    for workbench in (
+        "src/AppliedStatisticsWorkbench.tsx",
+        "src/ModelFittingWorkbench.tsx",
+        "src/ExperimentPlanningWorkbench.tsx",
+    ):
+        require(workbench, "useEvidenceVisualization", "externalEvidenceSource", "shared.setSource", "effectiveTable")
     require(
         "src/NumericalResultVisualization.tsx",
         "betterboard.bench02-numerical-error/0.2",
