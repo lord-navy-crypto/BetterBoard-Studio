@@ -137,9 +137,11 @@ export function deviceElapsedPoints(
   source: string,
   useState = false,
 ): HostPrimitivePoint[] {
-  const selected = results.filter(result => result.source === source && result.kind === kind);
+  const sourceResults = results.filter(result => result.source === source);
+  if (!sourceResults.length) return [];
+  const originUs = sourceResults[0].timeUs;
+  const selected = sourceResults.filter(result => result.kind === kind);
   if (!selected.length) return [];
-  const originUs = selected[0].timeUs;
   return selected.flatMap(result => {
     const raw = useState ? (result.state === null ? null : result.state ? 1 : 0) : result.value;
     return raw === null || !Number.isFinite(raw)
@@ -229,7 +231,7 @@ export function compareNumericPrimitive(args: {
     return { status: 'PARAMETER_MISMATCH', alignedCount: 0, maxAbsoluteDifference: null, latestAbsoluteDifference: null, latestRelativeDifference: null };
   }
 
-  const device = deviceElapsedPoints(selected, args.kind, args.source, false);
+  const device = deviceElapsedPoints(args.deviceResults, args.kind, args.source, false);
   const aligned = alignPoints(args.host, device);
   if (!aligned.length) return { status: 'INSUFFICIENT_ALIGNMENT', alignedCount: 0, maxAbsoluteDifference: null, latestAbsoluteDifference: null, latestRelativeDifference: null };
 
@@ -259,7 +261,7 @@ export function compareStatePrimitive(args: {
   const selected = args.deviceResults.filter(result => result.kind === args.kind && result.source === args.source);
   if (!parameterMatches(selected, args.expectedParameter)) return { status: 'PARAMETER_MISMATCH', alignedCount: 0, disagreementCount: 0 };
 
-  const device = deviceElapsedPoints(selected, args.kind, args.source, true);
+  const device = deviceElapsedPoints(args.deviceResults, args.kind, args.source, true);
   const aligned = alignPoints(args.host, device);
   if (!aligned.length) return { status: 'INSUFFICIENT_ALIGNMENT', alignedCount: 0, disagreementCount: 0 };
 
