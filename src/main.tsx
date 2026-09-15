@@ -3,16 +3,12 @@ import ReactDOM from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { Bot, CircuitBoard, FlaskConical, RadioTower, X } from 'lucide-react';
 import App from './App';
-import AppliedStatisticsWorkbench from './AppliedStatisticsWorkbench';
-import EngineeringPreparationStudio from './EngineeringPreparationStudio';
-import EvidenceInspector from './EvidenceInspector';
-import ExperimentPlanningWorkbench from './ExperimentPlanningWorkbench';
+import AnalysisVisualizationHub from './AnalysisVisualizationHub';
 import ExperimentsHub from './ExperimentsHub';
-import ModelFittingWorkbench from './ModelFittingWorkbench';
-import NumericalErrorVisualWorkbench from './NumericalErrorVisualWorkbench';
 import Observatory from './Observatory';
 import ObservatoryMissionControl from './ObservatoryMissionControl';
 import OpenPenguinBridge from './OpenPenguinBridge';
+import { EvidenceVisualizationProvider } from './EvidenceVisualizationContext';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
 import type { BackgroundTask } from './TaskCenter';
 import './styles.css';
@@ -178,7 +174,7 @@ function Root() {
     </aside>
 
     <div className="bb-workspace-frame">
-      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><EvidenceInspector /><AppliedStatisticsWorkbench /><ModelFittingWorkbench /><ExperimentPlanningWorkbench /><NumericalErrorVisualWorkbench /><EngineeringPreparationStudio /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><AnalysisVisualizationHub /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><ObservatoryMissionControl /><Observatory /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub /></div>
     </div>
@@ -186,5 +182,5 @@ function Root() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><HardwareSessionProvider><Root /></HardwareSessionProvider></React.StrictMode>,
+  <React.StrictMode><HardwareSessionProvider><EvidenceVisualizationProvider><Root /></EvidenceVisualizationProvider></HardwareSessionProvider></React.StrictMode>,
 );
