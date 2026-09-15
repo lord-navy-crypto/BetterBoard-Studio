@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { BarChart3, Database, FlaskConical, LineChart, Sigma, Wrench } from 'lucide-react';
+import AnalysisWorkflowGuide from './AnalysisWorkflowGuide';
 import AppliedStatisticsWorkbench from './AppliedStatisticsWorkbench';
 import AnnotatedEngineeringPlot from './AnnotatedEngineeringPlot';
 import EngineeringPreparationStudio from './EngineeringPreparationStudio';
@@ -17,12 +18,12 @@ import './analysis-visualization.css';
 type AnalysisView = 'evidence' | 'statistics' | 'models' | 'design' | 'numerical' | 'preparation';
 
 const VIEWS = [
-  { id: 'evidence' as const, label: 'Evidence', icon: Database, detail: 'inspect source & provenance' },
-  { id: 'statistics' as const, label: 'Signal & Statistics', icon: Sigma, detail: 'uncertainty · spectrum · change' },
-  { id: 'models' as const, label: 'Models', icon: LineChart, detail: 'fit · residuals · comparison' },
-  { id: 'design' as const, label: 'Experiment Design', icon: FlaskConical, detail: 'coverage · information · replication' },
-  { id: 'numerical' as const, label: 'Numerical Reliability', icon: BarChart3, detail: 'error · convergence · precision' },
-  { id: 'preparation' as const, label: 'Engineering Preparation', icon: Wrench, detail: 'prepare · contextualize · handoff' },
+  { id: 'evidence' as const, label: 'Evidence', icon: Database, detail: 'Evidence · inspect source & provenance' },
+  { id: 'statistics' as const, label: 'Signal & Statistics', icon: Sigma, detail: 'Analyze · uncertainty · spectrum · change' },
+  { id: 'models' as const, label: 'Models', icon: LineChart, detail: 'Compare · fit · residuals · reference' },
+  { id: 'design' as const, label: 'Experiment Design', icon: FlaskConical, detail: 'Decide · coverage · information · replication' },
+  { id: 'numerical' as const, label: 'Numerical Reliability', icon: BarChart3, detail: 'Analyze · error · convergence · precision' },
+  { id: 'preparation' as const, label: 'Engineering Preparation', icon: Wrench, detail: 'Decide · prepare · contextualize · handoff' },
 ];
 
 export default function AnalysisVisualizationHub() {
@@ -57,16 +58,17 @@ export default function AnalysisVisualizationHub() {
     <div className="panel" style={{ marginBottom: 12 }}>
       <div className="panel-title"><BarChart3 size={18}/> Analysis & Visualization</div>
       <p className="muted">One evidence source, multiple analysis lenses. Raw evidence stays immutable; statistics, models, numerical diagnostics and planning remain downstream derived views.</p>
+      <AnalysisWorkflowGuide />
 
       <div className="analysis-source-banner">
-        <span><b>{source?.label ?? 'No shared evidence selected'}</b><small>{source?.provenanceLabel ?? 'Select saved evidence or import an external table in an analysis view'}</small></span>
+        <span><b>{source?.label ?? 'No shared evidence selected'}</b><small>{source?.provenanceLabel ?? 'Start at Evidence: select saved evidence or import an external table.'}</small></span>
         {source && <span className="schema-row"><span>{source.columns.length} numeric channel(s)</span>{source.sampleRateHz ? <span>{source.sampleRateHz} Hz declared</span> : null}{source.recipeTitle ? <span>{source.recipeTitle}</span> : null}</span>}
       </div>
 
       <EvidenceSourcePicker />
 
       {(comparison.runA || comparison.runB) && <div className="panel" style={{ marginTop: 10 }}>
-        <div className="panel-title">Run A ↔ Run B comparison</div>
+        <div className="panel-title">Compare · Run A ↔ Run B</div>
         <div className="analysis-source-banner">
           <span><b>Run A</b><small>{comparison.runA?.label ?? 'not selected'}</small></span>
           <span><b>Run B</b><small>{comparison.runB?.label ?? 'not selected'}</small></span>
@@ -79,7 +81,7 @@ export default function AnalysisVisualizationHub() {
         {comparison.runA && comparison.runB && commonComparisonColumn && comparisonSeries.length > 0
           ? <><div className="hint">Raw overlay of common channel <b>{commonComparisonColumn}</b> by sample index. This visual does not claim automatic clock/time alignment between runs. Notes are session-local and explicitly labeled USER ANNOTATION.</div><AnnotatedEngineeringPlot annotationSourceId={comparisonAnnotationSourceId} series={comparisonSeries} xLabel="sample index" yLabel={commonComparisonColumn} height={230}/></>
           : comparison.runA && comparison.runB
-            ? <div className="empty compact">The selected runs do not expose a common numeric column for a safe raw overlay. Keep them separate and analyze each run explicitly.</div>
+            ? <div className="empty compact">The selected runs do not expose a common numeric column for a safe raw overlay. Analyze each run explicitly instead of fabricating a comparison.</div>
             : <div className="empty compact">Select both Run A and Run B from Saved BetterBoard evidence.</div>}
       </div>}
 
