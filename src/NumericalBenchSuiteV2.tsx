@@ -2,6 +2,9 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useHardwareSession } from './HardwareSession';
 import { Activity, BarChart3, CheckCircle2, CircleAlert, Cpu, Database, Play, RefreshCw, Save, Sigma, Upload, Waves } from 'lucide-react';
+import EngineeringPlot from './EngineeringPlot';
+
+type PlotPoint = { x: number; y: number };
 
 type MeasurementResult = {
   directory: string;
@@ -28,6 +31,18 @@ type Bench02Result = {
   sampleCount: number;
   durationS: number;
   rejectedRows: number;
+  samples: Array<{ timeS: number; value: number; dtS: number | null }>;
+  downsampled: Array<{
+    factor: number;
+    points: PlotPoint[];
+    derivative: PlotPoint[];
+  }>;
+  accumulationTrace: Array<{
+    timeS: number;
+    float64: number;
+    float32: number;
+    difference: number;
+  }>;
   timing: {
     targetRateHz: number;
     observedRateHz: number | null;
@@ -151,6 +166,30 @@ function trapz32(times: number[], values: number[]): number {
   }
   return total;
 }
+function accumulationTrace(times: number[], values: number[]) {
+  const trace: Bench02Result['accumulationTrace'] = [];
+  if (!times.length) return trace;
+  let total64 = 0;
+  let total32 = f32(0);
+  trace.push({ timeS: times[0], float64: 0, float32: 0, difference: 0 });
+  for (let i = 1; i < times.length; i++) {
+    const dt64 = times[i] - times[i - 1];
+    total64 += 0.5 * (values[i - 1] + values[i]) * dt64;
+
+    const ySum = f32(f32(values[i - 1]) + f32(values[i]));
+    const halfSum = f32(f32(0.5) * ySum);
+    const dt32 = f32(f32(times[i]) - f32(times[i - 1]));
+    total32 = f32(total32 + f32(halfSum * dt32));
+
+    trace.push({
+      timeS: times[i],
+      float64: total64,
+      float32: total32,
+      difference: total32 - total64,
+    });
+  }
+  return trace;
+}
 function centralDerivative(times: number[], values: number[]): number[] {
   const result = Array(times.length).fill(Number.NaN) as number[];
   for (let i = 1; i < times.length - 1; i++) {
@@ -169,7 +208,7 @@ function minimumPositiveStep(values: number[]): number | null {
   return Number.isFinite(result) ? result : null;
 }
 function analyzeBench02(lines: string[], targetRateHz = 50): Bench02Result {
-  const times: number[] = [];
+  const absoluteTimes: number[] = [];
   const values: number[] = [];
   let rejectedRows = 0;
   for (const line of lines) {
@@ -177,17 +216,20 @@ function analyzeBench02(lines: string[], targetRateHz = 50): Bench02Result {
     if (parts.length !== 6 || parts.some(value => !Number.isFinite(value))) { rejectedRows++; continue; }
     const t = parts[0] * 1e-6;
     const y = parts[1];
-    if (times.length && t <= times.at(-1)!) { rejectedRows++; continue; }
-    times.push(t); values.push(y);
+    if (absoluteTimes.length && t <= absoluteTimes.at(-1)!) { rejectedRows++; continue; }
+    absoluteTimes.push(t); values.push(y);
   }
-  if (times.length < 5) throw new Error(`Need at least 5 valid monotonic rows; found ${times.length}.`);
+  if (absoluteTimes.length < 5) throw new Error(`Need at least 5 valid monotonic rows; found ${absoluteTimes.length}.`);
 
+  const origin = absoluteTimes[0];
+  const times = absoluteTimes.map(time => time - origin);
   const dt = times.slice(1).map((value, i) => value - times[i]);
   const targetDt = 1 / targetRateHz;
   const baselineIntegral = trapz64(times, values);
   const baselineDerivative = centralDerivative(times, values);
   const factors = [1, 2, 4, 5, 10];
   const convergence: Bench02Convergence[] = [];
+  const downsampled: Bench02Result['downsampled'] = [];
 
   for (const factor of factors) {
     const indices = Array.from({ length: Math.ceil(times.length / factor) }, (_, i) => i * factor).filter(i => i < times.length);
@@ -196,6 +238,13 @@ function analyzeBench02(lines: string[], targetRateHz = 50): Bench02Result {
     const tSub = indices.map(i => times[i]);
     const ySub = indices.map(i => values[i]);
     const derivative = centralDerivative(tSub, ySub);
+    downsampled.push({
+      factor,
+      points: tSub.map((time, i) => ({ x: time, y: ySub[i] })),
+      derivative: tSub
+        .map((time, i) => ({ x: time, y: derivative[i] }))
+        .filter(point => Number.isFinite(point.y)),
+    });
     const errors: number[] = [];
     for (let local = 1; local < indices.length - 1; local++) {
       const original = indices[local];
@@ -220,8 +269,15 @@ function analyzeBench02(lines: string[], targetRateHz = 50): Bench02Result {
   const integral32 = trapz32(times, values);
   return {
     sampleCount: times.length,
-    durationS: times.at(-1)! - times[0],
+    durationS: times.at(-1)!,
     rejectedRows,
+    samples: times.map((timeS, index) => ({
+      timeS,
+      value: values[index],
+      dtS: index === 0 ? null : timeS - times[index - 1],
+    })),
+    downsampled,
+    accumulationTrace: accumulationTrace(times, values),
     timing: {
       targetRateHz,
       observedRateHz: median(dt) > 0 ? 1 / median(dt) : null,
@@ -366,6 +422,22 @@ export default function NumericalBenchSuiteV2() {
   const [bench03Source, setBench03Source] = useState('No source loaded');
 
   const activeMode = useMemo(() => MODES.find(item => item.id === mode)!, [mode]);
+  const bench03ScanRaw = useMemo(
+    () => bench03Result?.rows.filter(row => row.studyCode === 1 && row.methodCode === 0) ?? [],
+    [bench03Result],
+  );
+  const bench03ScanReduced = useMemo(
+    () => bench03Result?.rows.filter(row => row.studyCode === 1 && row.methodCode === 1) ?? [],
+    [bench03Result],
+  );
+  const bench03ConvergenceRaw = useMemo(
+    () => bench03Result?.rows.filter(row => row.studyCode === 2 && row.methodCode === 0) ?? [],
+    [bench03Result],
+  );
+  const bench03ConvergenceReduced = useMemo(
+    () => bench03Result?.rows.filter(row => row.studyCode === 2 && row.methodCode === 1) ?? [],
+    [bench03Result],
+  );
 
   async function refresh() {
     setStatus('Refreshing shared hardware session…');
@@ -514,6 +586,102 @@ export default function NumericalBenchSuiteV2() {
           {!bench02Result ? <div className="empty">No Bench 02 result yet. Capture live data or import a previously saved BetterBoard `data.csv`; the same source can be analyzed repeatedly.</div> : <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 16 }}><Metric label="Accepted samples" value={String(bench02Result.sampleCount)} detail={`${bench02Result.rejectedRows} rejected`}/><Metric label="Observed rate" value={`${fmt(bench02Result.timing.observedRateHz,2)} Hz`} detail={`target ${bench02Result.timing.targetRateHz} Hz`}/><Metric label="RMS timing jitter" value={`${fmt(bench02Result.timing.jitterRmsS * 1000,3)} ms`}/><Metric label="Unique ADC codes" value={String(bench02Result.value.uniqueValues)} detail={`min step ${fmt(bench02Result.value.minimumObservedPositiveStep,2)}`}/></div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 8 }}><Metric label="ADC mean" value={fmt(bench02Result.value.mean,3)}/><Metric label="ADC std" value={fmt(bench02Result.value.std,3)}/><Metric label="Trapz float64" value={fmt(bench02Result.accumulation.float64,5)}/><Metric label="float32 − float64" value={fmt(bench02Result.accumulation.absoluteDifference,6)}/></div>
+
+            <section className="panel" style={{ marginTop: 16 }}>
+              <div className="panel-title"><Activity size={16}/> Measured record & sample timing</div>
+              <EngineeringPlot
+                series={[{
+                  label: 'ADC record',
+                  kind: 'line',
+                  points: bench02Result.samples.map(sample => ({ x: sample.timeS, y: sample.value })),
+                }]}
+                xLabel="Elapsed time"
+                xUnit="s"
+                yLabel="ADC code"
+              />
+              <EngineeringPlot
+                series={[{
+                  label: 'Actual Δt',
+                  kind: 'line',
+                  points: bench02Result.samples
+                    .filter(sample => sample.dtS !== null)
+                    .map(sample => ({ x: sample.timeS, y: sample.dtS! * 1000 })),
+                }]}
+                horizontalMarkers={[{ y: 1000 / bench02Result.timing.targetRateHz, label: 'target Δt' }]}
+                xLabel="Elapsed time"
+                xUnit="s"
+                yLabel="Sample interval"
+                yUnit="ms"
+              />
+            </section>
+
+            <section className="panel" style={{ marginTop: 16 }}>
+              <div className="panel-title"><Waves size={16}/> Downsampling sensitivity</div>
+              <EngineeringPlot
+                series={bench02Result.downsampled.map(item => ({
+                  label: `${item.factor}×`,
+                  kind: item.factor === 1 ? 'line' : 'scatter',
+                  markerRadius: 2.3,
+                  points: item.points,
+                }))}
+                xLabel="Elapsed time"
+                xUnit="s"
+                yLabel="ADC code"
+              />
+            </section>
+
+            <section className="panel" style={{ marginTop: 16 }}>
+              <div className="panel-title"><BarChart3 size={16}/> Numerical convergence</div>
+              <EngineeringPlot
+                series={[{
+                  label: 'Derivative RMSE',
+                  kind: 'scatter',
+                  points: bench02Result.convergence
+                    .filter(row => row.effectiveRateHz !== null && row.derivativeRmseVsFine !== null)
+                    .map(row => ({ x: row.effectiveRateHz!, y: row.derivativeRmseVsFine! })),
+                }]}
+                xLabel="Effective sample rate"
+                xUnit="Hz"
+                yLabel="Derivative RMSE vs finest"
+              />
+              <EngineeringPlot
+                series={[{
+                  label: 'Integral Δ vs finest',
+                  kind: 'scatter',
+                  points: bench02Result.convergence
+                    .filter(row => row.effectiveRateHz !== null)
+                    .map(row => ({ x: row.effectiveRateHz!, y: row.integralDeltaVsFine })),
+                }]}
+                zeroLine
+                xLabel="Effective sample rate"
+                xUnit="Hz"
+                yLabel="Integral difference"
+              />
+            </section>
+
+            <section className="panel" style={{ marginTop: 16 }}>
+              <div className="panel-title"><Sigma size={16}/> Float32 accumulation drift</div>
+              <EngineeringPlot
+                series={[
+                  { label: 'float64', points: bench02Result.accumulationTrace.map(row => ({ x: row.timeS, y: row.float64 })) },
+                  { label: 'float32', dashed: true, points: bench02Result.accumulationTrace.map(row => ({ x: row.timeS, y: row.float32 })) },
+                ]}
+                xLabel="Elapsed time"
+                xUnit="s"
+                yLabel="Accumulated trapezoid integral"
+              />
+              <EngineeringPlot
+                series={[{
+                  label: 'float32 − float64',
+                  points: bench02Result.accumulationTrace.map(row => ({ x: row.timeS, y: row.difference })),
+                }]}
+                zeroLine
+                xLabel="Elapsed time"
+                xUnit="s"
+                yLabel="Accumulation divergence"
+              />
+            </section>
+
             <div style={{ marginTop: 16, overflow: 'auto' }}><h3 style={{ fontSize: 13 }}><BarChart3 size={15}/> Downsampling convergence</h3><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>factor</th><th>samples</th><th>effective Hz</th><th>integral</th><th>Δ integral vs finest</th><th>derivative RMSE vs finest</th></tr></thead><tbody>{bench02Result.convergence.map(row => <tr key={row.factor}><td>{row.factor}×</td><td>{row.samples}</td><td>{fmt(row.effectiveRateHz,2)}</td><td>{fmt(row.trapezoidIntegral,5)}</td><td>{fmt(row.integralDeltaVsFine,6)}</td><td>{fmt(row.derivativeRmseVsFine,5)}</td></tr>)}</tbody></table></div>
             <details style={{ marginTop: 14 }}><summary>{bench02Lines.length} source rows · {bench02Source}</summary><pre className="terminal" style={{ height: 220 }}>{bench02Lines.join('\n')}</pre></details>
           </>}
@@ -532,6 +700,112 @@ export default function NumericalBenchSuiteV2() {
           <div style={{ ...muted, fontSize: 10, marginTop: 10 }}><b style={{ color: '#c7d8e8' }}>Source:</b> {bench03Source}. A saved BetterBoard Bench 03 `data.csv` can be re-opened later and re-evaluated against the current host reference logic.</div>
           {!bench03Result ? <div className="empty">No Bench 03 result yet. Capture the MCU campaign or import an existing 16-column campaign CSV. The complete source remains available for repeated analysis.</div> : <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 16 }}><Metric label="Complete rows" value={String(bench03Result.rows.length)} detail={`${bench03Result.parameterRows} scan + ${bench03Result.convergenceRows} convergence`}/><Metric label="MCU float / double" value={`${bench03Result.floatBytes.join('/')} / ${bench03Result.doubleBytes.join('/')}`} detail="bytes observed"/><Metric label="Raw reliability" value={pct(bench03Result.raw.reliabilityRate)} detail={`${bench03Result.raw.falseConvergenceCount} false convergence`}/><Metric label="Range-reduced reliability" value={pct(bench03Result.reduced.reliabilityRate)} detail={`${bench03Result.reduced.falseConvergenceCount} false convergence`}/></div>
+
+            <section className="panel" style={{ marginTop: 16 }}>
+              <div className="panel-title"><Waves size={16}/> Parameter-scan error & false convergence</div>
+              <EngineeringPlot
+                series={[
+                  { label: 'Raw Taylor abs error', points: bench03ScanRaw.map(row => ({ x: row.x, y: row.absoluteError })) },
+                  { label: 'Range-reduced abs error', points: bench03ScanReduced.map(row => ({ x: row.x, y: row.absoluteError })) },
+                  {
+                    label: 'False convergence',
+                    kind: 'scatter',
+                    markerRadius: 4,
+                    points: [...bench03ScanRaw, ...bench03ScanReduced]
+                      .filter(row => row.falseConvergence)
+                      .map(row => ({ x: row.x, y: row.absoluteError })),
+                  },
+                ]}
+                xLabel="x"
+                yLabel="Absolute error"
+              />
+              <EngineeringPlot
+                series={[
+                  { label: 'Raw ULP error', points: bench03ScanRaw.map(row => ({ x: row.x, y: row.ulpError })) },
+                  { label: 'Reduced ULP error', points: bench03ScanReduced.map(row => ({ x: row.x, y: row.ulpError })) },
+                ]}
+                xLabel="x"
+                yLabel="ULP error"
+              />
+            </section>
+
+            <section className="panel" style={{ marginTop: 16 }}>
+              <div className="panel-title"><Sigma size={16}/> Cancellation & acceptance boundary</div>
+              <EngineeringPlot
+                series={[
+                  { label: 'Raw cancellation', points: bench03ScanRaw.map(row => ({ x: row.x, y: row.cancellationRatio })) },
+                  { label: 'Reduced cancellation', points: bench03ScanReduced.map(row => ({ x: row.x, y: row.cancellationRatio })) },
+                ]}
+                horizontalMarkers={bench03Result.epsilons.length ? [{
+                  y: 1 / Math.sqrt(bench03Result.epsilons[0]),
+                  label: 'cancellation limit',
+                }] : []}
+                xLabel="x"
+                yLabel="Cancellation ratio"
+              />
+              <EngineeringPlot
+                series={[
+                  { label: 'Raw error', points: bench03ScanRaw.map(row => ({ x: row.x, y: row.absoluteError })) },
+                  { label: 'Raw allowed error', dashed: true, points: bench03ScanRaw.map(row => ({ x: row.x, y: row.allowedError })) },
+                  { label: 'Reduced error', points: bench03ScanReduced.map(row => ({ x: row.x, y: row.absoluteError })) },
+                  { label: 'Reduced allowed error', dashed: true, points: bench03ScanReduced.map(row => ({ x: row.x, y: row.allowedError })) },
+                ]}
+                xLabel="x"
+                yLabel="Error / allowed error"
+              />
+            </section>
+
+            <section className="panel" style={{ marginTop: 16 }}>
+              <div className="panel-title"><BarChart3 size={16}/> Term-count convergence</div>
+              <EngineeringPlot
+                series={[
+                  {
+                    label: 'Raw Taylor',
+                    points: bench03ConvergenceRaw
+                      .slice()
+                      .sort((a, b) => a.termLimit - b.termLimit)
+                      .map(row => ({ x: row.termLimit, y: row.absoluteError })),
+                  },
+                  {
+                    label: 'Range reduced',
+                    points: bench03ConvergenceReduced
+                      .slice()
+                      .sort((a, b) => a.termLimit - b.termLimit)
+                      .map(row => ({ x: row.termLimit, y: row.absoluteError })),
+                  },
+                ]}
+                xLabel="Taylor term limit"
+                yLabel="Absolute error"
+              />
+            </section>
+
+            <section className="panel" style={{ marginTop: 16 }}>
+              <div className="panel-title"><Activity size={16}/> Accuracy ↔ runtime tradeoff</div>
+              <EngineeringPlot
+                series={[
+                  {
+                    label: 'Reliable rows',
+                    kind: 'scatter',
+                    markerRadius: 3.5,
+                    points: bench03Result.rows
+                      .filter(row => row.reliable)
+                      .map(row => ({ x: row.elapsedUs, y: row.absoluteError })),
+                  },
+                  {
+                    label: 'Unreliable rows',
+                    kind: 'scatter',
+                    markerRadius: 3.5,
+                    points: bench03Result.rows
+                      .filter(row => !row.reliable)
+                      .map(row => ({ x: row.elapsedUs, y: row.absoluteError })),
+                  },
+                ]}
+                xLabel="Runtime"
+                xUnit="µs"
+                yLabel="Absolute error"
+              />
+            </section>
+
             <div style={{ overflow: 'auto', marginTop: 16 }}><h3 style={{ fontSize: 13 }}><Waves size={15}/> Method comparison</h3><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>method</th><th>points</th><th>max abs error</th><th>median abs error</th><th>worst x</th><th>accuracy pass</th><th>reliability</th><th>false convergence</th><th>median runtime µs</th></tr></thead><tbody><tr><td>Raw Taylor</td><td>{bench03Result.raw.points}</td><td>{fmt(bench03Result.raw.maximumAbsoluteError,6)}</td><td>{fmt(bench03Result.raw.medianAbsoluteError,6)}</td><td>{fmt(bench03Result.raw.worstX,2)}</td><td>{pct(bench03Result.raw.accuracyPassRate)}</td><td>{pct(bench03Result.raw.reliabilityRate)}</td><td>{bench03Result.raw.falseConvergenceCount}</td><td>{fmt(bench03Result.raw.medianRuntimeUs,1)}</td></tr><tr><td>Range reduced</td><td>{bench03Result.reduced.points}</td><td>{fmt(bench03Result.reduced.maximumAbsoluteError,6)}</td><td>{fmt(bench03Result.reduced.medianAbsoluteError,6)}</td><td>{fmt(bench03Result.reduced.worstX,2)}</td><td>{pct(bench03Result.reduced.accuracyPassRate)}</td><td>{pct(bench03Result.reduced.reliabilityRate)}</td><td>{bench03Result.reduced.falseConvergenceCount}</td><td>{fmt(bench03Result.reduced.medianRuntimeUs,1)}</td></tr></tbody></table></div>
             <details style={{ marginTop: 14 }}><summary>All {bench03Result.rows.length} analyzed rows</summary><div style={{ maxHeight: 380, overflow: 'auto', marginTop: 8 }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}><thead><tr><th>study</th><th>method</th><th>x</th><th>terms</th><th>approx</th><th>reference</th><th>abs error</th><th>ULP error</th><th>cancel</th><th>runtime µs</th><th>status</th></tr></thead><tbody>{bench03Result.rows.map((row, index) => <tr key={index}><td>{row.studyCode}</td><td>{row.methodCode === 0 ? 'raw' : 'reduced'}</td><td>{fmt(row.x,3)}</td><td>{row.termsUsed}</td><td>{fmt(row.approximation,6)}</td><td>{fmt(row.reference,6)}</td><td>{fmt(row.absoluteError,6)}</td><td>{fmt(row.ulpError,2)}</td><td>{fmt(row.cancellationRatio,3)}</td><td>{fmt(row.elapsedUs,0)}</td><td>{row.reliable ? <span style={{ color: '#55e2a7' }}><CheckCircle2 size={12}/> reliable</span> : <span style={{ color: '#ffc36d' }}><CircleAlert size={12}/> {row.status}</span>}</td></tr>)}</tbody></table></div></details>
             <details style={{ marginTop: 10 }}><summary>Raw source campaign ({bench03Lines.length} rows) · {bench03Source}</summary><pre className="terminal" style={{ height: 220 }}>{bench03Lines.join('\n')}</pre></details>
