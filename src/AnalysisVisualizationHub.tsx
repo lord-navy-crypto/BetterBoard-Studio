@@ -7,6 +7,7 @@ import ExperimentPlanningWorkbench from './ExperimentPlanningWorkbench';
 import ModelFittingWorkbench from './ModelFittingWorkbench';
 import NumericalErrorVisualWorkbench from './NumericalErrorVisualWorkbench';
 import { useEvidenceVisualization } from './EvidenceVisualizationContext';
+import './analysis-visualization.css';
 
 type AnalysisView = 'evidence' | 'statistics' | 'models' | 'design' | 'numerical' | 'preparation';
 
