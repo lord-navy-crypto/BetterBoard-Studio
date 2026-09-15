@@ -9,6 +9,7 @@
 #include "experiments/EngineeringLabStream.h"
 #include "experiments/EngineeringLabTargets.h"
 #include "experiments/EvidenceRecord.h"
+#include "experiments/PrimitiveResultStream.h"
 #include "hal/FakeSensor.h"
 #include "hal/SensorAdapter.h"
 #include "math/ExperimentPlanning.h"

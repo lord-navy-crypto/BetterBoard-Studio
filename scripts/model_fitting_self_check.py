@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 core = (ROOT / "src" / "ModelFittingAnalysis.ts").read_text()
 ui = (ROOT / "src" / "ModelFittingWorkbench.tsx").read_text()
-main = (ROOT / "src" / "main.tsx").read_text()
+hub = (ROOT / "src" / "AnalysisVisualizationHub.tsx").read_text()
 
 for token in (
     "linearRegression",
@@ -38,6 +38,7 @@ for token in (
 
 assert "does not establish causality" in ui, "model-selection evidence boundary was removed"
 assert "validate the chosen model on new evidence" in ui, "out-of-sample validation boundary was removed"
-assert "ModelFittingWorkbench" in main, "Model fitting workbench is no longer mounted in Studio"
+assert "ModelFittingWorkbench" in hub, "Model fitting workbench is no longer reachable from Studio Analysis & Visualization"
+assert "Models" in hub, "Model fitting lost its Studio navigation entry"
 
 print("Parameter estimation and model comparison contracts: PASS")

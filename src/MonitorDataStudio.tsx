@@ -7,8 +7,14 @@ import {
 import type { BackgroundTask, TaskCategory, TaskState } from './TaskCenter';
 import RuntimeLog from './RuntimeLog';
 import EngineeringPlot from './EngineeringPlot';
+import PrimitiveObservatory from './PrimitiveObservatory';
 import CopyButton from './CopyButton';
 import { enabledMathRuntimeCapabilities, parseMathRuntimeCapabilities } from './mathRuntimeCapabilities';
+import {
+  parseDevicePrimitiveResult,
+  type DevicePrimitiveDiagnostic,
+  type DevicePrimitiveResult,
+} from './devicePrimitiveResults';
 
 type RecipeSpec = {
   id: string;
@@ -190,6 +196,17 @@ export default function MonitorDataStudio({
     () => mathRuntimeCapabilities ? enabledMathRuntimeCapabilities(mathRuntimeCapabilities) : [],
     [mathRuntimeCapabilities],
   );
+  const devicePrimitiveContext = useMemo(() => {
+    const results: DevicePrimitiveResult[] = [];
+    const diagnostics: DevicePrimitiveDiagnostic[] = [];
+    for (const row of displayRows) {
+      if (row.direction === 'tx') continue;
+      const parsed = parseDevicePrimitiveResult(row.line);
+      if (parsed.result) results.push(parsed.result);
+      else if (parsed.diagnostic) diagnostics.push(parsed.diagnostic);
+    }
+    return { results, diagnostics };
+  }, [displayRows]);
 
   const numericRows = useMemo(() => displayRows
     .map(row => parseNumericRow(row, activeColumns.length))
@@ -577,6 +594,14 @@ export default function MonitorDataStudio({
             {activeColumns.map((column, index) => <button key={column} className={selectedChannel === index ? 'active' : ''} onClick={() => setSelectedChannel(index)}><span>{column}</span><b>{latestValues[index] ?? '—'}</b><small>{activeUnits[index] ?? ''}</small></button>)}
           </div>
           {!activeColumns.length && <div className="empty compact">Numeric CSV is visible, but this dataset does not declare channel names.</div>}
+          <PrimitiveObservatory
+            samples={channelPoints.map(point => ({ timeS: point.x, value: point.y }))}
+            channelLabel={selectedColumn}
+            unit={selectedUnit}
+            contextLabel={replay ? 'REPLAY' : live ? 'LIVE' : 'BUFFER'}
+            deviceResults={devicePrimitiveContext.results}
+            deviceDiagnostics={devicePrimitiveContext.diagnostics}
+          />
         </>}
       </div>
 

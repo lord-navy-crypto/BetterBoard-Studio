@@ -37,8 +37,6 @@ type HardwareSessionValue = {
 };
 
 const HardwareSessionContext = createContext<HardwareSessionValue | null>(null);
-const NO_BOARD_RESCAN_MS = 3500;
-const CONNECTED_BOARD_RESCAN_MS = 8000;
 
 const SYSTEM_SERIAL_NAMES = [
   'bluetooth-incoming-port',
@@ -61,12 +59,12 @@ function onlySystemPorts(rawPorts: BoardPort[]) {
 
 function noBoardDiagnostic(rawPorts: BoardPort[]) {
   if (!rawPorts.length) {
-    return 'No serial devices reported by Arduino CLI · check the USB data cable, connector, hub, and driver · BetterBoard will keep watching for a board';
+    return 'No serial devices reported by Arduino CLI · check the USB data cable, connector, hub, and driver · reconnect the board, then refocus BetterBoard or press Refresh';
   }
   if (onlySystemPorts(rawPorts)) {
-    return 'No USB serial board detected · only macOS system ports are visible · check the USB data cable/connector · BetterBoard will reconnect automatically when a board appears';
+    return 'No USB serial board detected · only macOS system ports are visible · check the USB data cable/connector · reconnect, then refocus BetterBoard or press Refresh';
   }
-  return 'No usable USB serial board detected · reconnect with a known data cable · BetterBoard will keep scanning automatically';
+  return 'No usable USB serial board detected · reconnect with a known data cable · refocus BetterBoard or press Refresh to scan again';
 }
 
 export function HardwareSessionProvider({ children }: { children: ReactNode }) {
@@ -82,8 +80,10 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
   const refreshInFlight = useRef<Promise<string> | null>(null);
 
   function refreshHardware(): Promise<string> {
-    // Root, Studio, focus recovery, and background hot-plug polling can all ask
-    // for a refresh. Coalesce them into one board_list / board_profiles operation.
+    // Startup, explicit user refresh, focus recovery, and visibility recovery can
+    // all request discovery. Coalesce them so Arduino CLI is never invoked twice
+    // concurrently. Deliberately avoid periodic polling: board_list launches an
+    // external process and global Provider state changes can re-render the app.
     if (refreshInFlight.current) return refreshInFlight.current;
 
     const operation = (async () => {
@@ -112,8 +112,6 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
             ? `${boardPorts.length} USB serial board(s) detected`
             : noBoardDiagnostic(discovered));
         } else {
-          // A failed physical scan must revoke a stale non-empty selectedPort;
-          // otherwise compile/upload controls could continue targeting old hardware.
           setRawPorts([]);
           setPorts([]);
           setSelectedPort('');
@@ -167,25 +165,12 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
     return operation;
   }
 
-  // Initial discovery.
+  // Initial discovery only. We intentionally do not run a timer here: invoking
+  // arduino-cli board list every few seconds caused visible app-wide stalls.
   useEffect(() => { void refreshHardware(); }, []);
 
-  // Keep the hardware session live in both directions. Missing boards are polled
-  // quickly so cable replacement recovers promptly; connected boards are still
-  // checked at a lower cadence so hot-unplug is detected even if the app remains
-  // focused the entire time. Coalescing prevents this timer from racing a manual
-  // refresh or another lifecycle-triggered scan.
-  useEffect(() => {
-    const intervalMs = ports.length > 0 ? CONNECTED_BOARD_RESCAN_MS : NO_BOARD_RESCAN_MS;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refreshHardware();
-    }, intervalMs);
-    return () => window.clearInterval(timer);
-  }, [ports.length]);
-
-  // A board is often connected while BetterBoard is behind another app. Refresh
-  // immediately when the window becomes active again instead of waiting for the
-  // next polling interval.
+  // A board is commonly connected while BetterBoard is behind another app.
+  // Refresh when the user returns, plus explicit Refresh controls elsewhere.
   useEffect(() => {
     const onFocus = () => { void refreshHardware(); };
     const onVisibilityChange = () => {
@@ -204,9 +189,6 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
     [ports, selectedPort],
   );
 
-  // Hardware Doctor is intentionally conservative: compile is permitted for an
-  // explicitly selected catalog profile, but upload is blocked in the diagnosis
-  // model when the physical target is missing or its detected FQBN disagrees.
   const diagnosis = useMemo<HardwareDiagnosis>(() => {
     if (refreshing && !ports.length) {
       return { code: 'scanning', severity: 'info', title: 'Scanning for hardware', detail: 'BetterBoard is checking Arduino CLI serial discovery and the board profile catalog.', action: 'Keep the board connected while discovery completes.', canCompile: Boolean(fqbn), canUpload: false };
@@ -216,9 +198,9 @@ export function HardwareSessionProvider({ children }: { children: ReactNode }) {
     }
     if (!ports.length) {
       if (onlySystemPorts(rawPorts)) {
-        return { code: 'system-ports-only', severity: 'warning', title: 'No USB board detected', detail: 'Only operating-system serial ports are visible. This commonly happens with a charge-only/bad cable, loose connector, hub issue, or missing USB-serial driver.', action: 'Use a known data cable, reconnect the board, and let BetterBoard auto-scan.', canCompile: Boolean(fqbn), canUpload: false };
+        return { code: 'system-ports-only', severity: 'warning', title: 'No USB board detected', detail: 'Only operating-system serial ports are visible. This commonly happens with a charge-only/bad cable, loose connector, hub issue, or missing USB-serial driver.', action: 'Use a known data cable, reconnect the board, then refocus BetterBoard or press Refresh.', canCompile: Boolean(fqbn), canUpload: false };
       }
-      return { code: 'no-board', severity: 'warning', title: 'Waiting for a board', detail: 'Arduino CLI is not reporting a usable physical USB serial target.', action: 'Connect the board with a known data cable. BetterBoard will detect it automatically.', canCompile: Boolean(fqbn), canUpload: false };
+      return { code: 'no-board', severity: 'warning', title: 'Waiting for a board', detail: 'Arduino CLI is not reporting a usable physical USB serial target.', action: 'Connect the board with a known data cable, then refocus BetterBoard or press Refresh.', canCompile: Boolean(fqbn), canUpload: false };
     }
     if (profileError || !profiles.length) {
       return { code: 'profile-catalog-failed', severity: 'error', title: 'Board profiles unavailable', detail: profileError || 'The board profile catalog is empty.', action: 'Refresh BetterBoard before compiling or uploading.', canCompile: false, canUpload: false };

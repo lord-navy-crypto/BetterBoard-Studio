@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 core = (ROOT / "src" / "AppliedStatistics.ts").read_text()
 ui = (ROOT / "src" / "AppliedStatisticsWorkbench.tsx").read_text()
-main = (ROOT / "src" / "main.tsx").read_text()
+hub = (ROOT / "src" / "AnalysisVisualizationHub.tsx").read_text()
 
 for token in (
     "summarize",
@@ -36,7 +36,8 @@ for token in (
 ):
     assert token in ui, f"Applied statistics workbench lost {token}"
 
-assert "AppliedStatisticsWorkbench" in main, "Applied Statistics workbench is no longer mounted in Studio"
+assert "AppliedStatisticsWorkbench" in hub, "Applied Statistics workbench is no longer reachable from Studio Analysis & Visualization"
+assert "Signal & Statistics" in hub, "Applied Statistics lost its Studio navigation entry"
 assert "Statistics never overwrite the raw measurement record" in ui, "evidence immutability boundary was removed"
 
 print("Applied statistics phase-one contracts: PASS")

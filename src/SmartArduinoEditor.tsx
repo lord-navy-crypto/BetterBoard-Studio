@@ -44,6 +44,7 @@ type Props = {
   onChange: (value: string) => void;
   readOnly?: boolean;
   diagnostics?: Array<{ line: number; column?: number; message: string; severity?: 'error' | 'warning' }>;
+  revealPosition?: { line: number; column?: number } | null;
 };
 
 function escapeRegExp(value: string) {
@@ -63,7 +64,7 @@ function findDefinitionLine(model: editor.ITextModel, word: string) {
   return null;
 }
 
-export default function SmartArduinoEditor({ value, onChange, readOnly = false, diagnostics = [] }: Props) {
+export default function SmartArduinoEditor({ value, onChange, readOnly = false, diagnostics = [], revealPosition = null }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const providerDisposablesRef = useRef<Array<{ dispose: () => void }>>([]);
@@ -82,6 +83,15 @@ export default function SmartArduinoEditor({ value, onChange, readOnly = false, 
     })));
   }, [diagnostics]);
 
+  useEffect(() => {
+    const instance = editorRef.current;
+    if (!instance || !revealPosition) return;
+    const position = { lineNumber: Math.max(1, revealPosition.line), column: Math.max(1, revealPosition.column ?? 1) };
+    instance.revealPositionInCenter(position);
+    instance.setPosition(position);
+    instance.focus();
+  }, [revealPosition]);
+
   useEffect(() => () => {
     for (const disposable of providerDisposablesRef.current) disposable.dispose();
     providerDisposablesRef.current = [];
@@ -93,27 +103,12 @@ export default function SmartArduinoEditor({ value, onChange, readOnly = false, 
       monaco.languages.registerCompletionItemProvider('cpp', {
         provideCompletionItems(model: editor.ITextModel, position: Position) {
           const word = model.getWordUntilPosition(position);
-          const range = {
-            startLineNumber: position.lineNumber,
-            endLineNumber: position.lineNumber,
-            startColumn: word.startColumn,
-            endColumn: word.endColumn,
-          };
+          const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: word.endColumn };
           const snippets = ARDUINO_COMPLETIONS.map(([label, insertText, documentation]) => ({
-            label,
-            kind: monaco.languages.CompletionItemKind.Function,
-            insertText,
-            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-            documentation,
-            range,
+            label, kind: monaco.languages.CompletionItemKind.Function, insertText,
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation, range,
           }));
-          const constants = CONSTANTS.map(label => ({
-            label,
-            kind: monaco.languages.CompletionItemKind.Constant,
-            insertText: label,
-            documentation: 'Arduino constant',
-            range,
-          }));
+          const constants = CONSTANTS.map(label => ({ label, kind: monaco.languages.CompletionItemKind.Constant, insertText: label, documentation: 'Arduino constant', range }));
           return { suggestions: [...snippets, ...constants] };
         },
       }),
@@ -123,10 +118,7 @@ export default function SmartArduinoEditor({ value, onChange, readOnly = false, 
           if (!current?.word) return null;
           const found = findDefinitionLine(model, current.word);
           if (!found) return null;
-          return {
-            uri: model.uri,
-            range: new monaco.Range(found.line, found.column, found.line, found.column + current.word.length),
-          };
+          return { uri: model.uri, range: new monaco.Range(found.line, found.column, found.line, found.column + current.word.length) };
         },
       }),
       monaco.languages.registerHoverProvider('cpp', {
@@ -135,10 +127,7 @@ export default function SmartArduinoEditor({ value, onChange, readOnly = false, 
           if (!current?.word) return null;
           const documentation = ARDUINO_HOVER[current.word];
           if (!documentation) return null;
-          return {
-            range: new monaco.Range(position.lineNumber, current.startColumn, position.lineNumber, current.endColumn),
-            contents: [{ value: `**Arduino · ${current.word}**` }, { value: documentation }],
-          };
+          return { range: new monaco.Range(position.lineNumber, current.startColumn, position.lineNumber, current.endColumn), contents: [{ value: `**Arduino · ${current.word}**` }, { value: documentation }] };
         },
       }),
     ];
