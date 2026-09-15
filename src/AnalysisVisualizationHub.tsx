@@ -4,8 +4,10 @@ import AppliedStatisticsWorkbench from './AppliedStatisticsWorkbench';
 import EngineeringPreparationStudio from './EngineeringPreparationStudio';
 import EvidenceInspector from './EvidenceInspector';
 import ExperimentPlanningWorkbench from './ExperimentPlanningWorkbench';
+import MagnetResultVisualization from './MagnetResultVisualization';
 import ModelFittingWorkbench from './ModelFittingWorkbench';
 import NumericalErrorVisualWorkbench from './NumericalErrorVisualWorkbench';
+import NumericalResultVisualization from './NumericalResultVisualization';
 import { useEvidenceVisualization } from './EvidenceVisualizationContext';
 import './analysis-visualization.css';
 
@@ -50,7 +52,7 @@ export default function AnalysisVisualizationHub() {
     <div className="analysis-view-pane" hidden={active !== 'statistics'}><AppliedStatisticsWorkbench /></div>
     <div className="analysis-view-pane" hidden={active !== 'models'}><ModelFittingWorkbench /></div>
     <div className="analysis-view-pane" hidden={active !== 'design'}><ExperimentPlanningWorkbench /></div>
-    <div className="analysis-view-pane" hidden={active !== 'numerical'}><NumericalErrorVisualWorkbench /></div>
-    <div className="analysis-view-pane" hidden={active !== 'preparation'}><EngineeringPreparationStudio /></div>
+    <div className="analysis-view-pane" hidden={active !== 'numerical'}><NumericalErrorVisualWorkbench /><NumericalResultVisualization /></div>
+    <div className="analysis-view-pane" hidden={active !== 'preparation'}><EngineeringPreparationStudio /><MagnetResultVisualization /></div>
   </section>;
 }
