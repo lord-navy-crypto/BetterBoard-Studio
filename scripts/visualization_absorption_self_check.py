@@ -24,13 +24,13 @@ def main() -> int:
         "external-table",
         "sourceId",
         "provenanceLabel",
+        "BETTERBOARD MEASUREMENT EVIDENCE",
     )
     require(
         "src/EvidenceSourcePicker.tsx",
         "measurement_sessions",
         "measurement_session_load",
         "measurementEvidenceSource",
-        "BETTERBOARD",
     )
     require(
         "src/AnalysisVisualizationHub.tsx",
