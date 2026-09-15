@@ -10,6 +10,7 @@ import ObservatoryMissionControl from './ObservatoryMissionControl';
 import ObservatoryVisualSummary from './ObservatoryVisualSummary';
 import OpenPenguinBridge from './OpenPenguinBridge';
 import { EvidenceVisualizationProvider } from './EvidenceVisualizationContext';
+import { EngineeringAnnotationsProvider } from './EngineeringAnnotations';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
 import { RunComparisonProvider } from './RunComparisonContext';
 import type { BackgroundTask } from './TaskCenter';
@@ -186,5 +187,5 @@ function Root() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><HardwareSessionProvider><EvidenceVisualizationProvider><RunComparisonProvider><Root /></RunComparisonProvider></EvidenceVisualizationProvider></HardwareSessionProvider></React.StrictMode>,
+  <React.StrictMode><HardwareSessionProvider><EvidenceVisualizationProvider><RunComparisonProvider><EngineeringAnnotationsProvider><Root /></EngineeringAnnotationsProvider></RunComparisonProvider></EvidenceVisualizationProvider></HardwareSessionProvider></React.StrictMode>,
 );
