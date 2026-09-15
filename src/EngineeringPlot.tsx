@@ -39,6 +39,7 @@ type Props = {
   tickCount?: number;
   verticalMarkers?: EngineeringVerticalMarker[];
   horizontalMarkers?: EngineeringHorizontalMarker[];
+  horizontalLines?: EngineeringHorizontalMarker[];
   bands?: EngineeringBand[];
   zeroLine?: boolean;
 };
@@ -101,11 +102,13 @@ export default function EngineeringPlot({
   tickCount = 5,
   verticalMarkers = [],
   horizontalMarkers = [],
+  horizontalLines = [],
   bands = [],
   zeroLine = false,
 }: Props) {
   const liveSeries = useMemo(() => finiteSeries(series), [series]);
   const liveBands = useMemo(() => finiteBands(bands), [bands]);
+  const resolvedHorizontalMarkers = useMemo(() => [...horizontalMarkers, ...horizontalLines], [horizontalMarkers, horizontalLines]);
   const [frozen, setFrozen] = useState(false);
   const [snapshot, setSnapshot] = useState<EngineeringSeries[]>(liveSeries);
   const [hiddenLabels, setHiddenLabels] = useState<string[]>([]);
@@ -125,9 +128,8 @@ export default function EngineeringPlot({
     ...prepared.flatMap(item => item.points),
     ...liveBands.flatMap(band => [...band.lower, ...band.upper]),
     ...verticalMarkers.filter(marker => Number.isFinite(marker.x)).flatMap(marker => [{ x: marker.x, y: 0 }]),
-    ...horizontalMarkers.filter(marker => Number.isFinite(marker.y)).flatMap(marker => [{ x: 0, y: marker.y }]),
+    ...resolvedHorizontalMarkers.filter(marker => Number.isFinite(marker.y)).flatMap(marker => [{ x: 0, y: marker.y }]),
   ];
-  const points = prepared.flatMap(item => item.points);
   const ranges = useMemo(() => {
     if (!rangePoints.length) return { x: [0, 1] as [number, number], y: [0, 1] as [number, number] };
     const xValues = rangePoints.map(point => point.x).filter(Number.isFinite);
@@ -174,7 +176,7 @@ export default function EngineeringPlot({
         })}
         {zeroLine && ranges.y[0] <= 0 && ranges.y[1] >= 0 && <line x1={MARGIN.left} x2={MARGIN.left + plotWidth} y1={mapY(0)} y2={mapY(0)} stroke="rgba(255,255,255,.32)" strokeDasharray="4 4"/>}
         {liveBands.map((band, index) => <polygon key={`band-${band.label || index}`} points={polygonPoints(band.lower, band.upper, mapX, mapY)} fill="var(--bb-cyan, #70dcff)" opacity={band.opacity ?? 0.12}/>)}
-        {horizontalMarkers.filter(marker => Number.isFinite(marker.y)).map((marker, index) => {
+        {resolvedHorizontalMarkers.filter(marker => Number.isFinite(marker.y)).map((marker, index) => {
           const y = mapY(marker.y);
           return <g key={`h-marker-${index}`}><line x1={MARGIN.left} x2={MARGIN.left + plotWidth} y1={y} y2={y} stroke="var(--bb-amber, #ffc36d)" strokeWidth="1.2" strokeDasharray={marker.dashed === false ? undefined : '6 4'}/>{marker.label && <text x={MARGIN.left + plotWidth - 4} y={y - 5} textAnchor="end" fill="#ffc36d" fontSize="10">{marker.label}</text>}</g>;
         })}
