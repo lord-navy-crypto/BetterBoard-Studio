@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { BarChart3, Database, FlaskConical, LineChart, Sigma, Wrench } from 'lucide-react';
 import AppliedStatisticsWorkbench from './AppliedStatisticsWorkbench';
+import AnnotatedEngineeringPlot from './AnnotatedEngineeringPlot';
 import EngineeringPreparationStudio from './EngineeringPreparationStudio';
 import EvidenceInspector from './EvidenceInspector';
 import EvidenceSourcePicker from './EvidenceSourcePicker';
@@ -9,7 +10,6 @@ import MagnetResultVisualization from './MagnetResultVisualization';
 import ModelFittingWorkbench from './ModelFittingWorkbench';
 import NumericalErrorVisualWorkbench from './NumericalErrorVisualWorkbench';
 import NumericalResultVisualization from './NumericalResultVisualization';
-import EngineeringPlot from './EngineeringPlot';
 import { useEvidenceVisualization } from './EvidenceVisualizationContext';
 import { useRunComparison } from './RunComparisonContext';
 import './analysis-visualization.css';
@@ -49,6 +49,10 @@ export default function AnalysisVisualizationHub() {
     ];
   }, [comparison.runA, comparison.runB, commonComparisonColumn]);
 
+  const comparisonAnnotationSourceId = comparison.runA && comparison.runB
+    ? `run-comparison:${comparison.runA.sourceId}:${comparison.runB.sourceId}:${commonComparisonColumn ?? 'none'}`
+    : 'run-comparison:inactive';
+
   return <section className="analysis-visualization-hub" style={{ maxWidth: 1460, margin: '20px auto 60px' }}>
     <div className="panel" style={{ marginBottom: 12 }}>
       <div className="panel-title"><BarChart3 size={18}/> Analysis & Visualization</div>
@@ -73,7 +77,7 @@ export default function AnalysisVisualizationHub() {
           <button className="ghost" onClick={comparison.clearComparison}>Clear comparison</button>
         </div>
         {comparison.runA && comparison.runB && commonComparisonColumn && comparisonSeries.length > 0
-          ? <><div className="hint">Raw overlay of common channel <b>{commonComparisonColumn}</b> by sample index. This visual does not claim automatic clock/time alignment between runs.</div><EngineeringPlot series={comparisonSeries} xLabel="sample index" yLabel={commonComparisonColumn} height={230}/></>
+          ? <><div className="hint">Raw overlay of common channel <b>{commonComparisonColumn}</b> by sample index. This visual does not claim automatic clock/time alignment between runs. Notes are session-local and explicitly labeled USER ANNOTATION.</div><AnnotatedEngineeringPlot annotationSourceId={comparisonAnnotationSourceId} series={comparisonSeries} xLabel="sample index" yLabel={commonComparisonColumn} height={230}/></>
           : comparison.runA && comparison.runB
             ? <div className="empty compact">The selected runs do not expose a common numeric column for a safe raw overlay. Keep them separate and analyze each run explicitly.</div>
             : <div className="empty compact">Select both Run A and Run B from Saved BetterBoard evidence.</div>}
