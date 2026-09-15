@@ -26,12 +26,20 @@ def main() -> int:
         "provenanceLabel",
     )
     require(
+        "src/EvidenceSourcePicker.tsx",
+        "measurement_sessions",
+        "measurement_session_load",
+        "measurementEvidenceSource",
+        "BETTERBOARD",
+    )
+    require(
         "src/AnalysisVisualizationHub.tsx",
         "Signal & Statistics",
         "Experiment Design",
         "Engineering Preparation",
         "NumericalResultVisualization",
         "MagnetResultVisualization",
+        "EvidenceSourcePicker",
     )
     for workbench in (
         "src/AppliedStatisticsWorkbench.tsx",
