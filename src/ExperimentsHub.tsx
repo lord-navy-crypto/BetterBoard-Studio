@@ -59,7 +59,7 @@ export default function ExperimentsHub() {
         <div className="eyebrow">Engineering Lab experiments</div>
         <h1>Campaigns plus the complete dedicated experiment code library.</h1>
         <p><b>Experiments contains campaigns, not preparation tools.</b> Experiment-specific firmware, analyzers and bridges are part of the campaigns themselves, so their real repository source is exposed here rather than hidden behind path labels.</p>
-        <p className="muted">Reusable capture, generic evidence preparation and expert Numerical/Magnet workbenches remain in Studio. The code library below is specifically the Engineering Lab experiment layer: inspect it, verify firmware against the selected board, and upload through BetterBoard's existing backend.</p>
+        <p className="muted"><b>Connect with Engineering Lab</b> through Studio's <b>BetterBoard → Engineering Lab handoff</b>. Reusable capture and generic evidence preparation stay shared in Studio; preparation surfaces such as <b>Numerical Error Analysis</b>, <b>RADIA Magnet Studio</b> compatibility and other <b>Expert workflows</b> remain there instead of being duplicated. The code library below is the experiment-specific layer and exposes its actual source, Verify and Upload actions.</p>
       </div>
     </section>
 
