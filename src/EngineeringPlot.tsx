@@ -124,21 +124,28 @@ export default function EngineeringPlot({
 
   const available = frozen ? snapshot : liveSeries;
   const prepared = available.filter(item => !hiddenLabels.includes(item.label));
-  const rangePoints = [
+  const dataPoints = [
     ...prepared.flatMap(item => item.points),
     ...liveBands.flatMap(band => [...band.lower, ...band.upper]),
-    ...verticalMarkers.filter(marker => Number.isFinite(marker.x)).flatMap(marker => [{ x: marker.x, y: 0 }]),
-    ...resolvedHorizontalMarkers.filter(marker => Number.isFinite(marker.y)).flatMap(marker => [{ x: 0, y: marker.y }]),
   ];
   const ranges = useMemo(() => {
-    if (!rangePoints.length) return { x: [0, 1] as [number, number], y: [0, 1] as [number, number] };
-    const xValues = rangePoints.map(point => point.x).filter(Number.isFinite);
-    const yValues = rangePoints.map(point => point.y).filter(Number.isFinite);
+    const xValues = [
+      ...dataPoints.map(point => point.x),
+      ...verticalMarkers.map(marker => marker.x),
+    ].filter(Number.isFinite);
+    const yValues = [
+      ...dataPoints.map(point => point.y),
+      ...resolvedHorizontalMarkers.map(marker => marker.y),
+      ...(zeroLine ? [0] : []),
+    ].filter(Number.isFinite);
+    if (!xValues.length || !yValues.length) {
+      return { x: [0, 1] as [number, number], y: [0, 1] as [number, number] };
+    }
     return {
       x: paddedRange(Math.min(...xValues), Math.max(...xValues)),
       y: paddedRange(Math.min(...yValues), Math.max(...yValues)),
     };
-  }, [rangePoints]);
+  }, [dataPoints, verticalMarkers, resolvedHorizontalMarkers, zeroLine]);
 
   const plotWidth = WIDTH - MARGIN.left - MARGIN.right;
   const plotHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
