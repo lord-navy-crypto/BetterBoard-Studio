@@ -2,25 +2,26 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Turn BetterBoard's existing hardware, plot, task, circuit, and developer state into a unified engineering interaction layer that helps users inspect one event across plots and trace workflow failures to the correct subsystem without duplicating scientific or diagnostic engines.
+**Goal:** Turn BetterBoard Studio into one coherent engineering workstation: every existing experiment, evidence source, diagnostic, plot, task, circuit issue, and developer error must be visible, traceable, and navigable without duplicating scientific or hardware engines.
 
-**Architecture:** Phase 6 adds small UI-facing coordination components around existing sources of truth: a plot inspection context for linked cursors/ranges, a workflow status derivation layer around HardwareSession/preflight/task/evidence state, visual projections of existing Task Center and CircuitLab data, and a split presentation of existing DeveloperIDE state. No new scientific analysis engine, electrical simulator, evidence schema, or hardware inference engine is introduced.
+**Architecture:** Add one shared UI interaction layer around existing canonical state. Plot inspection, run comparison, annotations, workflow status, hardware topology, task timelines, circuit net projection, Developer diagnostics, Analysis hierarchy, and Experiments navigation are presentation/coordination layers only. Raw evidence, Hardware Doctor, preflight, `runRuleChecker`, compile diagnostics, Primitive Observatory algorithms, Measurement Package semantics, and firmware backends remain canonical.
 
-**Tech Stack:** React + TypeScript, existing BetterBoard CSS, existing `EngineeringPlot`, Tauri invoke boundary, existing Python contract self-check suite, existing Arduino/Rust CI gates.
+**Tech Stack:** React + TypeScript, Vite, existing BetterBoard CSS, `EngineeringPlot`, Monaco, Tauri invoke boundary, Python structural/executable self-checks, Arduino CLI CI, Rust/Tauri CI.
 
 **Spec:** `docs/superpowers/specs/2026-09-15-engineering-interaction-diagnostic-ui-design.md`
 
 ## Global Constraints
 
-- Preserve existing sources of truth: `HardwareSession`, Hardware Doctor, preflight, `BackgroundTask`, `CircuitLab` rule checker, Developer compile diagnostics, `PrimitiveObservatory`, Phase 5 evidence context.
-- Do not change raw Measurement Package / replay schema or write derived UI state back into evidence.
-- Do not add new scientific algorithms, SPICE/electrical simulation, automatic AI repair, arbitrary dockable-window infrastructure, or serial-port auto-opening.
-- Status semantics are limited to `READY | ACTIVE | WARNING | BLOCKED | UNAVAILABLE` and must not imply scientific validity.
-- Plot selection and range brushing are viewport/inspection state only.
-- Circuit issue overlays may only project locations supported by existing structured component/pin/wire relationships; never guess a location from descriptive text.
-- Task timeline stages may only be derived from known task category/state/log evidence; never invent completed steps from arbitrary history text.
-- Existing editor draft preservation, filesystem guards, firmware/evidence provenance, HOST/DEVICE producer labels, and Phase 5 analysis semantics must remain intact.
-- All production changes must land on `ui/analysis-visualization-integration-a9`; do not merge `main`.
+- All changes land on `ui/analysis-visualization-integration-a9`; do not merge `main`.
+- Preserve canonical sources of truth: `HardwareSession`, Hardware Doctor, preflight, `BackgroundTask`, `runRuleChecker`, compile diagnostics, `PrimitiveObservatory`, Evidence Visualization context, Measurement Sessions, and existing Developer backend commands.
+- Do not add a second scientific algorithm, electrical simulator, hardware inference engine, compile/upload pipeline, evidence store, or task database.
+- Do not mutate raw evidence or Measurement Package schemas.
+- Producer identity remains explicit: `MEASURED`, `HOST-DERIVED`, `DEVICE-DERIVED`, `MODEL/REFERENCE`, `USER ANNOTATION`.
+- Engineering status vocabulary is exactly `READY | ACTIVE | WARNING | BLOCKED | UNAVAILABLE`; it must not imply scientific validity.
+- No periodic global Arduino CLI polling. Hardware discovery remains startup/manual/focus/visibility driven and coalesced.
+- Large experiment/analyzer source bodies remain lazy-loaded; directory discovery may be eager, source content may not be.
+- UI actions that look executable must call real canonical actions; no decorative fake buttons.
+- All existing frontend, contract, Arduino, Engineering Lab, Sensor Suite, C++ Core, and Rust/Tauri gates must remain green.
 
 ---
 
@@ -28,188 +29,128 @@
 
 ### New focused files
 
-- `src/PlotInspectionContext.tsx` — shared selected x/range/source identity and reset semantics for time-aligned plots.
-- `src/EngineeringStatusMap.tsx` — top-level workflow-state rail plus navigation callbacks; presentation only.
-- `src/HardwareTopology.tsx` — hardware/preflight topology visualization using already-derived state.
-- `src/taskPresentation.ts` — pure helpers that derive task summary/timeline presentation from `BackgroundTask` evidence.
-- `src/circuitDiagnostics.ts` — pure connected-net and structured issue-target helpers; no rule checking.
-- `scripts/engineering_interaction_self_check.py` — Phase 6 structural/semantic regression contract.
+- `src/PlotInspectionContext.tsx` — selected x/range/source identity plus reset.
+- `src/RunComparisonContext.tsx` — Run A / Run B evidence selection and comparison UI state only.
+- `src/EngineeringAnnotations.tsx` — session-local `USER ANNOTATION` state and editor UI.
+- `src/EngineeringStatusMap.tsx` — six-stage workflow rail and navigation.
+- `src/HardwareTopology.tsx` — USB → board → FQBN → core → libraries → firmware projection.
+- `src/taskPresentation.ts` — pure Task Center summary/timeline helpers.
+- `src/circuitDiagnostics.ts` — connected-net and structured issue-target projection.
+- `src/AnalysisWorkflowGuide.tsx` — plain-language hierarchy/navigation for Evidence → Analyze → Compare → Decide.
+- `scripts/engineering_interaction_self_check.py` — Phase 6 regression contract.
 
 ### Existing files to modify
 
-- `src/EngineeringPlot.tsx` — controlled selected cursor/range/brush callbacks and synchronized tooltip semantics.
-- `src/PrimitiveObservatory.tsx` — host linked inspection context and shared cursor/readout across aligned primitive plots.
-- `src/App.tsx` — derive/render Engineering Status Map, render HardwareTopology, expose navigation callback to related Studio tab.
-- `src/styles.css` — Engineering Status Map and HardwareTopology layout/state styling.
-- `src/TaskCenter.tsx` — summary, filters, timeline, elapsed duration, copy/search logs.
-- `src/developer-task.css` — Task Center 2.0 and Developer split-view styling.
-- `src/CircuitLab.tsx` — selected net/issue state and overlay projection; retain canonical `runRuleChecker`.
-- `src/circuitLab.css` — net/problem/focus semantic styling.
-- `src/DeveloperIDE.tsx` — responsive editor/right-side engineering split using existing target/output/diagnostic state.
-- `src/SmartArduinoEditor.tsx` — optional externally requested reveal position for diagnostic navigation, only if needed.
-- `src/main.tsx` — top-level focus-mode state/toggle.
-- `src/workspace-shell.css` — focus-mode and responsive workspace behavior.
-- `src/analysis-visualization.css` — focus-mode compatibility for Analysis Hub only if needed by Task 8.
-- `scripts/run_contract_self_checks.py` — register the new Phase 6 contract.
+- `src/EngineeringPlot.tsx`
+- `src/PrimitiveObservatory.tsx`
+- `src/AnalysisVisualizationHub.tsx`
+- `src/EvidenceSourcePicker.tsx`
+- `src/ExperimentsHub.tsx`
+- `src/EngineeringExperimentLibrary.tsx`
+- `src/App.tsx`
+- `src/TaskCenter.tsx`
+- `src/CircuitLab.tsx`
+- `src/DeveloperIDE.tsx`
+- `src/SmartArduinoEditor.tsx` only if reveal navigation needs it
+- `src/main.tsx`
+- `src/styles.css`
+- `src/analysis-visualization.css`
+- `src/developer-task.css`
+- `src/circuitLab.css`
+- `src/workspace-shell.css`
+- `scripts/run_contract_self_checks.py`
 
 ---
 
-### Task 1: Add Phase 6 RED contract
+### Task 1: Add the complete Phase 6 RED contract
 
 **Files:**
 - Create: `scripts/engineering_interaction_self_check.py`
 - Modify: `scripts/run_contract_self_checks.py`
 
 **Interfaces:**
-- Consumes: existing repository source files only.
-- Produces: one deterministic structural/semantic contract named `engineering_interaction_self_check.py`.
+- Consumes repository source as text.
+- Produces one deterministic contract that initially fails on the first missing Phase 6 component.
 
 - [ ] **Step 1: Write the failing contract**
 
-Create assertions that require the planned integration points but preserve the current engines:
+Require all major boundaries:
 
 ```python
-#!/usr/bin/env python3
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def read(path: str) -> str:
-    return (ROOT / path).read_text(encoding="utf-8")
-
-
-def require(path: str, *tokens: str) -> None:
-    text = read(path)
-    for token in tokens:
-        assert token in text, f"{path}: missing {token!r}"
-
-
-def main() -> int:
-    require("src/PlotInspectionContext.tsx", "selectedX", "selectedRange", "sourceId", "resetInspection")
-    require("src/EngineeringPlot.tsx", "selectedX?", "selectedRange?", "onRangeSelect?", "onPointSelect?")
-    require("src/PrimitiveObservatory.tsx", "PlotInspectionProvider", "selectedX", "selectedRange")
-    require("src/EngineeringStatusMap.tsx", "Toolchain", "Hardware", "Firmware", "Acquisition", "Evidence", "Analysis")
-    require("src/HardwareTopology.tsx", "detected board", "selected FQBN", "required libraries")
-    require("src/taskPresentation.ts", "deriveTaskTimeline", "taskElapsedMs")
-    require("src/TaskCenter.tsx", "Running", "Failed", "Recent", "Copy logs")
-    require("src/circuitDiagnostics.ts", "connectedNet", "issueTargets")
-    circuit = read("src/CircuitLab.tsx")
-    assert "runRuleChecker" in circuit, "existing circuit rule checker must remain canonical"
-    require("src/DeveloperIDE.tsx", "developer-engineering-split", "Diagnostics", "Run output")
-    print("Engineering interaction contract: PASS")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+require("src/PlotInspectionContext.tsx", "selectedX", "selectedRange", "sourceId", "resetInspection")
+require("src/RunComparisonContext.tsx", "runA", "runB", "setRunA", "setRunB")
+require("src/EngineeringAnnotations.tsx", "USER ANNOTATION", "addAnnotation", "removeAnnotation")
+require("src/EngineeringPlot.tsx", "selectedX?", "selectedRange?", "onRangeSelect?", "onPointSelect?")
+require("src/PrimitiveObservatory.tsx", "PlotInspectionProvider", "selectedX", "selectedRange")
+require("src/EngineeringStatusMap.tsx", "Toolchain", "Hardware", "Firmware", "Acquisition", "Evidence", "Analysis")
+require("src/HardwareTopology.tsx", "detected board", "selected FQBN", "required libraries")
+require("src/taskPresentation.ts", "deriveTaskTimeline", "taskElapsedMs")
+require("src/TaskCenter.tsx", "Running", "Failed", "Recent", "Copy logs")
+require("src/circuitDiagnostics.ts", "connectedNet", "issueTargets")
+require("src/DeveloperIDE.tsx", "developer-engineering-split", "Diagnostics", "Run output")
+require("src/AnalysisWorkflowGuide.tsx", "Evidence", "Analyze", "Compare", "Decide")
+require("src/ExperimentsHub.tsx", "Complete Experiment Code Library")
 ```
 
-Register it after the existing visualization contract in `run_contract_self_checks.py`.
+Also assert:
 
-- [ ] **Step 2: Run the contract suite and verify RED**
+```python
+hardware = read("src/HardwareSession.tsx")
+assert "window.setInterval" not in hardware
+library = read("src/EngineeringExperimentLibrary.tsx")
+assert "eager: true" not in library
+assert "import.meta.glob" in library
+circuit = read("src/CircuitLab.tsx")
+assert "runRuleChecker" in circuit
+```
+
+- [ ] **Step 2: Register the contract**
+
+Append `engineering_interaction_self_check.py` to `CHECKS` in `scripts/run_contract_self_checks.py`.
+
+- [ ] **Step 3: Run RED**
 
 Run: `python3 scripts/run_contract_self_checks.py`
 
-Expected: all existing checks pass; the new Phase 6 check fails first on missing `src/PlotInspectionContext.tsx`.
+Expected: existing checks pass; Phase 6 fails first on missing `src/PlotInspectionContext.tsx`.
 
-- [ ] **Step 3: Commit RED only**
+- [ ] **Step 4: Commit RED only**
 
 ```bash
 git add scripts/engineering_interaction_self_check.py scripts/run_contract_self_checks.py
-git commit -m "test: define engineering interaction UI contract"
+git commit -m "test: define complete engineering interaction contract"
 ```
 
 ---
 
-### Task 2: Linked plot inspection context and controlled EngineeringPlot
+### Task 2: Shared linked-plot inspection
 
 **Files:**
 - Create: `src/PlotInspectionContext.tsx`
 - Modify: `src/EngineeringPlot.tsx`
-- Test: `scripts/engineering_interaction_self_check.py`
 
 **Interfaces:**
-- Produces:
-  - `type PlotInspectionRange = [number, number] | null`
-  - `type PlotInspectionContextValue = { sourceId: string; selectedX: number | null; selectedRange: PlotInspectionRange; setSelectedX: (value: number | null) => void; setSelectedRange: (value: PlotInspectionRange) => void; resetInspection: () => void }`
-  - `PlotInspectionProvider({ sourceId, children })`
-  - `usePlotInspection(): PlotInspectionContextValue`
-- `EngineeringPlot` new optional props:
-  - `selectedX?: number | null`
-  - `selectedRange?: [number, number] | null`
-  - `onSelectedXChange?: (x: number | null) => void`
-  - `onRangeSelect?: (range: [number, number] | null) => void`
-  - existing `onPointSelect` remains supported and must compose with selected-x behavior.
 
-- [ ] **Step 1: Add pure context types and provider**
-
-Implement a focused React context with no data payloads and no persistence:
-
-```tsx
+```ts
 export type PlotInspectionRange = [number, number] | null;
-
 export type PlotInspectionContextValue = {
   sourceId: string;
   selectedX: number | null;
   selectedRange: PlotInspectionRange;
-  setSelectedX: (value: number | null) => void;
-  setSelectedRange: (value: PlotInspectionRange) => void;
-  resetInspection: () => void;
+  setSelectedX(value: number | null): void;
+  setSelectedRange(value: PlotInspectionRange): void;
+  resetInspection(): void;
 };
-
-export function PlotInspectionProvider({ sourceId, children }: PropsWithChildren<{ sourceId: string }>) {
-  const [selectedX, setSelectedX] = useState<number | null>(null);
-  const [selectedRange, setSelectedRange] = useState<PlotInspectionRange>(null);
-
-  useEffect(() => {
-    setSelectedX(null);
-    setSelectedRange(null);
-  }, [sourceId]);
-
-  const resetInspection = useCallback(() => {
-    setSelectedX(null);
-    setSelectedRange(null);
-  }, []);
-
-  const value = useMemo<PlotInspectionContextValue>(() => ({
-    sourceId,
-    selectedX,
-    selectedRange,
-    setSelectedX,
-    setSelectedRange,
-    resetInspection,
-  }), [sourceId, selectedX, selectedRange, resetInspection]);
-
-  return <PlotInspectionContext.Provider value={value}>{children}</PlotInspectionContext.Provider>;
-}
 ```
 
-The provider must clear inspection state whenever `sourceId` changes so a cursor from one run cannot silently appear on another.
+`EngineeringPlot` adds optional `selectedX`, `selectedRange`, `onSelectedXChange`, `onRangeSelect` and preserves existing props.
 
-- [ ] **Step 2: Extend EngineeringPlot with controlled x/range semantics**
-
-Implement the smallest changes necessary:
-
-- Range calculation uses `selectedRange` when present, otherwise existing automatic ranges.
-- Click on the SVG converts client x into data x and calls `onSelectedXChange`.
-- Existing point selection still calls `onPointSelect` with the nearest visible point when applicable.
-- Draw an externally controlled vertical cursor when `selectedX` is finite and inside the current x range.
-- Implement pointer-down / pointer-up brush selection only when `onRangeSelect` is supplied; normalize the interval in ascending order and ignore drags under 6 CSS pixels.
-- Add a compact `Reset range` affordance when a selected range is active.
-- Do not mutate input series or crop arrays.
-
-- [ ] **Step 3: Verify backwards compatibility**
-
-Run: `npm run build`
-
-Expected: PASS without modifying existing callers.
-
-Run: `python3 scripts/run_contract_self_checks.py`
-
-Expected: Phase 6 contract advances past plot-context assertions and fails on the next unimplemented slice.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 1: Implement source-scoped provider** — state resets whenever `sourceId` changes; no evidence payload is stored.
+- [ ] **Step 2: Add controlled vertical cursor** — clicking the plot converts client x to data x and calls `onSelectedXChange`.
+- [ ] **Step 3: Add range brushing** — pointer drag over 6 CSS px emits normalized `[x0,x1]`; it changes viewport only.
+- [ ] **Step 4: Keep point selection compatible** — existing `onPointSelect` still reports actual series point data.
+- [ ] **Step 5: Verify** — `npm run build` and contract suite.
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/PlotInspectionContext.tsx src/EngineeringPlot.tsx
@@ -218,60 +159,18 @@ git commit -m "feat: add linked engineering plot inspection"
 
 ---
 
-### Task 3: Link Primitive Observatory plots and producer-aware readout
+### Task 3: Primitive Observatory synchronized inspection
 
 **Files:**
 - Modify: `src/PrimitiveObservatory.tsx`
-- Reuse: `src/PlotInspectionContext.tsx`, `src/EngineeringPlot.tsx`
 
-**Interfaces:**
-- Consumes `PlotInspectionProvider`, `usePlotInspection`, and controlled `EngineeringPlot` props from Task 2.
-- Produces one shared inspection surface per selected primitive source/channel.
+**Interfaces:** Consumes Task 2 context and existing host/device primitive outputs.
 
-- [ ] **Step 1: Wrap primitive plot area in a source-scoped provider**
-
-Use a source id that changes with evidence context and channel:
-
-```tsx
-const inspectionSourceId = `${contextLabel}:${channelLabel}`;
-return <PlotInspectionProvider sourceId={inspectionSourceId}>
-  <PrimitiveObservatoryBody {...props} />
-</PlotInspectionProvider>;
-```
-
-Extract `PrimitiveObservatoryBody` only as the smallest component boundary needed to consume the context inside the provider. Keep computational calls (`computeHostPrimitiveObservability`, comparison helpers) in the same module and do not alter their algorithms.
-
-- [ ] **Step 2: Feed selected x/range to all time-aligned EngineeringPlot calls**
-
-For raw/RMS/derivative/integral/EMA/peak/threshold/hysteresis plots:
-
-```tsx
-<EngineeringPlot
-  {...existingProps}
-  selectedX={selectedX}
-  selectedRange={selectedRange}
-  onSelectedXChange={setSelectedX}
-  onRangeSelect={setSelectedRange}
-/>
-```
-
-Do not attach shared time inspection to plots whose x axis is not the same elapsed-time basis.
-
-- [ ] **Step 3: Add one producer-aware inspection readout**
-
-At `selectedX`, derive display-only nearest/aligned values from the already-produced host/device traces. Label every value explicitly as `MEASURED`, `HOST-DERIVED`, or `DEVICE-DERIVED`. The readout must say `nearest/aligned sample` when exact timestamp equality is not guaranteed.
-
-Do not create a new device interpolation algorithm.
-
-- [ ] **Step 4: Verify**
-
-Run: `npm run build`
-
-Run: `python3 scripts/run_contract_self_checks.py`
-
-Expected: both PASS through the linked-plot requirements.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 1:** Wrap time-aligned plots in `PlotInspectionProvider` using evidence/channel identity.
+- [ ] **Step 2:** Feed shared cursor/range to raw, RMS, derivative, integral, EMA, peak-hold, threshold, and hysteresis time plots only.
+- [ ] **Step 3:** Add one readout at selected time with explicit `MEASURED`, `HOST-DERIVED`, `DEVICE-DERIVED` labels.
+- [ ] **Step 4:** If exact equality is unavailable, label values `nearest/aligned sample`; do not invent interpolation.
+- [ ] **Step 5:** Verify build/contracts and commit.
 
 ```bash
 git add src/PrimitiveObservatory.tsx
@@ -280,7 +179,75 @@ git commit -m "feat: synchronize primitive plot inspection"
 
 ---
 
-### Task 4: Engineering Status Map and Hardware Topology
+### Task 4: Run A ↔ Run B comparison
+
+**Files:**
+- Create: `src/RunComparisonContext.tsx`
+- Modify: `src/AnalysisVisualizationHub.tsx`
+- Modify: `src/EvidenceSourcePicker.tsx`
+- Modify: `src/analysis-visualization.css`
+
+**Interfaces:**
+
+```ts
+export type ComparisonRun = { sourceId: string; label: string } | null;
+export type RunComparisonContextValue = {
+  runA: ComparisonRun;
+  runB: ComparisonRun;
+  setRunA(run: ComparisonRun): void;
+  setRunB(run: ComparisonRun): void;
+  clearComparison(): void;
+};
+```
+
+- [ ] **Step 1:** Add comparison UI-state provider only; evidence remains in existing Evidence Visualization context/session loaders.
+- [ ] **Step 2:** Extend source picker with explicit `Set as Run A` / `Set as Run B` actions for loaded saved sessions.
+- [ ] **Step 3:** Add comparison banner showing A/B labels and clear action.
+- [ ] **Step 4:** In Analysis Hub, comparison mode overlays A/B only where both views can use the same existing table semantics; unsupported panes clearly say comparison is unavailable rather than fabricating a result.
+- [ ] **Step 5:** Preserve provenance labels for each run; never merge raw rows.
+- [ ] **Step 6:** Verify build/contracts and commit.
+
+```bash
+git add src/RunComparisonContext.tsx src/AnalysisVisualizationHub.tsx src/EvidenceSourcePicker.tsx src/analysis-visualization.css
+git commit -m "feat: add evidence run comparison workflow"
+```
+
+---
+
+### Task 5: USER ANNOTATION layer
+
+**Files:**
+- Create: `src/EngineeringAnnotations.tsx`
+- Modify: `src/AnalysisVisualizationHub.tsx`
+- Modify: `src/EngineeringPlot.tsx`
+
+**Interfaces:**
+
+```ts
+export type EngineeringAnnotation = {
+  id: string;
+  sourceId: string;
+  x: number;
+  text: string;
+  createdAt: number;
+  provenance: 'USER ANNOTATION';
+};
+```
+
+- [ ] **Step 1:** Add session-local provider with `addAnnotation`, `removeAnnotation`, `annotationsForSource`.
+- [ ] **Step 2:** Add annotation creation only when a plot point/x is selected; require non-empty text.
+- [ ] **Step 3:** Render annotation markers via existing `eventMarkers`/selected-x presentation path, labeled `USER ANNOTATION`.
+- [ ] **Step 4:** Do not persist into measurement packages or raw CSV.
+- [ ] **Step 5:** Verify and commit.
+
+```bash
+git add src/EngineeringAnnotations.tsx src/AnalysisVisualizationHub.tsx src/EngineeringPlot.tsx
+git commit -m "feat: add user engineering annotations"
+```
+
+---
+
+### Task 6: Engineering Status Map and Hardware Topology
 
 **Files:**
 - Create: `src/EngineeringStatusMap.tsx`
@@ -289,49 +256,17 @@ git commit -m "feat: synchronize primitive plot inspection"
 - Modify: `src/styles.css`
 
 **Interfaces:**
-- `EngineeringStatus = 'READY' | 'ACTIVE' | 'WARNING' | 'BLOCKED' | 'UNAVAILABLE'`
-- `EngineeringStatusNode = { id: string; label: string; status: EngineeringStatus; detail: string; targetTab?: 'hardware' | 'library' | 'data' | 'developer' }`
-- `EngineeringStatusMap({ nodes, onNavigate }: { nodes: EngineeringStatusNode[]; onNavigate: (tab: NonNullable<EngineeringStatusNode['targetTab']>) => void })`
-- `HardwareTopology({ portLabel, detectedBoardLabel, detectedFqbn, selectedFqbn, coreInstalled, requiredLibraries, missingLibraries, recipeTitle })`
 
-- [ ] **Step 1: Implement presentational status map**
+```ts
+export type EngineeringStatus = 'READY' | 'ACTIVE' | 'WARNING' | 'BLOCKED' | 'UNAVAILABLE';
+```
 
-Create a component that renders exactly six workflow nodes in order:
-
-`Toolchain → Hardware → Firmware → Acquisition → Evidence → Analysis`
-
-It accepts already-derived nodes and never computes hardware/science truth itself.
-
-- [ ] **Step 2: Derive nodes inside App from existing state only**
-
-Examples:
-
-- Toolchain: `cli === null` → ACTIVE during refresh; `cli.found` → READY; otherwise BLOCKED.
-- Hardware: no selected port → UNAVAILABLE; Hardware Doctor compile/upload blocking diagnosis → BLOCKED; non-blocking diagnosis warning → WARNING; otherwise READY.
-- Firmware: busy compile/upload → ACTIVE; preflight missing core/library → BLOCKED; selected recipe with valid preflight → READY; no recipe/preflight → UNAVAILABLE or WARNING without claiming compiled state.
-- Acquisition: derive only from existing Monitor/task state; do not invent LIVE state from port presence.
-- Evidence: latest measurement/replay/evidence presence only.
-- Analysis: shared analysis capability/readiness only; never scientific-validity scoring.
-
-Each navigable node calls `setTab(targetTab)`.
-
-- [ ] **Step 3: Implement HardwareTopology using existing Hardware Doctor/preflight values**
-
-Render:
-
-`USB port → detected board → selected FQBN → core → libraries → firmware`
-
-A detected-vs-selected mismatch must visually break/highlight only that edge. Missing core blocks the core node. Missing libraries render a count/list on the library node. Unknown exact physical board remains labeled unknown rather than inferred.
-
-- [ ] **Step 4: Mount topology in Hardware & Program and status map near Studio controls**
-
-Keep existing Hardware Doctor/preflight controls; the new visualizations summarize/navigate rather than replace the canonical controls.
-
-- [ ] **Step 5: Verify and commit**
-
-Run: `npm run build`
-
-Run: `python3 scripts/run_contract_self_checks.py`
+- [ ] **Step 1:** Render exactly `Toolchain → Hardware → Firmware → Acquisition → Evidence → Analysis`.
+- [ ] **Step 2:** Derive node state only from existing CLI/Hardware Doctor/preflight/task/evidence state in `App.tsx`.
+- [ ] **Step 3:** Make nodes navigable to existing surfaces; clicking status never performs destructive/hardware-changing actions.
+- [ ] **Step 4:** Render topology `USB → detected board → selected FQBN → core → libraries → firmware`.
+- [ ] **Step 5:** Mismatch/missing core/missing library break the appropriate edge/node; unknown board remains unknown.
+- [ ] **Step 6:** Verify/commit.
 
 ```bash
 git add src/EngineeringStatusMap.tsx src/HardwareTopology.tsx src/App.tsx src/styles.css
@@ -340,7 +275,7 @@ git commit -m "feat: visualize engineering workflow readiness"
 
 ---
 
-### Task 5: Task Center 2.0 with evidence-based timelines
+### Task 7: Task Center 2.0
 
 **Files:**
 - Create: `src/taskPresentation.ts`
@@ -348,54 +283,22 @@ git commit -m "feat: visualize engineering workflow readiness"
 - Modify: `src/developer-task.css`
 
 **Interfaces:**
-- `taskElapsedMs(task: BackgroundTask, nowMs?: number): number`
-- `deriveTaskTimeline(task: BackgroundTask): Array<{ id: string; label: string; state: 'done' | 'active' | 'failed' | 'pending' | 'unknown' }>`
-- No mutation of `BackgroundTask` storage schema.
-
-- [ ] **Step 1: Implement pure elapsed-time helper**
 
 ```ts
-export function taskElapsedMs(task: BackgroundTask, nowMs = Date.now()) {
-  return Math.max(0, (task.finishedAt ?? nowMs) - task.startedAt);
-}
+export function taskElapsedMs(task: BackgroundTask, nowMs?: number): number;
+export function deriveTaskTimeline(task: BackgroundTask): Array<{
+  id: string;
+  label: string;
+  state: 'done' | 'active' | 'failed' | 'pending' | 'unknown';
+}>;
 ```
 
-Add `formatDuration(ms: number): string` in `taskPresentation.ts` using seconds under one minute and `m:ss` at/above one minute.
-
-- [ ] **Step 2: Implement conservative timeline derivation**
-
-Use category/title/log evidence with explicit known phrases emitted by BetterBoard (`Preparing`, `Compiling`, `Uploading`, `Recording`, `Replay loaded`). For a stage with no supporting evidence return `unknown` or `pending`; never infer success merely because a later generic log exists.
-
-At minimum support:
-
-- Program upload: Prepare → Compile → Upload.
-- Evidence capture/save: Acquire → Save → Register when log evidence exists.
-- Replay: Locate → Load → Parse where corresponding evidence exists.
-- Other tasks: return an empty stage list and show the ordinary state row.
-
-- [ ] **Step 3: Upgrade Task Center presentation**
-
-Add:
-
-- summary chips: Running / Failed / Recent,
-- latest failed task callout,
-- filters: Running / Failed / Recent / All plus the existing category filter,
-- elapsed duration,
-- timeline when `deriveTaskTimeline` returns supported stages,
-- per-task `Copy logs` using `navigator.clipboard.writeText(task.logs.join('\n'))`,
-- local search input filtering displayed log lines without mutating saved logs.
-
-Retry is omitted unless a safe callback is explicitly supplied by the parent in a later approved change; do not reconstruct commands from log text.
-
-- [ ] **Step 4: Keep persistence/cancellation semantics unchanged**
-
-Verify no changes to `BackgroundTask` serialization or cancel callback behavior in `App.tsx` are required.
-
-- [ ] **Step 5: Verify and commit**
-
-Run: `npm run build`
-
-Run: `python3 scripts/run_contract_self_checks.py`
+- [ ] **Step 1:** Add elapsed/format helpers.
+- [ ] **Step 2:** Conservatively derive known Program/Evidence/Replay stages from real task/log evidence only.
+- [ ] **Step 3:** Add Running/Failed/Recent summary and pinned latest failure.
+- [ ] **Step 4:** Add elapsed duration, supported timeline, local log search, and `Copy logs`.
+- [ ] **Step 5:** Keep cancellation/history schema unchanged; do not reconstruct retries from arbitrary logs.
+- [ ] **Step 6:** Verify/commit.
 
 ```bash
 git add src/taskPresentation.ts src/TaskCenter.tsx src/developer-task.css
@@ -404,7 +307,7 @@ git commit -m "feat: upgrade task center diagnostics"
 
 ---
 
-### Task 6: Circuit net tracing and diagnostic overlay
+### Task 8: Circuit diagnostic overlay and net tracing
 
 **Files:**
 - Create: `src/circuitDiagnostics.ts`
@@ -412,56 +315,20 @@ git commit -m "feat: upgrade task center diagnostics"
 - Modify: `src/circuitLab.css`
 
 **Interfaces:**
-- Export or move only the minimal structural types needed by `circuitDiagnostics.ts`; do not change `betterboard.circuit-design/0.1` persisted fields.
-- `connectedNet(start: PinRef, wires: Wire[]): { pinKeys: Set<string>; wireIds: Set<string> }`
-- `issueTargets(issue: Issue, components: PlacedComponent[], wires: Wire[]): { componentIds: string[]; pinKeys: string[]; wireIds: string[] }`
-
-- [ ] **Step 1: Implement connected-net traversal**
-
-Build an undirected graph from wire endpoints. Encode pin keys as `${componentId}:${pinId}`. BFS from the selected pin returns all reachable pins and every traversed wire ID. This is connectivity visualization only; it must not assign voltages, current, resistance, or simulated signal state.
-
-- [ ] **Step 2: Implement conservative issue-target extraction**
-
-Prefer structured issue ids already emitted by the canonical checker:
-
-- `short-<wireId>` / `rails-<wireId>` / `power-io-<wireId>` → exact wire and its endpoint pins/components.
-- component-prefixed issue ids such as `<componentId>-vcc` / `<componentId>-sig` → exact component and pin only when that suffix maps to an existing pin.
-- otherwise return empty targets; do not parse free-form prose to guess a location.
-
-- [ ] **Step 3: Add CircuitLab UI state**
-
-Add:
 
 ```ts
-const [selectedPin, setSelectedPin] = useState<PinRef | null>(null);
-const [selectedWireId, setSelectedWireId] = useState<string | null>(null);
-const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
-const [showOnlyProblems, setShowOnlyProblems] = useState(false);
+connectedNet(start: PinRef, wires: Wire[]): { pinKeys: Set<string>; wireIds: Set<string> };
+issueTargets(issue: Issue, components: PlacedComponent[], wires: Wire[]): {
+  componentIds: string[]; pinKeys: string[]; wireIds: string[];
+};
 ```
 
-Derive selected net with `connectedNet` and selected issue overlay with `issueTargets`.
-
-- [ ] **Step 4: Project state into the existing canvas**
-
-- selected net wires/pins receive `net-active`,
-- issue-target wires/pins/components receive `problem-active`,
-- unrelated items are dimmed under `Show only problems`,
-- pin hover/click panel shows pin role, known nominal voltage, and connected peers,
-- clicking an issue highlights/focuses the target; if no structured target exists, retain only the issue-card selection.
-
-Retain `runRuleChecker` untouched as the source of issue truth.
-
-- [ ] **Step 5: Verify persisted design compatibility**
-
-Run: `python3 scripts/run_contract_self_checks.py`
-
-Expected: existing circuit persisted-design contract and new Phase 6 contract pass.
-
-Run: `npm run build`
-
-Expected: PASS.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 1:** Build undirected net traversal from wire endpoints only.
+- [ ] **Step 2:** Map structured checker issue ids conservatively; never parse free prose into guessed locations.
+- [ ] **Step 3:** Add selected pin/wire/issue and `Show only problems` UI state.
+- [ ] **Step 4:** Highlight whole net, exact problem targets, and dim unrelated elements when requested.
+- [ ] **Step 5:** Pin details show role/known nominal voltage/connected peers from existing metadata only.
+- [ ] **Step 6:** Keep `runRuleChecker()` canonical, verify persisted-design contract, commit.
 
 ```bash
 git add src/circuitDiagnostics.ts src/CircuitLab.tsx src/circuitLab.css
@@ -470,181 +337,93 @@ git commit -m "feat: add circuit diagnostic net overlays"
 
 ---
 
-### Task 7: Developer engineering split view
+### Task 9: Developer Engineering Split View
 
 **Files:**
 - Modify: `src/DeveloperIDE.tsx`
-- Modify: `src/SmartArduinoEditor.tsx` only if diagnostic navigation needs a typed reveal prop
+- Modify: `src/SmartArduinoEditor.tsx` only if needed
 - Modify: `src/developer-task.css`
 
-**Interfaces:**
-- Consumes existing `diagnostics`, `output`, `fqbn`, `selectedPort`, `busy`, Monaco editor callbacks, and existing compile/upload actions.
-- Optional editor addition: `revealPosition?: { line: number; column?: number } | null`.
-- Produces presentation only; no backend changes.
-
-- [ ] **Step 1: Introduce responsive split container**
-
-Wrap the existing editor surface in:
-
-```tsx
-<div className="developer-engineering-split">
-  <section className="developer-code-pane">{/* existing editor and file controls */}</section>
-  <aside className="developer-runtime-pane">{/* target, diagnostics and output */}</aside>
-</div>
-```
-
-Do not move ecosystem/sketchbook modes into the split; apply it to the editor view only.
-
-- [ ] **Step 2: Build right-side engineering panel from existing state**
-
-Render sections:
-
-- Target: selected FQBN + selected port.
-- Diagnostics: existing parsed diagnostics with line/column/severity.
-- Run output: existing `output` text plus the existing `CopyButton` component.
-- Operation state: `busy ? 'ACTIVE' : diagnostics.some(d => d.severity === 'error') ? 'BLOCKED' : 'READY'`, labeled as operation/UI state rather than hardware truth.
-
-Do not automatically open Monitor or a serial port after upload.
-
-- [ ] **Step 3: Make diagnostic rows navigate the editor**
-
-First inspect `SmartArduinoEditor` for an existing navigation interface. If none exists, add exactly this optional prop:
+**Interfaces:** Optional editor prop:
 
 ```ts
 revealPosition?: { line: number; column?: number } | null;
 ```
 
-Inside the Monaco mount/update path, when the prop changes to a non-null value, call `editor.revealLineInCenter(line)` and `editor.setPosition({ lineNumber: line, column: Math.max(1, column ?? 1) })`, then `editor.focus()`.
-
-Selecting a diagnostic updates `revealPosition`; it never modifies source text.
-
-- [ ] **Step 4: Verify all dirty-state and filesystem guards remain unchanged**
-
-Run: `python3 scripts/run_contract_self_checks.py`
-
-Expected: all existing developer draft/filesystem/rename/example/ecosystem checks and Phase 6 contract pass.
-
-Run: `npm run build`
-
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 1:** Editor mode becomes responsive `developer-engineering-split`: source left, target/diagnostics/output right.
+- [ ] **Step 2:** Right pane uses existing FQBN, port, diagnostics, busy state, and output.
+- [ ] **Step 3:** Diagnostic click reveals line/column in Monaco; source text is never modified.
+- [ ] **Step 4:** Successful upload may show `DEVICE READY` but must not auto-open Monitor/serial.
+- [ ] **Step 5:** Preserve dirty-state, draft recovery, sketchbook mutation guards, and ecosystem behavior.
+- [ ] **Step 6:** Verify/commit.
 
 ```bash
 git add src/DeveloperIDE.tsx src/SmartArduinoEditor.tsx src/developer-task.css
 git commit -m "feat: add developer engineering split view"
 ```
 
-If `SmartArduinoEditor.tsx` did not require modification, omit it from `git add` rather than making a no-op edit.
+---
+
+### Task 10: Analysis hierarchy and Experiments navigation coherence
+
+**Files:**
+- Create: `src/AnalysisWorkflowGuide.tsx`
+- Modify: `src/AnalysisVisualizationHub.tsx`
+- Modify: `src/ExperimentsHub.tsx`
+- Modify: `src/EngineeringExperimentLibrary.tsx`
+- Modify: `src/analysis-visualization.css`
+
+**Interfaces:** Presentation only; no analysis backend changes.
+
+- [ ] **Step 1:** Add plain workflow guide `Evidence → Analyze → Compare → Decide` above Analysis tabs, with one-sentence purpose for each stage.
+- [ ] **Step 2:** Re-label/group existing six panes under that hierarchy without deleting panes or changing underlying computations.
+- [ ] **Step 3:** Experiments gets explicit sections: `Campaigns`, `Complete Experiment Code Library`, `Run/Program handoff`.
+- [ ] **Step 4:** Every experiment code asset shows real actions only: View source; firmware Verify/Upload when Hardware Doctor allows; host scripts remain source/tool entries unless a safe canonical runner already exists.
+- [ ] **Step 5:** Keep repository-wide automatic discovery and lazy source loading; no hand-maintained per-file list.
+- [ ] **Step 6:** Add concise empty/error states so users know what to select next instead of seeing unexplained blank panels.
+- [ ] **Step 7:** Verify/commit.
+
+```bash
+git add src/AnalysisWorkflowGuide.tsx src/AnalysisVisualizationHub.tsx src/ExperimentsHub.tsx src/EngineeringExperimentLibrary.tsx src/analysis-visualization.css
+git commit -m "feat: unify analysis and experiment navigation"
+```
 
 ---
 
-### Task 8: Focus mode and responsive consistency pass
+### Task 11: Focus mode, responsive layout, and performance guardrails
 
 **Files:**
 - Modify: `src/main.tsx`
 - Modify: `src/workspace-shell.css`
-- Modify: `src/analysis-visualization.css` only if Analysis Hub needs a focus-mode hook
-- Modify: `src/developer-task.css` only if the Developer/Task layouts need a focus breakpoint adjustment
+- Modify: `src/analysis-visualization.css`
+- Modify: `src/developer-task.css`
+- Modify: `scripts/engineering_interaction_self_check.py`
 
-**Interfaces:**
-- `focusMode: boolean` top-level UI state only; no persistence in Phase 6.
+**Interfaces:** `focusMode: boolean` UI state only.
 
-- [ ] **Step 1: Add one top-level Focus Mode toggle**
-
-Add `const [focusMode, setFocusMode] = useState(false)` in the existing workspace shell owner. Apply a root class such as `workspace-focus-mode` and expose one explicit toggle near the workspace navigation.
-
-Focus mode hides/collapses secondary navigation, completed Task Center history, and nonessential control chrome while preserving the active workspace and its primary experiment/analysis content.
-
-It must never hide active warnings, failed tasks, or blockers required to understand why an operation is unavailable.
-
-- [ ] **Step 2: Add responsive breakpoints for Phase 6 surfaces**
-
-At narrow widths:
-
-- Engineering Status Map becomes horizontally scrollable or stacked without dropping node labels.
-- Hardware topology scrolls/wraps without overlapping edges.
-- Task summary remains readable.
-- Developer split stacks vertically.
-- Circuit canvas remains scrollable rather than scaling text to unreadable size.
-
-Implement these rules in the exact CSS owners listed above rather than creating a new global stylesheet.
-
-- [ ] **Step 3: Run build and contract suite**
-
-Run: `npm run build`
-
-Run: `python3 scripts/run_contract_self_checks.py`
-
-Expected: PASS.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 1:** Add reversible top-level Focus Mode; preserve blockers/warnings and active work.
+- [ ] **Step 2:** Narrow layouts: status/topology stack or local-scroll; Developer split stacks; Task timeline becomes vertical; plot readouts wrap; Circuit canvas locally scrolls.
+- [ ] **Step 3:** Add contract assertions prohibiting `window.setInterval` in HardwareSession and `eager: true` in experiment source discovery.
+- [ ] **Step 4:** Check that no new global timer continuously invokes Tauri hardware/session commands from Phase 6 components.
+- [ ] **Step 5:** Run `npm run build`; confirm no source-body eager bundling regression.
+- [ ] **Step 6:** Verify/commit.
 
 ```bash
-git add src/main.tsx src/workspace-shell.css src/analysis-visualization.css src/developer-task.css
-git commit -m "feat: polish engineering focus and responsive UI"
+git add src/main.tsx src/workspace-shell.css src/analysis-visualization.css src/developer-task.css scripts/engineering_interaction_self_check.py
+git commit -m "feat: finish responsive engineering workspace"
 ```
-
-Only include CSS files actually changed.
 
 ---
 
-### Task 9: Exact-head regression and PR verification
+### Task 12: Full exact-head regression verification
 
-**Files:**
-- No production changes unless a failing regression identifies a root cause.
+**Files:** No production changes unless a verified failure identifies a root cause.
 
-**Interfaces:**
-- Consumes all Phase 6 tasks and existing CI workflows.
-- Produces verification evidence only.
-
-- [ ] **Step 1: Run local/static gates available in the branch environment**
-
-Required commands in CI or an equivalent checkout:
-
-```bash
-npm run build
-python3 scripts/run_contract_self_checks.py
-```
-
-Expected: TypeScript/Vite PASS and all Python contracts PASS, including `engineering_interaction_self_check.py`.
-
-- [ ] **Step 2: Verify existing hardware/backend gates remain green**
-
-On the exact head SHA, require the same existing PR workflows used in Phase 5:
-
-- BetterBoard CI, including UNO numerical microbench compile, Numeric Error Depth compile, device primitive result compile, Rust/Tauri check.
-- BetterBoard C++ Core.
-- Engineering Lab Experiments.
-- Sensor Suite v1 Integrity.
-
-Do not call Phase 6 complete while any exact-head required workflow is failed or still in progress.
-
-- [ ] **Step 3: Inspect failures systematically**
-
-For any failure:
-
-1. fetch the failed job steps/logs,
-2. identify the exact failing gate,
-3. distinguish stale structural contracts from real product regressions,
-4. add or adjust the smallest failing regression case,
-5. implement one root-cause fix,
-6. rerun exact-head verification.
-
-- [ ] **Step 4: Final review against spec**
-
-Confirm:
-
-- linked cursor/range is inspection-only,
-- no source data is cropped/mutated,
-- producer identity remains explicit,
-- workflow status never claims scientific validity,
-- HardwareTopology does not infer unknown physical board identity,
-- Task Center does not invent timeline stages,
-- Circuit overlay keeps `runRuleChecker` canonical,
-- Developer split preserves dirty-state/filesystem protections,
-- no evidence schema/backend scientific algorithm was introduced.
-
-- [ ] **Step 5: Do not merge**
-
-Leave PR #66 open on `ui/analysis-visualization-integration-a9` unless the user explicitly requests merge/integration.
+- [ ] **Step 1:** Run `npm run build` and `python3 scripts/run_contract_self_checks.py` on exact head.
+- [ ] **Step 2:** Require BetterBoard CI success including TypeScript/Vite, contracts, UNO numerical firmware, device primitive firmware, and Rust check.
+- [ ] **Step 3:** Require Engineering Lab Experiments success for its declared targets.
+- [ ] **Step 4:** Require Sensor Suite v1 Integrity success.
+- [ ] **Step 5:** Require BetterBoard C++ Core success.
+- [ ] **Step 6:** For failures, fetch exact job logs, identify root cause, add/adjust the smallest regression case, apply one minimal fix, and rerun.
+- [ ] **Step 7:** Final spec audit: linked inspection is non-mutating; A/B keeps runs separate; annotations remain `USER ANNOTATION`; status does not imply scientific validity; topology does not infer unknown boards; tasks do not invent stages; Circuit keeps `runRuleChecker`; Developer preserves dirty-state protections; Experiments remains real-code/lazy-loaded; no periodic Arduino CLI polling.
+- [ ] **Step 8:** Leave PR #66 open and do not merge `main` unless the user explicitly requests it.
