@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ComponentProps } from 'react';
 import { Activity, Gauge, RotateCcw } from 'lucide-react';
 import EngineeringPlot from './EngineeringPlot';
+import { PlotInspectionProvider, usePlotInspection } from './PlotInspectionContext';
 import SignalHealthRail, { type PrimitiveHealthSummary } from './SignalHealthRail';
 import {
   computeHostPrimitiveObservability,
@@ -70,7 +71,45 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return <div style={{ display: 'grid', gap: 10 }}><div className="panel-title" style={{ marginBottom: 0 }}>{title}</div>{children}</div>;
 }
 
-export default function PrimitiveObservatory({ samples, channelLabel, unit, contextLabel, deviceResults, deviceDiagnostics }: Props) {
+function LinkedEngineeringPlot(props: ComponentProps<typeof EngineeringPlot>) {
+  const { selectedX, selectedRange, setSelectedX, setSelectedRange } = usePlotInspection();
+  return <EngineeringPlot {...props} selectedX={selectedX} selectedRange={selectedRange} onSelectedXChange={setSelectedX} onRangeSelect={setSelectedRange}/>;
+}
+
+function nearestSample(points: PrimitiveSample[], x: number | null) {
+  if (x === null || !points.length) return null;
+  let best = points[0];
+  let distance = Math.abs(best.timeS - x);
+  for (let index = 1; index < points.length; index += 1) {
+    const next = Math.abs(points[index].timeS - x);
+    if (next < distance) {
+      best = points[index];
+      distance = next;
+    }
+  }
+  return best;
+}
+
+function PrimitiveInspectionReadout({ raw, ema, deviceEma, derivative, deviceDerivative, unit }: { raw: PrimitiveSample[]; ema: PrimitiveSample[]; deviceEma: PrimitiveSample[]; derivative: PrimitiveSample[]; deviceDerivative: PrimitiveSample[]; unit: string }) {
+  const { selectedX, selectedRange, resetInspection } = usePlotInspection();
+  if (selectedX === null && !selectedRange) return null;
+  const measured = nearestSample(raw, selectedX);
+  const hostEma = nearestSample(ema, selectedX);
+  const mcuEma = nearestSample(deviceEma, selectedX);
+  const hostDerivative = nearestSample(derivative, selectedX);
+  const mcuDerivative = nearestSample(deviceDerivative, selectedX);
+  return <div className="boundary" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+    <span><b>Linked inspection</b>{selectedX !== null ? ` · t≈${formatValue(selectedX, 4)} s · nearest/aligned sample` : ''}{selectedRange ? ` · range ${formatValue(selectedRange[0], 4)}–${formatValue(selectedRange[1], 4)} s` : ''}</span>
+    {measured && <span>MEASURED {formatValue(measured.value)}{unit ? ` ${unit}` : ''}</span>}
+    {hostEma && <span>HOST-DERIVED EMA {formatValue(hostEma.value)}{unit ? ` ${unit}` : ''}</span>}
+    {mcuEma && <span>DEVICE-DERIVED EMA {formatValue(mcuEma.value)}{unit ? ` ${unit}` : ''}</span>}
+    {hostDerivative && <span>HOST-DERIVED d/dt {formatValue(hostDerivative.value)}</span>}
+    {mcuDerivative && <span>DEVICE-DERIVED d/dt {formatValue(mcuDerivative.value)}</span>}
+    <button className="ghost mini" onClick={resetInspection}>Reset inspection</button>
+  </div>;
+}
+
+function PrimitiveObservatoryBody({ samples, channelLabel, unit, contextLabel, deviceResults, deviceDiagnostics }: Props) {
   const defaults = useMemo(() => derivePrimitiveDefaults(samples), [samples]);
   const [overrides, setOverrides] = useState<ParameterOverrides>({});
   const parameters = useMemo<PrimitiveParameters>(() => ({ ...defaults, ...overrides }), [defaults, overrides]);
@@ -151,6 +190,7 @@ export default function PrimitiveObservatory({ samples, channelLabel, unit, cont
     <div className="boundary"><Gauge size={14}/><span><b>{channelLabel}{unit ? ` (${unit})` : ''}</b> · Host traces are computed on the desktop from the selected Monitor & Data evidence. They are not MCU-emitted results and do not modify the saved raw evidence. DEVICE-DERIVED traces, when present, are MCU-emitted derived results carried separately from raw measurement evidence.</span></div>
 
     <SignalHealthRail summary={healthSummary}/>
+    <PrimitiveInspectionReadout raw={samples} ema={result.emaTrace} deviceEma={deviceEma} derivative={result.derivativeTrace} deviceDerivative={deviceDerivative} unit={unit}/>
 
     {selectedDeviceResults.length > 0 && <div style={{ display: 'grid', gap: 8 }}><div className="panel-title" style={{ marginBottom: 0 }}>HOST ↔ DEVICE consistency</div><div className="hint">Comparison is diagnostic only. A difference does not automatically make either producer correct; source binding, parameters and time alignment must be compatible first.</div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 8 }}>{comparisonRows.map(row => <div className="measurement" key={row.label}><span>{row.label}</span><b>{row.status}</b><small>{row.text}</small></div>)}</div></div>}
 
@@ -163,26 +203,31 @@ export default function PrimitiveObservatory({ samples, channelLabel, unit, cont
 
     <Section title="Online state">
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Metric label="N" value={String(result.sampleCount)} /><Metric label="Mean" value={formatValue(result.statistics.mean)} unit={unit} /><Metric label="Device mean" value={formatValue(latestDeviceValue(deviceResults, 'stats_mean', channelLabel))} unit={unit} /><Metric label="Sample std" value={formatValue(result.statistics.sampleStandardDeviation)} unit={unit} /><Metric label="Device std" value={formatValue(latestDeviceValue(deviceResults, 'stats_std', channelLabel))} unit={unit} /><Metric label="Min" value={formatValue(result.statistics.minimum)} unit={unit} /><Metric label="Device min" value={formatValue(latestDeviceValue(deviceResults, 'stats_min', channelLabel))} unit={unit} /><Metric label="Max" value={formatValue(result.statistics.maximum)} unit={unit} /><Metric label="Device max" value={formatValue(latestDeviceValue(deviceResults, 'stats_max', channelLabel))} unit={unit} /><Metric label="Peak-to-peak" value={formatValue(result.statistics.peakToPeak)} unit={unit} /><Metric label="RMS" value={formatValue(result.rms)} unit={unit} /></div>
-      <EngineeringPlot series={[{ label: channelLabel, points: raw }, { label: 'host cumulative RMS', points: plotPoints(result.rmsTrace), dashed: true }, ...(deviceRms.length ? [{ label: 'device RMS', points: plotPoints(deviceRms) }] : [])]} xLabel="time" xUnit="s" yLabel="signal / RMS" yUnit={unit} height={240}/>
+      <LinkedEngineeringPlot series={[{ label: channelLabel, points: raw }, { label: 'host cumulative RMS', points: plotPoints(result.rmsTrace), dashed: true }, ...(deviceRms.length ? [{ label: 'device RMS', points: plotPoints(deviceRms) }] : [])]} xLabel="time" xUnit="s" yLabel="signal / RMS" yUnit={unit} height={240}/>
     </Section>
 
-    <Section title="Dynamics"><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}><div><div className="hint">Finite difference uses each observed host-timestamp Δt. Device results use the MCU-declared microsecond timeline.</div>{result.derivativeTrace.length ? <EngineeringPlot series={[{ label: 'host derivative', points: plotPoints(result.derivativeTrace) }, ...(deviceDerivative.length ? [{ label: 'device derivative', points: plotPoints(deviceDerivative), dashed: true }] : [])]} xLabel="time" xUnit="s" yLabel={`d(${channelLabel})/dt`} yUnit={derivativeUnit} height={240} zeroLine /> : <div className="empty compact">Derivative needs at least two samples with increasing timestamps.</div>}</div><div><div className="hint">Cumulative trapezoid integral uses actual observed Δt.</div>{result.integralTrace.length > 1 ? <EngineeringPlot series={[{ label: 'host integral', points: plotPoints(result.integralTrace) }, ...(deviceIntegral.length ? [{ label: 'device integral', points: plotPoints(deviceIntegral), dashed: true }] : [])]} xLabel="time" xUnit="s" yLabel={`∫ ${channelLabel} dt`} yUnit={integralUnit} height={240} zeroLine /> : <div className="empty compact">Integral needs at least two samples with increasing timestamps.</div>}</div></div></Section>
+    <Section title="Dynamics"><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}><div><div className="hint">Finite difference uses each observed host-timestamp Δt. Device results use the MCU-declared microsecond timeline.</div>{result.derivativeTrace.length ? <LinkedEngineeringPlot series={[{ label: 'host derivative', points: plotPoints(result.derivativeTrace) }, ...(deviceDerivative.length ? [{ label: 'device derivative', points: plotPoints(deviceDerivative), dashed: true }] : [])]} xLabel="time" xUnit="s" yLabel={`d(${channelLabel})/dt`} yUnit={derivativeUnit} height={240} zeroLine /> : <div className="empty compact">Derivative needs at least two samples with increasing timestamps.</div>}</div><div><div className="hint">Cumulative trapezoid integral uses actual observed Δt.</div>{result.integralTrace.length > 1 ? <LinkedEngineeringPlot series={[{ label: 'host integral', points: plotPoints(result.integralTrace) }, ...(deviceIntegral.length ? [{ label: 'device integral', points: plotPoints(deviceIntegral), dashed: true }] : [])]} xLabel="time" xUnit="s" yLabel={`∫ ${channelLabel} dt`} yUnit={integralUnit} height={240} zeroLine /> : <div className="empty compact">Integral needs at least two samples with increasing timestamps.</div>}</div></div></Section>
 
-    <Section title="Signal conditioning"><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}><EngineeringPlot series={[{ label: 'raw', points: raw }, { label: `host EMA α=${formatValue(result.effectiveParameters.emaAlpha, 3)}`, points: plotPoints(result.emaTrace), dashed: true }, ...(deviceEma.length ? [{ label: 'device EMA', points: plotPoints(deviceEma) }] : [])]} xLabel="time" xUnit="s" yLabel={channelLabel} yUnit={unit} height={240}/><EngineeringPlot series={[{ label: 'raw', points: raw }, { label: 'host peak hold', points: plotPoints(result.peakHoldTrace), dashed: true }, ...(devicePeak.length ? [{ label: 'device peak hold', points: plotPoints(devicePeak) }] : [])]} xLabel="time" xUnit="s" yLabel={channelLabel} yUnit={unit} height={240}/></div></Section>
+    <Section title="Signal conditioning"><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}><LinkedEngineeringPlot series={[{ label: 'raw', points: raw }, { label: `host EMA α=${formatValue(result.effectiveParameters.emaAlpha, 3)}`, points: plotPoints(result.emaTrace), dashed: true }, ...(deviceEma.length ? [{ label: 'device EMA', points: plotPoints(deviceEma) }] : [])]} xLabel="time" xUnit="s" yLabel={channelLabel} yUnit={unit} height={240}/><LinkedEngineeringPlot series={[{ label: 'raw', points: raw }, { label: 'host peak hold', points: plotPoints(result.peakHoldTrace), dashed: true }, ...(devicePeak.length ? [{ label: 'device peak hold', points: plotPoints(devicePeak) }] : [])]} xLabel="time" xUnit="s" yLabel={channelLabel} yUnit={unit} height={240}/></div></Section>
 
     <Section title="Decision state">
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Metric label="Threshold events" value={String(result.thresholdEvents.length)} /><Metric label="Hysteresis transitions" value={String(result.hysteresisEvents.length)} /></div>
-      <EngineeringPlot series={[{ label: 'raw', points: raw }]} xLabel="time" xUnit="s" yLabel={channelLabel} yUnit={unit} height={250} horizontalMarkers={[{ y: threshold, label: `threshold ${formatValue(threshold, 4)}` }, ...(result.hysteresisReady ? [{ y: low, label: `hysteresis low ${formatValue(low, 4)}` }, { y: high, label: `hysteresis high ${formatValue(high, 4)}` }] : [])]}/>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}><EngineeringPlot series={[{ label: 'host threshold latch', points: plotPoints(result.thresholdStateTrace) }, ...(deviceThreshold.length ? [{ label: 'device threshold latch', points: plotPoints(deviceThreshold), dashed: true }] : [])]} xLabel="time" xUnit="s" yLabel="latched" height={210} zeroLine />{result.hysteresisReady ? <EngineeringPlot series={[{ label: 'host hysteresis state', points: plotPoints(result.hysteresisStateTrace) }, ...(deviceHysteresis.length ? [{ label: 'device hysteresis state', points: plotPoints(deviceHysteresis), dashed: true }] : [])]} xLabel="time" xUnit="s" yLabel="state" height={210} zeroLine /> : <div className="empty compact">{result.hysteresisReason}</div>}</div>
+      <LinkedEngineeringPlot series={[{ label: 'raw', points: raw }]} xLabel="time" xUnit="s" yLabel={channelLabel} yUnit={unit} height={250} horizontalMarkers={[{ y: threshold, label: `threshold ${formatValue(threshold, 4)}` }, ...(result.hysteresisReady ? [{ y: low, label: `hysteresis low ${formatValue(low, 4)}` }, { y: high, label: `hysteresis high ${formatValue(high, 4)}` }] : [])]}/>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}><LinkedEngineeringPlot series={[{ label: 'host threshold latch', points: plotPoints(result.thresholdStateTrace) }, ...(deviceThreshold.length ? [{ label: 'device threshold latch', points: plotPoints(deviceThreshold), dashed: true }] : [])]} xLabel="time" xUnit="s" yLabel="latched" height={210} zeroLine />{result.hysteresisReady ? <LinkedEngineeringPlot series={[{ label: 'host hysteresis state', points: plotPoints(result.hysteresisStateTrace) }, ...(deviceHysteresis.length ? [{ label: 'device hysteresis state', points: plotPoints(deviceHysteresis), dashed: true }] : [])]} xLabel="time" xUnit="s" yLabel="state" height={210} zeroLine /> : <div className="empty compact">{result.hysteresisReason}</div>}</div>
     </Section>
 
     <Section title="Trend & change">
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Metric label="Trend slope" value={formatValue(result.regression?.slope)} unit={derivativeUnit} /><Metric label="Trend intercept" value={formatValue(result.regression?.intercept)} unit={unit} /><Metric label="Trend R²" value={formatValue(result.regression?.rSquared, 4)} /><Metric label="CUSUM alarms" value={String(result.cusumEvents.length)} /><Metric label="Mean-shift flags" value={String(result.meanShiftEvents.length)} /></div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap' }}><NumericParameter label="CUSUM mean" value={parameters.cusumReferenceMean ?? defaults.cusumReferenceMean ?? 0} onChange={value => setParameter('cusumReferenceMean', value)} /><NumericParameter label="CUSUM slack" value={parameters.cusumSlack ?? defaults.cusumSlack ?? 0} min={0} onChange={value => setParameter('cusumSlack', Math.max(0, value))} /><NumericParameter label="CUSUM threshold" value={parameters.cusumThreshold ?? defaults.cusumThreshold ?? 0} min={0} onChange={value => setParameter('cusumThreshold', Math.max(0, value))} /><NumericParameter label="Mean-shift threshold" value={parameters.meanShiftThreshold ?? defaults.meanShiftThreshold ?? 0} min={0} onChange={value => setParameter('meanShiftThreshold', Math.max(0, value))} /></div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
-        {result.cusumPositiveTrace.length ? <EngineeringPlot series={[{ label: 'CUSUM +', points: plotPoints(result.cusumPositiveTrace) }, { label: 'CUSUM −', points: plotPoints(result.cusumNegativeTrace), dashed: true }]} xLabel="time" xUnit="s" yLabel="CUSUM score" yUnit={unit} height={240} zeroLine horizontalMarkers={[{ y: result.effectiveParameters.cusumThreshold ?? 0, label: 'positive alarm' }, { y: -(result.effectiveParameters.cusumThreshold ?? 0), label: 'negative alarm' }]}/> : <div className="empty compact">CUSUM is unavailable without finite samples.</div>}
-        {result.meanShiftTrace.length ? <EngineeringPlot series={[{ label: 'mean shift', points: plotPoints(result.meanShiftTrace) }]} xLabel="time" xUnit="s" yLabel="window mean shift" yUnit={unit} height={240} zeroLine horizontalMarkers={[{ y: result.effectiveParameters.meanShiftThreshold ?? 0, label: '+ shift limit' }, { y: -(result.effectiveParameters.meanShiftThreshold ?? 0), label: '− shift limit' }]}/> : <div className="empty compact">Mean-shift detection needs a complete {result.effectiveParameters.meanShiftWindow}-sample window.</div>}
+        {result.cusumPositiveTrace.length ? <LinkedEngineeringPlot series={[{ label: 'CUSUM +', points: plotPoints(result.cusumPositiveTrace) }, { label: 'CUSUM −', points: plotPoints(result.cusumNegativeTrace), dashed: true }]} xLabel="time" xUnit="s" yLabel="CUSUM score" yUnit={unit} height={240} zeroLine horizontalMarkers={[{ y: result.effectiveParameters.cusumThreshold ?? 0, label: 'positive alarm' }, { y: -(result.effectiveParameters.cusumThreshold ?? 0), label: 'negative alarm' }]}/> : <div className="empty compact">CUSUM is unavailable without finite samples.</div>}
+        {result.meanShiftTrace.length ? <LinkedEngineeringPlot series={[{ label: 'mean shift', points: plotPoints(result.meanShiftTrace) }]} xLabel="time" xUnit="s" yLabel="window mean shift" yUnit={unit} height={240} zeroLine horizontalMarkers={[{ y: result.effectiveParameters.meanShiftThreshold ?? 0, label: '+ shift limit' }, { y: -(result.effectiveParameters.meanShiftThreshold ?? 0), label: '− shift limit' }]}/> : <div className="empty compact">Mean-shift detection needs a complete {result.effectiveParameters.meanShiftWindow}-sample window.</div>}
       </div>
     </Section>
   </div>;
+}
+
+export default function PrimitiveObservatory(props: Props) {
+  const inspectionSourceId = `${props.contextLabel}:${props.channelLabel}`;
+  return <PlotInspectionProvider sourceId={inspectionSourceId}><PrimitiveObservatoryBody {...props}/></PlotInspectionProvider>;
 }
