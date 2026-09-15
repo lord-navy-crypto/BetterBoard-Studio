@@ -25,16 +25,23 @@ def main() -> int:
     require("src/EngineeringStatusMap.tsx", "Toolchain", "Hardware", "Firmware", "Acquisition", "Evidence", "Analysis")
     require("src/HardwareTopology.tsx", "detected board", "selected FQBN", "required libraries")
     require("src/taskPresentation.ts", "deriveTaskTimeline", "taskElapsedMs")
-    require("src/TaskCenter.tsx", "Running", "Failed", "Recent", "Copy logs")
+    require("src/TaskCenter.tsx", "Running", "Failed", "Recent", "Copy logs", "betterboard:tasks-changed")
     require("src/circuitDiagnostics.ts", "connectedNet", "issueTargets")
+    require("src/CircuitLab.tsx", "connectedNet", "issueTargets", "Show only problems")
     require("src/DeveloperIDE.tsx", "developer-engineering-split", "Diagnostics", "Run output")
     require("src/AnalysisWorkflowGuide.tsx", "Evidence", "Analyze", "Compare", "Decide")
+    require("src/AnalysisVisualizationHub.tsx", "Run A", "Run B", "AnnotatedEngineeringPlot")
+    require("src/EvidenceSourcePicker.tsx", "Set as Run A", "Set as Run B")
     require("src/ExperimentsHub.tsx", "Complete Experiment Code Library")
+    require("src/main.tsx", "betterboard:tasks-changed", "focusMode", "Focus mode")
 
     hardware = read("src/HardwareSession.tsx")
     assert "window.setInterval" not in hardware, "HardwareSession must stay lifecycle/manual driven"
     assert "NO_BOARD_RESCAN_MS" not in hardware, "frequent hardware polling must not return"
     assert "CONNECTED_BOARD_RESCAN_MS" not in hardware, "connected-board polling must not return"
+
+    main = read("src/main.tsx")
+    assert "setInterval(() => setTasks(readTaskMemory()), 1200)" not in main, "Root task status must be event-driven, not globally polled every 1.2 seconds"
 
     library = read("src/EngineeringExperimentLibrary.tsx")
     assert "import.meta.glob" in library, "experiment assets must remain repository-discovered"
