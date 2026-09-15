@@ -33,6 +33,7 @@ CHECKS = (
     "model_fitting_self_check.py",
     "experiment_planning_self_check.py",
     "math_runtime_capabilities_self_check.py",
+    "primitive_observability_self_check.py",
 )
 
 
