@@ -60,7 +60,7 @@ for token in [
     'No board selected',
     'Acquisition',
     'Tasks',
-    'EngineeringPreparationStudio',
+    'AnalysisVisualizationHub',
 ]:
     assert token in main, f'Global workspace/status layer lost {token}'
 
