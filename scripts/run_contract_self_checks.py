@@ -35,6 +35,7 @@ CHECKS = (
     "math_runtime_capabilities_self_check.py",
     "primitive_observability_self_check.py",
     "device_primitive_results_self_check.py",
+    "device_primitive_time_origin_self_check.py",
 )
 
 
