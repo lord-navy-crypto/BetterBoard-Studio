@@ -10,6 +10,11 @@ import EngineeringPlot from './EngineeringPlot';
 import PrimitiveObservatory from './PrimitiveObservatory';
 import CopyButton from './CopyButton';
 import { enabledMathRuntimeCapabilities, parseMathRuntimeCapabilities } from './mathRuntimeCapabilities';
+import {
+  parseDevicePrimitiveResult,
+  type DevicePrimitiveDiagnostic,
+  type DevicePrimitiveResult,
+} from './devicePrimitiveResults';
 
 type RecipeSpec = {
   id: string;
@@ -191,6 +196,17 @@ export default function MonitorDataStudio({
     () => mathRuntimeCapabilities ? enabledMathRuntimeCapabilities(mathRuntimeCapabilities) : [],
     [mathRuntimeCapabilities],
   );
+  const devicePrimitiveContext = useMemo(() => {
+    const results: DevicePrimitiveResult[] = [];
+    const diagnostics: DevicePrimitiveDiagnostic[] = [];
+    for (const row of displayRows) {
+      if (row.direction === 'tx') continue;
+      const parsed = parseDevicePrimitiveResult(row.line);
+      if (parsed.result) results.push(parsed.result);
+      else if (parsed.diagnostic) diagnostics.push(parsed.diagnostic);
+    }
+    return { results, diagnostics };
+  }, [displayRows]);
 
   const numericRows = useMemo(() => displayRows
     .map(row => parseNumericRow(row, activeColumns.length))
@@ -583,6 +599,8 @@ export default function MonitorDataStudio({
             channelLabel={selectedColumn}
             unit={selectedUnit}
             contextLabel={replay ? 'REPLAY' : live ? 'LIVE' : 'BUFFER'}
+            deviceResults={devicePrimitiveContext.results}
+            deviceDiagnostics={devicePrimitiveContext.diagnostics}
           />
         </>}
       </div>
