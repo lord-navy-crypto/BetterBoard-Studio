@@ -1,4 +1,5 @@
 import { Activity, CheckCircle2, FlaskConical, Magnet, Sigma } from 'lucide-react';
+import CampaignVisualization from './CampaignVisualization';
 import CopyButton from './CopyButton';
 import EspressifCapabilityPanel from './EspressifCapabilityPanel';
 
@@ -72,6 +73,7 @@ export default function ExperimentsHub() {
       })}
     </section>
 
+    <CampaignVisualization />
     <EspressifCapabilityPanel />
 
     <section className="panel" style={{ maxWidth: 1420, margin: '14px auto 50px' }}>
