@@ -7,6 +7,7 @@ import AnalysisVisualizationHub from './AnalysisVisualizationHub';
 import ExperimentsHub from './ExperimentsHub';
 import Observatory from './Observatory';
 import ObservatoryMissionControl from './ObservatoryMissionControl';
+import ObservatoryVisualSummary from './ObservatoryVisualSummary';
 import OpenPenguinBridge from './OpenPenguinBridge';
 import { EvidenceVisualizationProvider } from './EvidenceVisualizationContext';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
@@ -177,7 +178,7 @@ function Root() {
 
     <div className="bb-workspace-frame">
       <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><AnalysisVisualizationHub /></div>
-      <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><ObservatoryMissionControl /><Observatory /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><ObservatoryMissionControl /><ObservatoryVisualSummary /><Observatory /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub /></div>
     </div>
   </div>;
