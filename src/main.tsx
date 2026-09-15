@@ -11,6 +11,7 @@ import ObservatoryVisualSummary from './ObservatoryVisualSummary';
 import OpenPenguinBridge from './OpenPenguinBridge';
 import { EvidenceVisualizationProvider } from './EvidenceVisualizationContext';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
+import { RunComparisonProvider } from './RunComparisonContext';
 import type { BackgroundTask } from './TaskCenter';
 import './styles.css';
 import './visual-system.css';
@@ -185,5 +186,5 @@ function Root() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><HardwareSessionProvider><EvidenceVisualizationProvider><Root /></EvidenceVisualizationProvider></HardwareSessionProvider></React.StrictMode>,
+  <React.StrictMode><HardwareSessionProvider><EvidenceVisualizationProvider><RunComparisonProvider><Root /></RunComparisonProvider></EvidenceVisualizationProvider></HardwareSessionProvider></React.StrictMode>,
 );
