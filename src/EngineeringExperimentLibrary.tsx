@@ -16,169 +16,167 @@ type ExperimentSpec = {
   units: string[];
 };
 
-type AnalysisAsset = {
-  id: string;
-  label: string;
-  purpose: string;
-  path: string;
-  url: string;
-};
+type AssetKind = 'firmware' | 'analysis';
+type AssetFamily =
+  | 'Dedicated Engineering Lab'
+  | 'Numerical Reliability'
+  | 'ESP32 Research'
+  | 'Sensor Suite'
+  | 'BetterBoard Firmware'
+  | 'Host Analysis & Bridges';
 
-type ActiveAsset = {
+type CodeAsset = {
   key: string;
   label: string;
   path: string;
-  url: string;
-  kind: 'firmware' | 'analysis';
+  source: string;
+  kind: AssetKind;
+  family: AssetFamily;
   sketchName?: string;
+  catalog?: ExperimentSpec;
 };
 
 const experimentCatalog = experimentCatalogJson as ExperimentSpec[];
+const catalogBySketch = new Map(experimentCatalog.map(item => [item.sketch_name, item]));
 
-const FIRMWARE_URLS: Record<string, string> = {
-  EL_Radia_MLX90393_Field: new URL('../engineering-lab-experiments/firmware/EL_Radia_MLX90393_Field/EL_Radia_MLX90393_Field.ino', import.meta.url).href,
-  EL_Oscillation_LSM6DSOX_VL53L1X: new URL('../engineering-lab-experiments/firmware/EL_Oscillation_LSM6DSOX_VL53L1X/EL_Oscillation_LSM6DSOX_VL53L1X.ino', import.meta.url).href,
-  EL_Honeycomb_Dual_ADXL345: new URL('../engineering-lab-experiments/firmware/EL_Honeycomb_Dual_ADXL345/EL_Honeycomb_Dual_ADXL345.ino', import.meta.url).href,
-  EL_Chaos_Encoder_Kinematics: new URL('../engineering-lab-experiments/firmware/EL_Chaos_Encoder_Kinematics/EL_Chaos_Encoder_Kinematics.ino', import.meta.url).href,
-  EL_Oscillation_Photogate_Period: new URL('../engineering-lab-experiments/firmware/EL_Oscillation_Photogate_Period/EL_Oscillation_Photogate_Period.ino', import.meta.url).href,
-  EL_Numerical_ADC_Reference: new URL('../engineering-lab-experiments/firmware/EL_Numerical_ADC_Reference/EL_Numerical_ADC_Reference.ino', import.meta.url).href,
-  EL_ForceDynamics_HX711: new URL('../engineering-lab-experiments/firmware/EL_ForceDynamics_HX711/EL_ForceDynamics_HX711.ino', import.meta.url).href,
-  EL_PowerContext_INA219: new URL('../engineering-lab-experiments/firmware/EL_PowerContext_INA219/EL_PowerContext_INA219.ino', import.meta.url).href,
-  EL_Numerical_BME280_Context: new URL('../engineering-lab-experiments/firmware/EL_Numerical_BME280_Context/EL_Numerical_BME280_Context.ino', import.meta.url).href,
-};
+// Source code is intentionally discovered from the repository instead of being
+// duplicated in a hand-maintained UI registry. New experiment firmware/tools in
+// these trees automatically become visible in Experiments on the next build.
+const firmwareModules = import.meta.glob(
+  [
+    '../engineering-lab-experiments/firmware/**/*.ino',
+    '../src-tauri/resources/firmware/**/*.ino',
+    '../sensor-suite/firmware/**/*.ino',
+    '../firmware/betterboard-core/examples/**/*.ino',
+  ],
+  { eager: true, query: '?raw', import: 'default' },
+) as Record<string, string>;
 
-const ANALYSIS_ASSETS: AnalysisAsset[] = [
-  {
-    id: 'numeric-campaign',
-    label: 'Numeric Error campaign analyzer',
-    purpose: 'Independent host analysis for the wider numerical-error experiment family.',
-    path: 'scripts/numeric_error_campaign_analyzer.py',
-    url: new URL('../scripts/numeric_error_campaign_analyzer.py', import.meta.url).href,
-  },
-  {
-    id: 'numeric-bridge',
-    label: 'Arduino numerical-error bridge',
-    purpose: 'RAW / REDUCED Taylor campaign capture and host-reference bridge.',
-    path: 'scripts/arduino_numeric_error_bridge_v2.py',
-    url: new URL('../scripts/arduino_numeric_error_bridge_v2.py', import.meta.url).href,
-  },
-  {
-    id: 'bench02',
-    label: 'Bench 02 numerical analyzer',
-    purpose: 'Timing jitter, downsampling convergence, derivative/integration and accumulation diagnostics.',
-    path: 'scripts/bench02_numerical_error.py',
-    url: new URL('../scripts/bench02_numerical_error.py', import.meta.url).href,
-  },
-  {
-    id: 'bench03',
-    label: 'Bench 03 embedded reliability analyzer',
-    purpose: 'Embedded numerical reliability, false convergence and error-source analysis.',
-    path: 'scripts/bench03_embedded_numerical.py',
-    url: new URL('../scripts/bench03_embedded_numerical.py', import.meta.url).href,
-  },
-  {
-    id: 'magnet02',
-    label: 'Magnet characterization analyzer',
-    purpose: 'Baseline-corrected profile, repeatability, gradient and field-integral analysis.',
-    path: 'scripts/magnet02_characterization.py',
-    url: new URL('../scripts/magnet02_characterization.py', import.meta.url).href,
-  },
-  {
-    id: 'magnet03',
-    label: 'Magnet model-validation analyzer',
-    purpose: 'Measured ↔ model residuals, fit diagnostics and suggested next measurement points.',
-    path: 'scripts/magnet03_model_validation.py',
-    url: new URL('../scripts/magnet03_model_validation.py', import.meta.url).href,
-  },
-  {
-    id: 'labbridge-live',
-    label: 'Engineering Lab live export bridge',
-    purpose: 'Exports BetterBoard measurement evidence into the Engineering Lab live-link boundary.',
-    path: 'scripts/labbridge_live_export.py',
-    url: new URL('../scripts/labbridge_live_export.py', import.meta.url).href,
-  },
-  {
-    id: 'research-bridge',
-    label: 'Research bridge exporter',
-    purpose: 'Structured research/evidence interchange for downstream scientific tools.',
-    path: 'scripts/labbridge_v1_export.py',
-    url: new URL('../scripts/labbridge_v1_export.py', import.meta.url).href,
-  },
-  {
-    id: 'esp32-numerics',
-    label: 'ESP32 numerical research analyzer',
-    purpose: 'Host-side analysis for ESP32 numerical research evidence.',
-    path: 'scripts/esp32_numerical_research_analyzer.py',
-    url: new URL('../scripts/esp32_numerical_research_analyzer.py', import.meta.url).href,
-  },
-  {
-    id: 'esp32-irregular-dt',
-    label: 'ESP32 irregular-dt analyzer',
-    purpose: 'Irregular sampling interval and integration/derivative timing analysis.',
-    path: 'scripts/esp32_irregular_dt_analyzer.py',
-    url: new URL('../scripts/esp32_irregular_dt_analyzer.py', import.meta.url).href,
-  },
-  {
-    id: 'esp32-concurrency',
-    label: 'ESP32 concurrency numerics analyzer',
-    purpose: 'Concurrency-related numerical timing and reliability diagnostics.',
-    path: 'scripts/esp32_concurrency_numerics_analyzer.py',
-    url: new URL('../scripts/esp32_concurrency_numerics_analyzer.py', import.meta.url).href,
-  },
+const pythonModules = import.meta.glob(
+  '../scripts/*.py',
+  { eager: true, query: '?raw', import: 'default' },
+) as Record<string, string>;
+
+const FAMILY_ORDER: AssetFamily[] = [
+  'Dedicated Engineering Lab',
+  'Numerical Reliability',
+  'ESP32 Research',
+  'Sensor Suite',
+  'BetterBoard Firmware',
+  'Host Analysis & Bridges',
 ];
 
-async function loadText(url: string) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Could not load source (${response.status})`);
-  return response.text();
+function repositoryPath(modulePath: string) {
+  return modulePath.replace(/^\.\.\//, '');
+}
+
+function filenameWithoutExtension(path: string) {
+  const name = path.split('/').pop() ?? path;
+  return name.replace(/\.[^.]+$/, '');
+}
+
+function humanize(value: string) {
+  return value
+    .replace(/^EL_/, '')
+    .replace(/_/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function firmwareFamily(path: string): AssetFamily {
+  if (path.includes('engineering-lab-experiments/firmware/')) return 'Dedicated Engineering Lab';
+  if (path.includes('sensor-suite/firmware/')) return 'Sensor Suite';
+  if (/\/ESP32[^/]*\//.test(path)) return 'ESP32 Research';
+  if (/\/(NumericError_|Numerical|EmbeddedNumerical|MPU6050Numerics)/.test(path)) return 'Numerical Reliability';
+  return 'BetterBoard Firmware';
+}
+
+function makeFirmwareAssets(): CodeAsset[] {
+  return Object.entries(firmwareModules).map(([modulePath, source]) => {
+    const path = repositoryPath(modulePath);
+    const sketchName = filenameWithoutExtension(path);
+    const catalog = catalogBySketch.get(sketchName);
+    return {
+      key: path,
+      label: catalog?.title ?? humanize(sketchName),
+      path,
+      source,
+      kind: 'firmware' as const,
+      family: firmwareFamily(path),
+      sketchName,
+      catalog,
+    };
+  });
+}
+
+function makePythonAssets(): CodeAsset[] {
+  return Object.entries(pythonModules).map(([modulePath, source]) => {
+    const path = repositoryPath(modulePath);
+    return {
+      key: path,
+      label: humanize(filenameWithoutExtension(path)),
+      path,
+      source,
+      kind: 'analysis' as const,
+      family: 'Host Analysis & Bridges' as const,
+    };
+  });
+}
+
+const ALL_ASSETS: CodeAsset[] = [...makeFirmwareAssets(), ...makePythonAssets()]
+  .sort((a, b) => {
+    const familyDelta = FAMILY_ORDER.indexOf(a.family) - FAMILY_ORDER.indexOf(b.family);
+    return familyDelta || a.label.localeCompare(b.label);
+  });
+
+function assetSearchText(asset: CodeAsset) {
+  const catalog = asset.catalog;
+  return [
+    asset.label,
+    asset.path,
+    asset.family,
+    asset.sketchName ?? '',
+    catalog?.model_target ?? '',
+    catalog?.sensor ?? '',
+    catalog?.primary_observable ?? '',
+    ...(catalog?.columns ?? []),
+  ].join(' ').toLowerCase();
 }
 
 export default function EngineeringExperimentLibrary() {
   const { fqbn, selectedPort, diagnosis } = useHardwareSession();
   const [query, setQuery] = useState('');
-  const [active, setActive] = useState<ActiveAsset | null>(null);
-  const [source, setSource] = useState('');
-  const [status, setStatus] = useState('Select any experiment or analysis tool to inspect its real source code.');
+  const [family, setFamily] = useState<'All' | AssetFamily>('All');
+  const [active, setActive] = useState<CodeAsset | null>(null);
+  const [status, setStatus] = useState('Select any experiment or analysis tool to inspect its real repository source code.');
   const [busy, setBusy] = useState(false);
 
-  const experiments = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return experimentCatalog;
-    return experimentCatalog.filter(item => [item.title, item.model_target, item.sensor, item.sketch_name, item.primary_observable]
-      .some(value => value.toLowerCase().includes(needle)));
-  }, [query]);
+  const counts = useMemo(() => Object.fromEntries(FAMILY_ORDER.map(name => [name, ALL_ASSETS.filter(asset => asset.family === name).length])) as Record<AssetFamily, number>, []);
 
-  async function viewAsset(asset: ActiveAsset) {
-    setBusy(true);
+  const visibleAssets = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return ALL_ASSETS.filter(asset => (family === 'All' || asset.family === family) && (!needle || assetSearchText(asset).includes(needle)));
+  }, [query, family]);
+
+  function viewAsset(asset: CodeAsset) {
     setActive(asset);
-    setStatus(`Loading ${asset.path}…`);
-    try {
-      const text = await loadText(asset.url);
-      setSource(text);
-      setStatus(`Loaded ${asset.path} · ${text.split(/\r?\n/).length} lines · real repository source`);
-    } catch (error) {
-      setSource('');
-      setStatus(`Source load failed: ${error}`);
-    } finally {
-      setBusy(false);
-    }
+    setStatus(`Loaded ${asset.path} · ${asset.source.split(/\r?\n/).length} lines · real repository source`);
   }
 
-  async function ensureActiveFirmwareSource() {
+  function activeFirmware() {
     if (!active || active.kind !== 'firmware' || !active.sketchName) throw new Error('Select a firmware experiment first.');
-    const text = source || await loadText(active.url);
-    if (!text.trim()) throw new Error('Firmware source is empty.');
-    if (!source) setSource(text);
-    return { text, sketchName: active.sketchName };
+    if (!active.source.trim()) throw new Error('Firmware source is empty.');
+    return { source: active.source, sketchName: active.sketchName };
   }
 
   async function verifyFirmware() {
     if (busy) return;
     setBusy(true);
     try {
-      const firmware = await ensureActiveFirmwareSource();
+      const firmware = activeFirmware();
       setStatus(`Saving ${firmware.sketchName} and compiling for ${fqbn}…`);
-      const sketchDir = await invoke<string>('developer_sketch_save', { sketchName: firmware.sketchName, source: firmware.text });
+      const sketchDir = await invoke<string>('developer_sketch_save', { sketchName: firmware.sketchName, source: firmware.source });
       const result = await invoke<string>('compile_sketch', { sketchDir, fqbn });
       setStatus(result.trim() || `Verify succeeded for ${firmware.sketchName}.`);
     } catch (error) {
@@ -196,9 +194,9 @@ export default function EngineeringExperimentLibrary() {
     }
     setBusy(true);
     try {
-      const firmware = await ensureActiveFirmwareSource();
+      const firmware = activeFirmware();
       setStatus(`Compile → upload ${firmware.sketchName} to ${selectedPort}…`);
-      const sketchDir = await invoke<string>('developer_sketch_save', { sketchName: firmware.sketchName, source: firmware.text });
+      const sketchDir = await invoke<string>('developer_sketch_save', { sketchName: firmware.sketchName, source: firmware.source });
       await invoke<string>('compile_sketch', { sketchDir, fqbn });
       const result = await invoke<string>('upload_sketch', { sketchDir, fqbn, port: selectedPort });
       setStatus(result.trim() || `Upload succeeded to ${selectedPort}.`);
@@ -210,68 +208,59 @@ export default function EngineeringExperimentLibrary() {
   }
 
   return <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }}>
-    <div className="panel-title"><FlaskConical size={18}/> Complete Engineering Lab Experiment Library</div>
-    <p className="muted">This surface is catalog-driven from <code>engineering-lab-experiments/catalog.json</code>. Every catalog experiment is exposed with its real firmware source, scientific columns/units and the same BetterBoard compile/upload backend used by Developer.</p>
+    <div className="panel-title"><FlaskConical size={18}/> Complete Experiment Code Library</div>
+    <p className="muted">Repository-driven source browser. It discovers dedicated Engineering Lab firmware, Numerical Reliability firmware, ESP32 research firmware, Sensor Suite firmware, BetterBoard firmware examples/resources, and host Python analysis/bridge tools directly from the real source trees.</p>
 
-    <div className="boundary"><CheckCircle2 size={14}/> {experimentCatalog.length} / {experimentCatalog.length} dedicated Engineering Lab firmware experiments connected to UI · {ANALYSIS_ASSETS.length} host analysis / bridge source files connected.</div>
+    <div className="boundary"><CheckCircle2 size={14}/> {ALL_ASSETS.length} source files connected to UI · {experimentCatalog.length}/{experimentCatalog.length} dedicated Engineering Lab catalog experiments enriched with scientific metadata · no hand-maintained per-file visibility list.</div>
 
-    <label style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '12px 0' }}>
-      <Search size={16}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search experiment, sensor, model target, observable…" style={{ flex: 1 }}/>
-    </label>
-
-    <div className="engineering-model-grid">
-      {experiments.map(item => {
-        const path = `engineering-lab-experiments/firmware/${item.sketch_name}/${item.sketch_name}.ino`;
-        const asset: ActiveAsset = { key: item.id, label: item.title, path, url: FIRMWARE_URLS[item.sketch_name], kind: 'firmware', sketchName: item.sketch_name };
-        return <article className="panel" key={item.id}>
-          <div className="panel-title"><Cpu size={16}/>{item.title}</div>
-          <div className="observatory-facts">
-            <span>Sensor</span><b>{item.sensor}</b>
-            <span>Model target</span><b>{item.model_target}</b>
-            <span>Primary observable</span><b>{item.primary_observable}</b>
-            <span>Columns</span><b>{item.columns.length}</b>
-          </div>
-          <p className="muted"><code>{path}</code></p>
-          <div className="action-row">
-            <button onClick={() => void viewAsset(asset)} disabled={busy}><Code2 size={15}/> View source</button>
-            <CopyButton text={path} label="Copy path"/>
-          </div>
-        </article>;
-      })}
+    <div className="engineering-model-grid" style={{ marginTop: 12 }}>
+      {FAMILY_ORDER.map(name => <button key={name} className={family === name ? 'active' : ''} onClick={() => setFamily(name)}>
+        <b>{name}</b><span style={{ marginLeft: 8 }}>{counts[name]}</span>
+      </button>)}
+      <button className={family === 'All' ? 'active' : ''} onClick={() => setFamily('All')}><b>All code</b><span style={{ marginLeft: 8 }}>{ALL_ASSETS.length}</span></button>
     </div>
 
-    <section className="panel" style={{ marginTop: 14 }}>
-      <div className="panel-title"><Code2 size={17}/> Experiment analysis / bridge code</div>
-      <p className="muted">These are the real host-side analyzers and bridges used by the experiment families. Select any file to inspect the actual Python source instead of only seeing a path label.</p>
-      <div className="engineering-model-grid">
-        {ANALYSIS_ASSETS.map(item => <article className="panel" key={item.id}>
-          <b>{item.label}</b>
-          <p>{item.purpose}</p>
-          <p className="muted"><code>{item.path}</code></p>
-          <div className="action-row">
-            <button onClick={() => void viewAsset({ key: item.id, label: item.label, path: item.path, url: item.url, kind: 'analysis' })} disabled={busy}><Code2 size={15}/> View source</button>
-            <CopyButton text={item.path} label="Copy path"/>
-          </div>
-        </article>)}
-      </div>
-    </section>
+    <label style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '12px 0' }}>
+      <Search size={16}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search file, sensor, model target, observable, family…" style={{ flex: 1 }}/>
+    </label>
+
+    <div className="boundary compact">Showing {visibleAssets.length} / {ALL_ASSETS.length} source files · filter: {family}</div>
+
+    <div className="engineering-model-grid" style={{ marginTop: 12 }}>
+      {visibleAssets.map(asset => <article className="panel" key={asset.key}>
+        <div className="panel-title"><Cpu size={16}/>{asset.label}</div>
+        <div className="observatory-facts">
+          <span>Family</span><b>{asset.family}</b>
+          <span>Type</span><b>{asset.kind === 'firmware' ? 'Arduino firmware' : 'Python host tool'}</b>
+          {asset.catalog && <><span>Sensor</span><b>{asset.catalog.sensor}</b><span>Model target</span><b>{asset.catalog.model_target}</b><span>Primary observable</span><b>{asset.catalog.primary_observable}</b></>}
+        </div>
+        <p className="muted"><code>{asset.path}</code></p>
+        <div className="action-row">
+          <button onClick={() => viewAsset(asset)}><Code2 size={15}/> View source</button>
+          <CopyButton text={asset.path} label="Copy path"/>
+        </div>
+      </article>)}
+    </div>
+
+    {!visibleAssets.length && <div className="empty compact">No code files match this filter.</div>}
 
     <section className="panel" style={{ marginTop: 14 }}>
-      <div className="panel-title"><Code2 size={17}/> Source viewer</div>
+      <div className="panel-title"><Code2 size={17}/> Source viewer & firmware actions</div>
       <div className="boundary compact">{status}</div>
       {active && <div className="observatory-facts" style={{ marginTop: 10 }}>
         <span>Selected</span><b>{active.label}</b>
         <span>Source</span><b>{active.path}</b>
+        <span>Family</span><b>{active.family}</b>
         <span>Type</span><b>{active.kind === 'firmware' ? 'Arduino firmware' : 'Host analysis / bridge'}</b>
-        <span>Board target</span><b>{fqbn}</b>
+        <span>Board target</span><b>{active.kind === 'firmware' ? fqbn : 'host'}</b>
       </div>}
       {active?.kind === 'firmware' && <div className="action-row" style={{ marginTop: 10 }}>
         <button onClick={() => void verifyFirmware()} disabled={busy || !diagnosis.canCompile}><Play size={15}/> Verify</button>
         <button onClick={() => void uploadFirmware()} disabled={busy || !selectedPort || !diagnosis.canUpload}><Upload size={15}/> Upload</button>
-        {source && <CopyButton text={source} label="Copy source"/>}
+        <CopyButton text={active.source} label="Copy source"/>
       </div>}
-      {active?.kind === 'analysis' && source && <div className="action-row" style={{ marginTop: 10 }}><CopyButton text={source} label="Copy source"/></div>}
-      {source ? <pre style={{ marginTop: 12, maxHeight: 620, overflow: 'auto', whiteSpace: 'pre', textAlign: 'left' }}>{source}</pre> : <div className="empty compact" style={{ marginTop: 12 }}>Choose <b>View source</b> on any experiment or analyzer.</div>}
+      {active?.kind === 'analysis' && <div className="action-row" style={{ marginTop: 10 }}><CopyButton text={active.source} label="Copy source"/></div>}
+      {active ? <pre style={{ marginTop: 12, maxHeight: 620, overflow: 'auto', whiteSpace: 'pre', textAlign: 'left' }}>{active.source}</pre> : <div className="empty compact" style={{ marginTop: 12 }}>Choose <b>View source</b> on any firmware or host tool.</div>}
     </section>
   </section>;
 }
