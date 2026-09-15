@@ -175,7 +175,7 @@ export function computeHostPrimitiveObservability(
   let emaValue = 0;
   let peakValue = Number.NEGATIVE_INFINITY;
   let thresholdLatched = false;
-  let hysteresisState = false;
+  let hysteresisState: boolean = false;
   const hysteresisReady = effectiveParameters.hysteresisLow < effectiveParameters.hysteresisHigh;
   const hysteresisReason = hysteresisReady ? null : 'Hysteresis requires low threshold < high threshold.';
   if (!hysteresisReady) addWarning(hysteresisReason!);
@@ -205,7 +205,7 @@ export function computeHostPrimitiveObservability(
     if (!previousThresholdState && thresholdLatched) thresholdEvents.push({ timeS: sample.timeS, value: sample.value });
 
     if (hysteresisReady) {
-      const previousHysteresisState = hysteresisState;
+      const previousHysteresisState: boolean = hysteresisState;
       if (!hysteresisState && sample.value >= effectiveParameters.hysteresisHigh) hysteresisState = true;
       else if (hysteresisState && sample.value <= effectiveParameters.hysteresisLow) hysteresisState = false;
       hysteresisStateTrace.push({ timeS: sample.timeS, value: hysteresisState ? 1 : 0 });
