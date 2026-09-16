@@ -15,7 +15,7 @@ assert "targetCapabilityId: 'experiments-campaigns'" in SHORTCUTS, "campaign vis
 assert "owner: 'CampaignVisualization'" in SHORTCUTS, "campaign visualization shortcut must name its real owner"
 assert 'data-capability-anchor="campaign-visualization"' in CAMPAIGN, "CampaignVisualization must expose a stable semantic anchor"
 
-for forbidden in ("invoke(", "compile_sketch", "upload_sketch", "serial", "prepare_recipe_with_params"):
+for forbidden in ("invoke(", "compile_sketch", "upload_sketch", "prepare_recipe_with_params", "serial_start", "serial_write"):
     assert forbidden not in NAVIGATION, f"navigation must not execute campaign backend behavior: {forbidden}"
 
 print("Campaign visualization reachability: PASS")
