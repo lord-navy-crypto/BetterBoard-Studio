@@ -5,42 +5,67 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = (ROOT / "src/main.tsx").read_text(encoding="utf-8")
-COMPONENT = ROOT / "src/EngineeringCommandSurface.tsx"
+COMMAND = ROOT / "src/EngineeringCommandSurface.tsx"
+FLOW = ROOT / "src/EngineeringFlowLauncher.tsx"
 MODEL = ROOT / "src/homeSurfaceModel.ts"
 STYLES = ROOT / "src/home-surface.css"
+REGISTRY = (ROOT / "src/capabilityRegistry.ts").read_text(encoding="utf-8")
 
-assert COMPONENT.is_file(), "missing EngineeringCommandSurface.tsx"
-assert MODEL.is_file(), "missing homeSurfaceModel.ts"
-assert STYLES.is_file(), "missing home-surface.css"
+for path, label in (
+    (COMMAND, "EngineeringCommandSurface.tsx"),
+    (FLOW, "EngineeringFlowLauncher.tsx"),
+    (MODEL, "homeSurfaceModel.ts"),
+    (STYLES, "home-surface.css"),
+):
+    assert path.is_file(), f"missing {label}"
 
-command = COMPONENT.read_text(encoding="utf-8")
+command = COMMAND.read_text(encoding="utf-8")
+flow = FLOW.read_text(encoding="utf-8")
 model = MODEL.read_text(encoding="utf-8")
 
 assert "EngineeringCommandSurface" in MAIN, "Studio root must mount EngineeringCommandSurface"
+assert "EngineeringFlowLauncher" in MAIN, "Studio root must mount EngineeringFlowLauncher"
 assert "./home-surface.css" in MAIN, "main.tsx must load home-surface.css"
 assert "openCapability" in MAIN, "RootContent must retain semantic capability navigation"
 assert "onOpenCapability" in command, "command surface must navigate through a semantic callback"
+assert "onOpenCapability" in flow, "engineering flow must navigate through a semantic callback"
 
 for stage in ("Toolchain", "Hardware", "Firmware", "Acquisition", "Evidence", "Analysis"):
     assert stage in command or stage in model, f"missing engineering stage: {stage}"
 
-for token in (
-    "invoke(",
-    "compile_sketch",
-    "upload_sketch",
-    "recipe_preflight",
-    "prepare_recipe_with_params",
-    "arduino_board_url_add",
-    "serial_start",
-    "serial_write",
-):
-    assert token not in command, f"home command surface must remain navigation-only: {token}"
+required_flow = {
+    "Build": ("hardware-session", "program-firmware", "recipe-library", "circuit-lab"),
+    "Measure": ("monitor-live", "monitor-snapshot", "measurement-evidence", "measurement-replay"),
+    "Analyze": ("analysis-evidence", "analysis-statistics", "analysis-models", "analysis-numerical", "analysis-preparation"),
+    "Experiment": ("analysis-experiment-design", "experiments-campaigns", "engineering-handoff", "research-context"),
+}
+for lane, capability_ids in required_flow.items():
+    assert lane in model, f"missing engineering flow lane: {lane}"
+    for capability_id in capability_ids:
+        assert capability_id in model, f"{lane} lane missing capability: {capability_id}"
+        assert f"id: '{capability_id}'" in REGISTRY, f"home flow references unknown canonical capability: {capability_id}"
 
+for source_name, source in (("command", command), ("flow", flow)):
+    for token in (
+        "invoke(",
+        "compile_sketch",
+        "upload_sketch",
+        "recipe_preflight",
+        "prepare_recipe_with_params",
+        "arduino_board_url_add",
+        "serial_start",
+        "serial_write",
+    ):
+        assert token not in source, f"home {source_name} surface must remain navigation-only: {token}"
+
+assert "CAPABILITIES" in flow, "engineering flow must resolve labels/descriptions from canonical registry"
 assert "capabilityId" in model, "home actions must carry semantic capability IDs"
 assert "workflowNextAction" in MAIN, "RootContent must derive a runtime next action"
 assert "data-capability-anchor=\"engineering-command-surface\"" in command, "command surface needs a stable semantic root anchor"
+assert "data-capability-anchor=\"engineering-flow\"" in flow, "engineering flow needs a stable semantic root anchor"
 
-print("First-principles home command surface contract: PASS")
+print("First-principles home surface contract: PASS")
 print("- State -> Decision is mounted before dense Studio workbenches")
 print("- six engineering stages remain semantically navigable")
+print("- Build / Measure / Analyze / Experiment lanes are canonical-ID driven")
 print("- home presentation contains no direct backend execution path")
