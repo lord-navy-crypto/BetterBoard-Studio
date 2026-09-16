@@ -8,6 +8,7 @@ type DomActivationStep = { buttonText: string; within?: string };
 type DomTarget = {
   selector: string;
   selectorText?: string;
+  selectorExactText?: string;
   emptyFallbackSelector?: string;
   activateButtonText?: string;
   activateWithin?: string;
@@ -100,6 +101,18 @@ const CAPABILITY_ANCHOR_FALLBACKS: Record<string, DomTarget> = {
     selector: 'details.recipe-group', selectorText: 'My Library',
     emptyFallbackSelector: '[data-capability-anchor="recipe-library"]',
   },
+  'developer-new-sketch': { selector: '.developer-actions button', selectorExactText: 'New' },
+  'developer-load-template': { selector: '.developer-actions button', selectorExactText: 'Load recipe template' },
+  'developer-format-source': { selector: '.developer-actions button', selectorExactText: 'Format' },
+  'developer-save-sketch': { selector: '.developer-actions button', selectorExactText: 'Save' },
+  'developer-save-library': { selector: '.developer-actions button', selectorExactText: 'Save to Library' },
+  'developer-verify': { selector: '.developer-actions button', selectorExactText: 'Verify' },
+  'developer-run-upload': { selector: '.developer-actions button', selectorExactText: 'Run / Upload' },
+  'sketchbook-new-project': { selector: '.sketchbook-toolbar button', selectorExactText: 'New project' },
+  'arduino-board-index-url': {
+    selector: '.ide-manager-controls .manager-row', selectorText: 'Additional Boards Manager package index URL',
+    activationSteps: [{ buttonText: 'Boards', within: '.ide-manager .ide-subtabs' }],
+  },
 };
 
 export type CapabilityNavigator = {
@@ -143,24 +156,31 @@ function resolveDomTarget(anchor: string, fallback?: DomTarget) {
   if (anchored) return anchored;
   if (!fallback) return null;
   const candidates = [...document.querySelectorAll<HTMLElement>(fallback.selector)];
-  if (!fallback.selectorText) return candidates[0] ?? null;
-  const exactSurface = candidates.find(candidate => candidate.textContent?.includes(fallback.selectorText ?? '')) ?? null;
+  const exactSurface = fallback.selectorExactText
+    ? candidates.find(candidate => candidate.textContent?.trim() === fallback.selectorExactText) ?? null
+    : fallback.selectorText
+      ? candidates.find(candidate => candidate.textContent?.includes(fallback.selectorText ?? '')) ?? null
+      : candidates[0] ?? null;
   if (exactSurface) return exactSurface;
   return fallback.emptyFallbackSelector
     ? document.querySelector<HTMLElement>(fallback.emptyFallbackSelector)
     : null;
 }
 
-function revealCapabilityTarget(capabilityId: string, anchor?: string) {
+function revealCapabilityTarget(capabilityId: string, anchor?: string, parentAnchor?: string) {
   if (!anchor) return;
   const fallback = CAPABILITY_ANCHOR_FALLBACKS[anchor];
+  const parentFallback = parentAnchor && parentAnchor !== anchor
+    ? CAPABILITY_ANCHOR_FALLBACKS[parentAnchor]
+    : undefined;
 
   window.requestAnimationFrame(() => {
     window.setTimeout(() => {
-      // Workspace/tab/view setters above can mount the nested target on this render.
-      // Multi-step activation follows the same clicks a user would make and yields a render
-      // frame between parent lane and child mode changes before the final reveal/focus.
-      void activateDomTarget(fallback).then(() => {
+      // A shortcut first activates its canonical owner surface, then its nested target. This
+      // makes child tools reachable from any previous local subview without duplicating backend logic.
+      void (async () => {
+        await activateDomTarget(parentFallback);
+        await activateDomTarget(fallback);
         window.requestAnimationFrame(() => {
           const target = resolveDomTarget(anchor, fallback);
           if (!target) {
@@ -184,7 +204,7 @@ function revealCapabilityTarget(capabilityId: string, anchor?: string) {
           focusTarget?.focus({ preventScroll: true });
           window.setTimeout(() => target.classList.remove('capability-target-flash'), 1400);
         });
-      });
+      })();
     }, 0);
   });
 }
@@ -239,7 +259,11 @@ export function CapabilityNavigationProvider({ workspace, setWorkspace, children
 
     capabilityActivatorsRef.current.get(capabilityId)?.();
     capabilityActivatorsRef.current.get(requestedId)?.();
-    revealCapabilityTarget(requestedId, shortcut?.anchor ?? destination.anchor);
+    revealCapabilityTarget(
+      requestedId,
+      shortcut?.anchor ?? destination.anchor,
+      shortcut ? destination.anchor : undefined,
+    );
   }, [setWorkspace, workspace]);
 
   const value = useMemo<CapabilityNavigator>(() => ({
