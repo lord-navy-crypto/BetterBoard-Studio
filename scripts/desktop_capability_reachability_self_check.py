@@ -78,15 +78,16 @@ assert 'openCapability' in experiments, 'experiment cards are not actionable cap
 assert 'Open campaign tools' in experiments or 'Open code library' in experiments, 'experiment campaign action copy missing'
 
 # A semantic destination must resolve either to a stable product anchor or to an explicit,
-# conservative canonical-surface fallback in CapabilityNavigationContext. Fallbacks are reserved
-# for mature large components where adding markup-only anchors would create unnecessary churn.
+# conservative canonical-surface fallback in CapabilityNavigationContext. Fallback objects may
+# span multiple lines and may use sequenced activationSteps/selectorText for nested sub-tools.
 anchors = re.findall(r"anchor:\s*'([^']+)'", registry)
 shortcut_anchors = re.findall(r"anchor:\s*'([^']+)'", shortcuts)
+fallback_ids = set(re.findall(r"^\s*'([^']+)'\s*:\s*\{\s*selector\s*:", navigation, re.MULTILINE))
 resolved_by_anchor = 0
 resolved_by_fallback = 0
 for anchor in [*anchors, *shortcut_anchors]:
     has_anchor = f'data-capability-anchor="{anchor}"' in production_tsx or f"data-capability-anchor='{anchor}'" in production_tsx
-    has_fallback = f"'{anchor}': {{ selector:" in navigation
+    has_fallback = anchor in fallback_ids
     assert has_anchor or has_fallback, f'missing production anchor/fallback: {anchor}'
     resolved_by_anchor += int(has_anchor)
     resolved_by_fallback += int(not has_anchor and has_fallback)
