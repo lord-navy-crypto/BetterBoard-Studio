@@ -67,32 +67,37 @@ function activateDomTarget(target?: DomTarget) {
 function revealCapabilityTarget(capabilityId: string, anchor?: string) {
   if (!anchor) return;
   const fallback = CAPABILITY_ANCHOR_FALLBACKS[anchor];
-  activateDomTarget(fallback);
 
   window.requestAnimationFrame(() => {
     window.setTimeout(() => {
-      const target = document.querySelector<HTMLElement>(`[data-capability-anchor="${anchor}"]`)
-        ?? (fallback ? document.querySelector<HTMLElement>(fallback.selector) : null);
-      if (!target) {
-        console.warn(`[BetterBoard] Capability ${capabilityId} could not resolve anchor ${anchor}.`);
-        return;
-      }
+      // Workspace/tab/view setters above can mount the nested target on this render.
+      // Activate any local sub-tab only after that owning surface exists.
+      activateDomTarget(fallback);
 
-      let current: HTMLElement | null = target;
-      while (current) {
-        if (current instanceof HTMLDetailsElement) current.open = true;
-        current = current.parentElement;
-      }
+      window.requestAnimationFrame(() => {
+        const target = document.querySelector<HTMLElement>(`[data-capability-anchor="${anchor}"]`)
+          ?? (fallback ? document.querySelector<HTMLElement>(fallback.selector) : null);
+        if (!target) {
+          console.warn(`[BetterBoard] Capability ${capabilityId} could not resolve anchor ${anchor}.`);
+          return;
+        }
 
-      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-      target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
-      target.classList.add('capability-target-flash');
+        let current: HTMLElement | null = target;
+        while (current) {
+          if (current instanceof HTMLDetailsElement) current.open = true;
+          current = current.parentElement;
+        }
 
-      const focusTarget = target.matches('button, a, input, select, textarea, [tabindex]')
-        ? target
-        : target.querySelector<HTMLElement>('button, a, input, select, textarea, [tabindex]');
-      focusTarget?.focus({ preventScroll: true });
-      window.setTimeout(() => target.classList.remove('capability-target-flash'), 1400);
+        const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+        target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+        target.classList.add('capability-target-flash');
+
+        const focusTarget = target.matches('button, a, input, select, textarea, [tabindex]')
+          ? target
+          : target.querySelector<HTMLElement>('button, a, input, select, textarea, [tabindex]');
+        focusTarget?.focus({ preventScroll: true });
+        window.setTimeout(() => target.classList.remove('capability-target-flash'), 1400);
+      });
     }, 0);
   });
 }
