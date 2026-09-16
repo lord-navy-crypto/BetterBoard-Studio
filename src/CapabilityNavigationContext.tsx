@@ -8,6 +8,7 @@ type DomActivationStep = { buttonText: string; within?: string };
 type DomTarget = {
   selector: string;
   selectorText?: string;
+  emptyFallbackSelector?: string;
   activateButtonText?: string;
   activateWithin?: string;
   activationSteps?: DomActivationStep[];
@@ -94,6 +95,11 @@ const CAPABILITY_ANCHOR_FALLBACKS: Record<string, DomTarget> = {
   'esp32-core-audit': { selector: 'div.panel', selectorText: 'Installed Arduino core audit' },
   'esp32-board-details': { selector: 'div.panel', selectorText: 'Arduino CLI board details' },
   'esp32-configuration-risk': { selector: 'div.panel', selectorText: 'Board configuration risk audit' },
+  'recipe-preset-builder': { selector: 'section.panel', selectorText: 'Save preset to My Library' },
+  'my-recipe-library': {
+    selector: 'details.recipe-group', selectorText: 'My Library',
+    emptyFallbackSelector: '[data-capability-anchor="recipe-library"]',
+  },
 };
 
 export type CapabilityNavigator = {
@@ -138,7 +144,11 @@ function resolveDomTarget(anchor: string, fallback?: DomTarget) {
   if (!fallback) return null;
   const candidates = [...document.querySelectorAll<HTMLElement>(fallback.selector)];
   if (!fallback.selectorText) return candidates[0] ?? null;
-  return candidates.find(candidate => candidate.textContent?.includes(fallback.selectorText ?? '')) ?? null;
+  const exactSurface = candidates.find(candidate => candidate.textContent?.includes(fallback.selectorText ?? '')) ?? null;
+  if (exactSurface) return exactSurface;
+  return fallback.emptyFallbackSelector
+    ? document.querySelector<HTMLElement>(fallback.emptyFallbackSelector)
+    : null;
 }
 
 function revealCapabilityTarget(capabilityId: string, anchor?: string) {
