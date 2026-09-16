@@ -41,6 +41,7 @@ CHECKS = (
     "desktop_capability_reachability_self_check.py",
     "preparation_surface_reachability_self_check.py",
     "result_hardware_surface_reachability_self_check.py",
+    "recipe_library_surface_reachability_self_check.py",
 )
 
 
