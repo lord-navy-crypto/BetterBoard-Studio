@@ -7,7 +7,7 @@ type DomTarget = { selector: string; activateButtonText?: string; activateWithin
 
 // Explicit fallbacks point at existing canonical UI surfaces without duplicating their backend logic.
 // They are used only where the owning component is intentionally large/stable and a data anchor would
-// otherwise require invasive edits to mature acquisition, circuit, or developer code.
+// otherwise require invasive edits to mature acquisition, circuit, developer, or observatory code.
 const CAPABILITY_ANCHOR_FALLBACKS: Record<string, DomTarget> = {
   'circuit-lab': { selector: '.circuit-lab' },
   'circuit-diagnostics': { selector: '.rule-panel' },
@@ -21,6 +21,7 @@ const CAPABILITY_ANCHOR_FALLBACKS: Record<string, DomTarget> = {
   'developer-ecosystem': { selector: '.developer-ide', activateButtonText: 'Boards & Libraries', activateWithin: '.developer-view-tabs' },
   'developer-sketchbook': { selector: '.developer-ide', activateButtonText: 'Sketchbook', activateWithin: '.developer-view-tabs' },
   'developer-diagnostics': { selector: '.developer-diagnostics-panel', activateButtonText: 'Editor', activateWithin: '.developer-view-tabs' },
+  'observatory-system': { selector: '.observatory-workspace' },
 };
 
 export type CapabilityNavigator = {
