@@ -8,7 +8,15 @@ type Props = {
   onOpenCapability: (id: string) => void;
 };
 
-const SEMANTIC_ITEMS = new Map([
+type SemanticItem = {
+  id: string;
+  label: string;
+  description: string;
+  owner: string;
+  kind: 'capability' | 'shortcut';
+};
+
+const SEMANTIC_ITEMS = new Map<string, SemanticItem>([
   ...CAPABILITIES.map(item => [item.id, {
     id: item.id,
     label: item.label,
