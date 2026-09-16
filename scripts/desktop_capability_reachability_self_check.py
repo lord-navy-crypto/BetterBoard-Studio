@@ -16,10 +16,12 @@ for path in required:
     assert path.is_file(), f'missing desktop reachability file: {path.name}'
 
 registry = (SRC / 'capabilityRegistry.ts').read_text()
+navigation = (SRC / 'CapabilityNavigationContext.tsx').read_text()
 main = (SRC / 'main.tsx').read_text()
 app = (SRC / 'App.tsx').read_text()
 analysis = (SRC / 'AnalysisVisualizationHub.tsx').read_text()
 experiments = (SRC / 'ExperimentsHub.tsx').read_text()
+task_center = (SRC / 'TaskCenter.tsx').read_text()
 production_tsx = '\n'.join(path.read_text() for path in SRC.glob('*.tsx'))
 
 required_ids = [
@@ -53,9 +55,32 @@ assert 'openCapability' in main, 'status/global navigation is not routed through
 assert 'openCapability' in experiments, 'experiment cards are not actionable capability links'
 assert 'Open campaign tools' in experiments or 'Open code library' in experiments, 'experiment campaign action copy missing'
 
+# A semantic destination must resolve either to a stable product anchor or to an explicit,
+# conservative canonical-surface fallback in CapabilityNavigationContext. Fallbacks are reserved
+# for mature large components where adding markup-only anchors would create unnecessary churn.
 anchors = re.findall(r"anchor:\s*'([^']+)'", registry)
+resolved_by_anchor = 0
+resolved_by_fallback = 0
 for anchor in anchors:
-    assert f'data-capability-anchor="{anchor}"' in production_tsx or f"data-capability-anchor='{anchor}'" in production_tsx, f'missing production anchor: {anchor}'
+    has_anchor = f'data-capability-anchor="{anchor}"' in production_tsx or f"data-capability-anchor='{anchor}'" in production_tsx
+    has_fallback = f"'{anchor}': {{ selector:" in navigation
+    assert has_anchor or has_fallback, f'missing production anchor/fallback: {anchor}'
+    resolved_by_anchor += int(has_anchor)
+    resolved_by_fallback += int(not has_anchor and has_fallback)
+
+for token in ['CAPABILITY_ANCHOR_FALLBACKS', 'revealCapabilityTarget', 'activateButtonText', 'registerCapabilityActivator']:
+    assert token in navigation, f'semantic navigation lost {token}'
+
+# Task Center deep links are safe only for categories with canonical owners. System/Export are
+# intentionally not guessed, so no misleading button is fabricated for them.
+for token in [
+    "Program: 'program-firmware'", "Monitor: 'monitor-live'",
+    "Evidence: 'measurement-evidence'", "Analysis: 'analysis-evidence'",
+    'Go to', 'useCapabilityNavigation', 'openCapability(targetCapability)',
+]:
+    assert token in task_center, f'Task Center reachability lost {token}'
+assert "System: '" not in task_center, 'Task Center must not fabricate a generic System destination'
+assert "Export: '" not in task_center, 'Task Center must not fabricate a generic Export destination'
 
 # Canonical backends must remain owned by existing feature surfaces, not the navigation layer.
 monitor = (SRC / 'MonitorDataStudio.tsx').read_text()
@@ -73,5 +98,5 @@ for path in [SRC / 'CapabilityNavigationContext.tsx', SRC / 'CapabilityNavigator
 
 print('Desktop capability reachability self-check: PASS')
 print(f'- {len(ids)} registered user-facing capabilities have unique ids')
-print(f'- {len(anchors)} semantic destinations have production anchors')
-print('- All Tools, semantic Studio/analysis routing, campaign actions and canonical backend ownership protected')
+print(f'- {len(anchors)} semantic destinations resolve: {resolved_by_anchor} stable anchors + {resolved_by_fallback} canonical fallbacks')
+print('- All Tools, semantic Studio/analysis routing, campaign actions, task deep links and canonical backend ownership protected')
