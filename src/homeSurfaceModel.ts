@@ -12,6 +12,14 @@ export type CurrentTaskSummary = {
   state: 'running' | 'done' | 'failed' | 'cancelled';
 } | null;
 
+export type CurrentWorkItem = {
+  id: string;
+  label: string;
+  detail: string;
+  status: 'active' | 'ready' | 'warning' | 'failed';
+  capabilityId?: string;
+};
+
 export const ENGINEERING_STAGE_CAPABILITY: Record<EngineeringStatusNode['id'], string> = {
   toolchain: 'hardware-doctor',
   hardware: 'hardware-session',
