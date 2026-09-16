@@ -4,7 +4,14 @@ import { CAPABILITY_SHORTCUT_BY_ID } from './capabilityShortcuts';
 
 type LocalSetter<T> = (value: T) => void;
 type CapabilityActivator = () => void;
-type DomTarget = { selector: string; activateButtonText?: string; activateWithin?: string };
+type DomActivationStep = { buttonText: string; within?: string };
+type DomTarget = {
+  selector: string;
+  selectorText?: string;
+  activateButtonText?: string;
+  activateWithin?: string;
+  activationSteps?: DomActivationStep[];
+};
 
 // Explicit fallbacks point at existing canonical UI surfaces without duplicating their backend logic.
 // They are used only where the owning component is intentionally large/stable and a data anchor would
@@ -39,6 +46,49 @@ const CAPABILITY_ANCHOR_FALLBACKS: Record<string, DomTarget> = {
   'serial-transmit': { selector: '.monitor-transmit' },
   'engineering-export-package': { selector: '.monitor-export-panel' },
   'measurement-session-context': { selector: '.monitor-context-panel' },
+  'numerical-bench-acquisition': {
+    selector: 'button', selectorText: 'Bench 01 — Acquisition',
+    activationSteps: [
+      { buttonText: 'Numerical evidence', within: '.engineering-model-grid' },
+      { buttonText: 'Bench 01 — Acquisition' },
+    ],
+  },
+  'numerical-bench-sampling-error': {
+    selector: 'button', selectorText: 'Bench 02 — Sampling Error',
+    activationSteps: [
+      { buttonText: 'Numerical evidence', within: '.engineering-model-grid' },
+      { buttonText: 'Bench 02 — Sampling Error' },
+    ],
+  },
+  'numerical-bench-mcu-reliability': {
+    selector: 'button', selectorText: 'Bench 03 — MCU Reliability',
+    activationSteps: [
+      { buttonText: 'Numerical evidence', within: '.engineering-model-grid' },
+      { buttonText: 'Bench 03 — MCU Reliability' },
+    ],
+  },
+  'magnet-bench-vector-acquisition': {
+    selector: 'button', selectorText: 'Bench 01 — Vector Acquisition',
+    activationSteps: [
+      { buttonText: 'Magnetic evidence', within: '.engineering-model-grid' },
+      { buttonText: 'Bench 01 — Vector Acquisition' },
+    ],
+  },
+  'magnet-bench-characterization': {
+    selector: 'button', selectorText: 'Bench 02 — Characterization',
+    activationSteps: [
+      { buttonText: 'Magnetic evidence', within: '.engineering-model-grid' },
+      { buttonText: 'Bench 02 — Characterization' },
+    ],
+  },
+  'magnet-bench-model-validation': {
+    selector: 'button', selectorText: 'Bench 03 — Model Validation',
+    activationSteps: [
+      { buttonText: 'Magnetic evidence', within: '.engineering-model-grid' },
+      { buttonText: 'Bench 03 — Model Validation' },
+    ],
+  },
+  'research-ai-review': { selector: 'section.panel', selectorText: 'Ask OpenPenguin about this evidence' },
 };
 
 export type CapabilityNavigator = {
@@ -56,12 +106,34 @@ type ProviderProps = {
 
 const CapabilityNavigationContext = createContext<CapabilityNavigator | null>(null);
 
-function activateDomTarget(target?: DomTarget) {
-  if (!target?.activateButtonText) return;
-  const root = target.activateWithin ? document.querySelector<HTMLElement>(target.activateWithin) : document.body;
-  const button = [...(root?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
-    .find(candidate => candidate.textContent?.trim().includes(target.activateButtonText ?? ''));
-  button?.click();
+function nextRenderFrame() {
+  return new Promise<void>(resolve => window.requestAnimationFrame(() => window.setTimeout(resolve, 0)));
+}
+
+function findButton(buttonText: string, within?: string) {
+  const root = within ? document.querySelector<HTMLElement>(within) : document.body;
+  return [...(root?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+    .find(candidate => candidate.textContent?.trim().includes(buttonText));
+}
+
+async function activateDomTarget(target?: DomTarget) {
+  if (!target) return;
+  const activationSteps = target.activationSteps
+    ?? (target.activateButtonText ? [{ buttonText: target.activateButtonText, within: target.activateWithin }] : []);
+
+  for (const step of activationSteps) {
+    findButton(step.buttonText, step.within)?.click();
+    await nextRenderFrame();
+  }
+}
+
+function resolveDomTarget(anchor: string, fallback?: DomTarget) {
+  const anchored = document.querySelector<HTMLElement>(`[data-capability-anchor="${anchor}"]`);
+  if (anchored) return anchored;
+  if (!fallback) return null;
+  const candidates = [...document.querySelectorAll<HTMLElement>(fallback.selector)];
+  if (!fallback.selectorText) return candidates[0] ?? null;
+  return candidates.find(candidate => candidate.textContent?.includes(fallback.selectorText ?? '')) ?? null;
 }
 
 function revealCapabilityTarget(capabilityId: string, anchor?: string) {
@@ -71,32 +143,32 @@ function revealCapabilityTarget(capabilityId: string, anchor?: string) {
   window.requestAnimationFrame(() => {
     window.setTimeout(() => {
       // Workspace/tab/view setters above can mount the nested target on this render.
-      // Activate any local sub-tab only after that owning surface exists.
-      activateDomTarget(fallback);
+      // Multi-step activation follows the same clicks a user would make and yields a render
+      // frame between parent lane and child mode changes before the final reveal/focus.
+      void activateDomTarget(fallback).then(() => {
+        window.requestAnimationFrame(() => {
+          const target = resolveDomTarget(anchor, fallback);
+          if (!target) {
+            console.warn(`[BetterBoard] Capability ${capabilityId} could not resolve anchor ${anchor}.`);
+            return;
+          }
 
-      window.requestAnimationFrame(() => {
-        const target = document.querySelector<HTMLElement>(`[data-capability-anchor="${anchor}"]`)
-          ?? (fallback ? document.querySelector<HTMLElement>(fallback.selector) : null);
-        if (!target) {
-          console.warn(`[BetterBoard] Capability ${capabilityId} could not resolve anchor ${anchor}.`);
-          return;
-        }
+          let current: HTMLElement | null = target;
+          while (current) {
+            if (current instanceof HTMLDetailsElement) current.open = true;
+            current = current.parentElement;
+          }
 
-        let current: HTMLElement | null = target;
-        while (current) {
-          if (current instanceof HTMLDetailsElement) current.open = true;
-          current = current.parentElement;
-        }
+          const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+          target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+          target.classList.add('capability-target-flash');
 
-        const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-        target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
-        target.classList.add('capability-target-flash');
-
-        const focusTarget = target.matches('button, a, input, select, textarea, [tabindex]')
-          ? target
-          : target.querySelector<HTMLElement>('button, a, input, select, textarea, [tabindex]');
-        focusTarget?.focus({ preventScroll: true });
-        window.setTimeout(() => target.classList.remove('capability-target-flash'), 1400);
+          const focusTarget = target.matches('button, a, input, select, textarea, [tabindex]')
+            ? target
+            : target.querySelector<HTMLElement>('button, a, input, select, textarea, [tabindex]');
+          focusTarget?.focus({ preventScroll: true });
+          window.setTimeout(() => target.classList.remove('capability-target-flash'), 1400);
+        });
       });
     }, 0);
   });
