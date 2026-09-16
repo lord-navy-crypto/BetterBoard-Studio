@@ -134,6 +134,48 @@ export const CAPABILITY_SHORTCUTS: CapabilityShortcut[] = [
     targetCapabilityId: 'observatory-system', anchor: 'observatory-scientific-boundaries', owner: 'Observatory',
     keywords: ['observatory', 'scientific boundaries', 'calibration', 'model validity', 'evidence'],
   },
+  {
+    id: 'numerical-bench-acquisition', label: 'Numerical Bench 01 · Acquisition', group: 'Measure',
+    description: 'Open the real potentiometer → ADC → measurement acquisition stage in Engineering Preparation.',
+    targetCapabilityId: 'analysis-preparation', anchor: 'numerical-bench-acquisition', owner: 'NumericalBenchSuiteV2',
+    keywords: ['numerical', 'bench 01', 'acquisition', 'adc', 'potentiometer', 'measurement'],
+  },
+  {
+    id: 'numerical-bench-sampling-error', label: 'Numerical Bench 02 · Sampling Error', group: 'Analyze',
+    description: 'Inspect sampling, jitter, downsampling, differentiation, integration and accumulation error on captured evidence.',
+    targetCapabilityId: 'analysis-preparation', anchor: 'numerical-bench-sampling-error', owner: 'NumericalBenchSuiteV2',
+    keywords: ['numerical', 'bench 02', 'sampling', 'jitter', 'downsampling', 'derivative', 'integration', 'float32'],
+  },
+  {
+    id: 'numerical-bench-mcu-reliability', label: 'Numerical Bench 03 · MCU Reliability', group: 'Analyze',
+    description: 'Compare embedded Taylor and finite-arithmetic behavior against independent host references.',
+    targetCapabilityId: 'analysis-preparation', anchor: 'numerical-bench-mcu-reliability', owner: 'NumericalBenchSuiteV2',
+    keywords: ['numerical', 'bench 03', 'mcu', 'taylor', 'reliability', 'cancellation', 'host reference'],
+  },
+  {
+    id: 'magnet-bench-vector-acquisition', label: 'Magnet Bench 01 · Vector Acquisition', group: 'Measure',
+    description: 'Open the Bx / By / Bz magnetic-vector acquisition workflow and capture real field evidence.',
+    targetCapabilityId: 'analysis-preparation', anchor: 'magnet-bench-vector-acquisition', owner: 'MagnetBenchSuiteV2',
+    keywords: ['magnet', 'bench 01', 'vector', 'bx', 'by', 'bz', 'field', 'capture'],
+  },
+  {
+    id: 'magnet-bench-characterization', label: 'Magnet Bench 02 · Characterization', group: 'Analyze',
+    description: 'Characterize baseline, repeatability and spatial magnetic-field behavior from measured evidence.',
+    targetCapabilityId: 'analysis-preparation', anchor: 'magnet-bench-characterization', owner: 'MagnetBenchSuiteV2',
+    keywords: ['magnet', 'bench 02', 'characterization', 'baseline', 'repeatability', 'spatial profile'],
+  },
+  {
+    id: 'magnet-bench-model-validation', label: 'Magnet Bench 03 · Model Validation', group: 'Compare',
+    description: 'Compare measured magnetic evidence with model CSV predictions using residual, RMSE, bias and fit diagnostics.',
+    targetCapabilityId: 'analysis-preparation', anchor: 'magnet-bench-model-validation', owner: 'MagnetBenchSuiteV2',
+    keywords: ['magnet', 'bench 03', 'model', 'validation', 'residual', 'rmse', 'bias', 'r2'],
+  },
+  {
+    id: 'research-ai-review', label: 'Research Handoff · OpenPenguin Review', group: 'Analyze',
+    description: 'Ask local OpenPenguin to review the structured Research Bridge handoff while preserving AI suggestions as separate provenance.',
+    targetCapabilityId: 'analysis-preparation', anchor: 'research-ai-review', owner: 'EngineeringPreparationStudio',
+    keywords: ['research', 'handoff', 'openguin', 'local ai', 'evidence review', 'provenance', 'next experiment'],
+  },
 ];
 
 export const CAPABILITY_SHORTCUT_BY_ID = new Map(CAPABILITY_SHORTCUTS.map(shortcut => [shortcut.id, shortcut]));
