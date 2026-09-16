@@ -220,33 +220,33 @@ export const CAPABILITY_SHORTCUTS: CapabilityShortcut[] = [
   },
   {
     id: 'developer-new-sketch', label: 'Developer · New Sketch', group: 'Develop',
-    description: 'Jump to the New action for starting a blank Arduino sketch; navigation never executes the destructive replacement action automatically.',
+    description: 'Jump to the Developer New action for starting a fresh sketch without executing it automatically.',
     targetCapabilityId: 'developer-editor', anchor: 'developer-new-sketch', owner: 'DeveloperIDE',
-    keywords: ['developer', 'new', 'blank sketch', 'arduino', 'editor'],
+    keywords: ['developer', 'new', 'sketch', 'source', 'editor'],
   },
   {
     id: 'developer-load-template', label: 'Developer · Load Recipe Template', group: 'Develop',
-    description: 'Jump to the explicit recipe-template load action in Developer Editor.',
+    description: 'Jump to the existing recipe-template load action inside Developer without replacing source automatically.',
     targetCapabilityId: 'developer-editor', anchor: 'developer-load-template', owner: 'DeveloperIDE',
-    keywords: ['developer', 'template', 'recipe', 'load', 'source'],
+    keywords: ['developer', 'recipe', 'template', 'load', 'source'],
   },
   {
     id: 'developer-format-source', label: 'Developer · Format Source', group: 'Develop',
-    description: 'Jump to clang-format source formatting for the current Developer sketch.',
+    description: 'Jump to the Developer Format action without changing source automatically.',
     targetCapabilityId: 'developer-editor', anchor: 'developer-format-source', owner: 'DeveloperIDE',
-    keywords: ['developer', 'format', 'clang-format', 'source', 'cpp'],
+    keywords: ['developer', 'format', 'source', 'editor'],
   },
   {
     id: 'developer-save-sketch', label: 'Developer · Save Sketch', group: 'Develop',
-    description: 'Jump to the current Developer sketch/project file save action.',
+    description: 'Jump to the exact Developer Save action without writing source automatically.',
     targetCapabilityId: 'developer-editor', anchor: 'developer-save-sketch', owner: 'DeveloperIDE',
-    keywords: ['developer', 'save', 'sketch', 'project file', 'source'],
+    keywords: ['developer', 'save', 'sketch', 'source', 'file'],
   },
   {
     id: 'developer-save-library', label: 'Developer · Save Source to Library', group: 'Develop',
-    description: 'Jump to the persistent Save to Library action that stores the current edited source as a BetterBoard user recipe.',
+    description: 'Jump to the Developer Save to Library action without persisting source automatically.',
     targetCapabilityId: 'developer-editor', anchor: 'developer-save-library', owner: 'DeveloperIDE',
-    keywords: ['developer', 'save to library', 'user recipe', 'persistent', 'source'],
+    keywords: ['developer', 'save', 'library', 'source', 'recipe'],
   },
   {
     id: 'developer-verify', label: 'Developer · Verify', group: 'Develop',
@@ -295,6 +295,12 @@ export const CAPABILITY_SHORTCUTS: CapabilityShortcut[] = [
     description: 'Focus the hardware-gated Compile & Upload action without compiling or flashing hardware automatically.',
     targetCapabilityId: 'program-firmware', anchor: 'program-compile-upload', owner: 'App',
     keywords: ['program', 'compile', 'upload', 'flash', 'hardware', 'arduino'],
+  },
+  {
+    id: 'campaign-visualization', label: 'Campaign Visualization', group: 'Experiment',
+    description: 'Inspect the Engineering Lab campaign flow from physical source through embedded mechanism, evidence, independent host reference, and validation decision.',
+    targetCapabilityId: 'experiments-campaigns', anchor: 'campaign-visualization', owner: 'CampaignVisualization',
+    keywords: ['campaign', 'visualization', 'physical source', 'embedded mechanism', 'evidence', 'host reference', 'validation', 'numeric error'],
   },
 ];
 
