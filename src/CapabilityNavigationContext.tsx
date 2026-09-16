@@ -89,6 +89,11 @@ const CAPABILITY_ANCHOR_FALLBACKS: Record<string, DomTarget> = {
     ],
   },
   'research-ai-review': { selector: 'section.panel', selectorText: 'Ask OpenPenguin about this evidence' },
+  'numerical-result-viewer': { selector: 'section.panel', selectorText: 'Depth Analyzer Results' },
+  'magnet-result-viewer': { selector: 'section.panel', selectorText: 'Magnetic Analyzer Results' },
+  'esp32-core-audit': { selector: 'div.panel', selectorText: 'Installed Arduino core audit' },
+  'esp32-board-details': { selector: 'div.panel', selectorText: 'Arduino CLI board details' },
+  'esp32-configuration-risk': { selector: 'div.panel', selectorText: 'Board configuration risk audit' },
 };
 
 export type CapabilityNavigator = {
