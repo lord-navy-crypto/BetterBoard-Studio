@@ -6,6 +6,7 @@ import NumericalBenchAdvanced from './NumericalBenchAdvanced';
 import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
 import MagnetBenchAdvanced from './MagnetBenchAdvanced';
 import CopyButton from './CopyButton';
+import { useCapabilityNavigation } from './CapabilityNavigationContext';
 import { bridgeForOpenPenguin, buildResearchBridge, researchSessionId } from './ResearchBridge';
 import { emptyResearchContext, loadResearchContext, makeResearchEvent, saveResearchContext, type ResearchContextState } from './ResearchContextStore';
 
@@ -55,6 +56,16 @@ export default function EngineeringPreparationStudio() {
   const [aiAnswer, setAiAnswer] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState('');
+  const { registerCapabilityActivator } = useCapabilityNavigation();
+
+  useEffect(() => {
+    const unregisterNumerical = registerCapabilityActivator('numerical-advanced', () => setLane('numerical'));
+    const unregisterMagnet = registerCapabilityActivator('magnet-advanced', () => setLane('magnet'));
+    return () => {
+      unregisterNumerical();
+      unregisterMagnet();
+    };
+  }, [registerCapabilityActivator]);
 
   async function loadEvidence() {
     if (loadingEvidence) return;
@@ -181,7 +192,7 @@ export default function EngineeringPreparationStudio() {
       <div className="boundary compact"><FileCheck2 size={14}/> Numerical preparation asks whether the captured data and computation are trustworthy enough to support the next scientific claim. Bench 01 / 02 / 03 remain separate evidence stages.</div>
       <NumericalBenchSuiteV2/>
 
-      <details style={{ marginTop: 14 }}>
+      <details style={{ marginTop: 14 }} data-capability-anchor="numerical-advanced">
         <summary><b>Advanced implementation tools</b> · analyzer paths, validation and exact controls</summary>
         <section className="panel" style={{ marginTop: 10 }}>
           <div className="panel-title"><Sigma size={17}/> Numeric Error implementation tools</div>
@@ -206,10 +217,10 @@ export default function EngineeringPreparationStudio() {
     {lane === 'magnet' && <>
       <div className="boundary compact"><FileCheck2 size={14}/> Magnetic preparation follows acquisition → field characterization → residual/model handoff. A clean curve never substitutes for calibration and provenance.</div>
       <MagnetBenchSuiteV2/>
-      <details style={{ marginTop: 14 }}><summary><b>Advanced magnetic tools</b> · residual / characterization controls</summary><MagnetBenchAdvanced/></details>
+      <details style={{ marginTop: 14 }} data-capability-anchor="magnet-advanced"><summary><b>Advanced magnetic tools</b> · residual / characterization controls</summary><MagnetBenchAdvanced/></details>
     </>}
 
-    <section className="panel engineering-handoff" style={{ marginTop: 18 }}>
+    <section className="panel engineering-handoff" style={{ marginTop: 18 }} data-capability-anchor="engineering-handoff">
       <div className="panel-title"><UploadCloud size={18}/> Evidence handoff</div>
       <p className="muted">Select a saved run and package its immutable measurement evidence with human research context. Engineering results and AI suggestions remain downstream layers rather than being mixed into the raw data.</p>
       <button className="primary" disabled={loadingEvidence} onClick={() => void loadEvidence()}><Database size={15}/> {loadingEvidence ? 'Loading evidence…' : loaded ? 'Refresh saved evidence' : 'Choose saved evidence'}</button>
@@ -247,27 +258,29 @@ export default function EngineeringPreparationStudio() {
       <div className="boundary"><FileCheck2 size={14}/> A successful handoff means evidence and provenance are traceable. It does not prove calibration, physical correctness, model validity, or an AI conclusion.</div>
     </section>
 
-    {selected && <section className="panel" style={{ marginTop: 18 }}>
+    <section className="panel" style={{ marginTop: 18 }} data-capability-anchor="research-context">
       <div className="panel-title"><Database size={18}/> Research context</div>
       <p className="muted">Add the question, hypothesis, observations and decisions that explain why this run matters. These notes travel with the handoff but remain distinct from sensor evidence.</p>
-      <div className="engineering-model-grid">
-        <label className="panel">Research question<textarea rows={3} value={researchContext.question} onChange={e => patchContext({ question: e.target.value })} placeholder="What are you trying to determine?" /></label>
-        <label className="panel">Hypothesis<textarea rows={3} value={researchContext.hypothesis} onChange={e => patchContext({ hypothesis: e.target.value })} placeholder="What result do you expect, and why?" /></label>
-      </div>
-      <div className="action-row">
-        <select value={contextLane} onChange={e => setContextLane(e.target.value as ContextLane)}><option value="notebook">Experiment Notebook</option><option value="annotation">Annotation</option><option value="journey">Lab Journey</option></select>
-        <input value={contextDraft} onChange={e => setContextDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addContextEntry(); }} placeholder="Add a traceable research entry" />
-        <button className="primary" disabled={!contextDraft.trim()} onClick={addContextEntry}><Plus size={15}/> Add entry</button>
-      </div>
-      <div className="observatory-facts">
-        <span>Notebook entries</span><b>{researchContext.notebook.length}</b>
-        <span>Annotations</span><b>{researchContext.annotations.length}</b>
-        <span>Journey events</span><b>{researchContext.lab_journey.length}</b>
-        <span>Engineering results</span><b>{researchContext.engineering_results.length}</b>
-        <span>OpenPenguin suggestions</span><b>{researchContext.ai_suggestions.length}</b>
-      </div>
-      {[...researchContext.notebook, ...researchContext.annotations, ...researchContext.lab_journey].slice(-8).reverse().map(event => <div className="boundary compact" key={event.id}><b>{event.origin} · {event.kind}</b> · {event.text}</div>)}
-    </section>}
+      {!selected ? <div className="empty compact">Research context is ready, but it needs a saved measurement session. Use Evidence handoff above to choose saved evidence first.</div> : <>
+        <div className="engineering-model-grid">
+          <label className="panel">Research question<textarea rows={3} value={researchContext.question} onChange={e => patchContext({ question: e.target.value })} placeholder="What are you trying to determine?" /></label>
+          <label className="panel">Hypothesis<textarea rows={3} value={researchContext.hypothesis} onChange={e => patchContext({ hypothesis: e.target.value })} placeholder="What result do you expect, and why?" /></label>
+        </div>
+        <div className="action-row">
+          <select value={contextLane} onChange={e => setContextLane(e.target.value as ContextLane)}><option value="notebook">Experiment Notebook</option><option value="annotation">Annotation</option><option value="journey">Lab Journey</option></select>
+          <input value={contextDraft} onChange={e => setContextDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addContextEntry(); }} placeholder="Add a traceable research entry" />
+          <button className="primary" disabled={!contextDraft.trim()} onClick={addContextEntry}><Plus size={15}/> Add entry</button>
+        </div>
+        <div className="observatory-facts">
+          <span>Notebook entries</span><b>{researchContext.notebook.length}</b>
+          <span>Annotations</span><b>{researchContext.annotations.length}</b>
+          <span>Journey events</span><b>{researchContext.lab_journey.length}</b>
+          <span>Engineering results</span><b>{researchContext.engineering_results.length}</b>
+          <span>OpenPenguin suggestions</span><b>{researchContext.ai_suggestions.length}</b>
+        </div>
+        {[...researchContext.notebook, ...researchContext.annotations, ...researchContext.lab_journey].slice(-8).reverse().map(event => <div className="boundary compact" key={event.id}><b>{event.origin} · {event.kind}</b> · {event.text}</div>)}
+      </>}
+    </section>
 
     <section className="panel" style={{ marginTop: 18 }}>
       <div className="panel-title"><Bot size={18}/> Ask OpenPenguin about this evidence</div>
