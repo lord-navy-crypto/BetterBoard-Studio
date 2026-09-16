@@ -29,3 +29,30 @@ export const ENGINEERING_STAGE_ORDER = [
   'Evidence',
   'Analysis',
 ] as const;
+
+export const ENGINEERING_FLOW = [
+  {
+    id: 'build',
+    label: 'Build',
+    description: 'Establish hardware, firmware, recipes, and the physical circuit.',
+    capabilities: ['hardware-session', 'program-firmware', 'recipe-library', 'circuit-lab'],
+  },
+  {
+    id: 'measure',
+    label: 'Measure',
+    description: 'Acquire live or bounded measurements and preserve traceable evidence.',
+    capabilities: ['monitor-live', 'monitor-snapshot', 'measurement-evidence', 'measurement-replay'],
+  },
+  {
+    id: 'analyze',
+    label: 'Analyze',
+    description: 'Inspect evidence, statistics, models, numerical reliability, and preparation.',
+    capabilities: ['analysis-evidence', 'analysis-statistics', 'analysis-models', 'analysis-numerical', 'analysis-preparation'],
+  },
+  {
+    id: 'experiment',
+    label: 'Experiment',
+    description: 'Plan the next study, run Engineering Lab campaigns, and preserve research context.',
+    capabilities: ['analysis-experiment-design', 'experiments-campaigns', 'engineering-handoff', 'research-context'],
+  },
+] as const;
