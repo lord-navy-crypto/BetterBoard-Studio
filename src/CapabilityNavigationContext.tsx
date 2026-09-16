@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from 'react';
 import { CAPABILITY_BY_ID, type AnalysisViewId, type StudioTabId, type WorkspaceId } from './capabilityRegistry';
+import { CAPABILITY_SHORTCUT_BY_ID } from './capabilityShortcuts';
 
 type LocalSetter<T> = (value: T) => void;
 type CapabilityActivator = () => void;
@@ -22,6 +23,11 @@ const CAPABILITY_ANCHOR_FALLBACKS: Record<string, DomTarget> = {
   'developer-sketchbook': { selector: '.developer-ide', activateButtonText: 'Sketchbook', activateWithin: '.developer-view-tabs' },
   'developer-diagnostics': { selector: '.developer-diagnostics-panel', activateButtonText: 'Editor', activateWithin: '.developer-view-tabs' },
   'observatory-system': { selector: '.observatory-workspace' },
+  'recipe-settings': { selector: '.recipe-parameter-panel' },
+  'serial-console': { selector: '.monitor-console-panel' },
+  'serial-transmit': { selector: '.monitor-transmit' },
+  'engineering-export-package': { selector: '.monitor-export-panel' },
+  'measurement-session-context': { selector: '.monitor-context-panel' },
 };
 
 export type CapabilityNavigator = {
@@ -106,10 +112,12 @@ export function CapabilityNavigationProvider({ workspace, setWorkspace, children
     };
   }, []);
 
-  const openCapability = useCallback((capabilityId: string) => {
+  const openCapability = useCallback((requestedId: string) => {
+    const shortcut = CAPABILITY_SHORTCUT_BY_ID.get(requestedId);
+    const capabilityId = shortcut?.targetCapabilityId ?? requestedId;
     const capability = CAPABILITY_BY_ID.get(capabilityId);
     if (!capability) {
-      console.warn(`[BetterBoard] Unknown capability id: ${capabilityId}`);
+      console.warn(`[BetterBoard] Unknown capability id: ${requestedId}`);
       return;
     }
 
@@ -118,16 +126,17 @@ export function CapabilityNavigationProvider({ workspace, setWorkspace, children
 
     if (destination.kind === 'studio-tab') {
       const setter = studioTabSetterRef.current;
-      if (!setter) console.warn(`[BetterBoard] Studio navigation is not registered for ${capabilityId}.`);
+      if (!setter) console.warn(`[BetterBoard] Studio navigation is not registered for ${requestedId}.`);
       else setter(destination.tab);
     } else if (destination.kind === 'analysis-view') {
       const setter = analysisViewSetterRef.current;
-      if (!setter) console.warn(`[BetterBoard] Analysis navigation is not registered for ${capabilityId}.`);
+      if (!setter) console.warn(`[BetterBoard] Analysis navigation is not registered for ${requestedId}.`);
       else setter(destination.view);
     }
 
     capabilityActivatorsRef.current.get(capabilityId)?.();
-    revealCapabilityTarget(capabilityId, destination.anchor);
+    capabilityActivatorsRef.current.get(requestedId)?.();
+    revealCapabilityTarget(requestedId, shortcut?.anchor ?? destination.anchor);
   }, [setWorkspace, workspace]);
 
   const value = useMemo<CapabilityNavigator>(() => ({
