@@ -11,6 +11,8 @@ import DeveloperIDE from './DeveloperIDE';
 import MonitorDataStudio from './MonitorDataStudio';
 import TaskCenterPanel, { type BackgroundTask, type TaskCategory, type TaskState } from './TaskCenter';
 import { useHardwareSession } from './HardwareSession';
+import { useCapabilityNavigation } from './CapabilityNavigationContext';
+import type { StudioTabId } from './capabilityRegistry';
 import RecipeParameterPanel, { recipeParameterDefaults, type RecipeParameterSpec } from './RecipeParameterPanel';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
@@ -29,7 +31,7 @@ type MeasurementResult = {
   physical_lab_bridge_path: string; samples: number;
 };
 type BridgeDocs = { hardware_map: string; serial_protocol: string; honeycomb_guide: string };
-type Tab = 'hardware' | 'circuit' | 'library' | 'data' | 'developer';
+type Tab = StudioTabId;
 
 const TASK_MEMORY_KEY = 'betterboard.task-center.v1';
 
@@ -84,6 +86,7 @@ export default function App() {
   const [parameterValues, setParameterValues] = useState<Record<string, string>>({});
   const [presetName, setPresetName] = useState('');
   const [tasks, setTasks] = useState<BackgroundTask[]>(restoreTaskMemory);
+  const { registerStudioTabSetter } = useCapabilityNavigation();
   const {
     ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn,
     activePort, hardwareStatus, diagnosis, refreshHardware,
@@ -100,6 +103,8 @@ export default function App() {
   }, [recipes]);
   const detectedFqbn = activePort?.fqbn ?? '';
   const detectedProfileAvailable = Boolean(detectedFqbn && profiles.some(profile => profile.fqbn === detectedFqbn));
+
+  useEffect(() => registerStudioTabSetter(setTab), [registerStudioTabSetter]);
 
   useEffect(() => {
     if (typeof localStorage === 'undefined') return;
@@ -311,7 +316,7 @@ export default function App() {
 
       <div className="studio-persistent-pane" hidden={tab !== 'hardware'}>
         <section className="hero-grid">
-          <div className="panel">
+          <div className="panel" data-capability-anchor="hardware-session">
             <div className="panel-title"><Cable size={18}/> Shared hardware session</div>
             <label>Serial device<select value={selectedPort} onChange={e => setSelectedPort(e.target.value)}>
               {!ports.length && <option value="">No USB serial device</option>}
@@ -322,12 +327,12 @@ export default function App() {
             </select></label>
             <div className="hint">This selection is shared across Studio and Experiments. Switching workspaces no longer creates a second board session.</div>
             {activePort && <div className="device-line"><b>{activePort.port}</b><span>{activePort.protocol}{activePort.fqbn ? ` · detected ${activePort.fqbn}` : ''}</span></div>}
-            <div className="boundary" style={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div data-capability-anchor="hardware-doctor" className="boundary" style={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flex: '1 1 360px' }}>{diagnosis.severity === 'success' ? <ShieldCheck size={15}/> : <CircleAlert size={15}/>}<span><b>Hardware Doctor · {diagnosis.title}</b><br/>{diagnosis.detail}<br/><small>{diagnosis.action}</small></span></span>
               <button className={diagnosis.severity === 'success' ? 'ghost' : 'primary'} disabled={busy} onClick={() => void runHardwareRepair()}><Wrench size={14}/>{repairLabel}</button>
             </div>
           </div>
-          <div className="panel">
+          <div className="panel" data-capability-anchor="recipe-preflight">
             <div className="panel-title"><ShieldCheck size={18}/> Recipe preflight</div>
             <div className="recipe-head"><b>{recipe?.title || 'Loading recipes…'}</b><span>{recipe?.category}</span></div>
             <p className="muted">{recipe?.description}</p>
@@ -341,7 +346,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="panel">
+        <section className="panel" data-capability-anchor="program-firmware">
           <div className="panel-title"><Play size={18}/> Program</div>
           <div className="selected-recipe-row"><div><span className="eyebrow">Selected recipe</span><h2>{recipe?.title}</h2><p>{recipe?.description}</p></div><button className="ghost" onClick={() => setTab('library')}><BookOpen size={16}/> Browse all</button></div>
           {recipe && <div className="schema-row"><span>{recipe.sketch_name}.ino</span><span>{recipe.baud} baud</span><span>{recipe.capture_mode}</span>{recipe.sample_rate_hz && <span>{recipe.sample_rate_hz} Hz nominal</span>}</div>}
@@ -358,7 +363,7 @@ export default function App() {
 
       <div className="studio-persistent-pane" hidden={tab !== 'circuit'}><CircuitLab onUseRecipe={(id) => { setRecipeId(id); setTab('hardware'); }} /></div>
 
-      <div className="studio-persistent-pane" hidden={tab !== 'library'}><section className="library-layout">
+      <div className="studio-persistent-pane" hidden={tab !== 'library'}><section className="library-layout" data-capability-anchor="recipe-library">
         <div className="panel">
           <div className="panel-title"><Boxes size={18}/> Experiment & firmware library</div>
           <p className="muted">Recipes are grouped by purpose instead of mixing verification, discipline, and workflow labels in one flat list.</p>
@@ -408,7 +413,7 @@ export default function App() {
         onTaskFinish={finishTask}
       /></div>
 
-      <TaskCenterPanel tasks={tasks} onCancel={cancelTask} onClearFinished={clearFinishedTasks}/>
+      <div data-capability-anchor="task-center"><TaskCenterPanel tasks={tasks} onCancel={cancelTask} onClearFinished={clearFinishedTasks}/></div>
     </main>
   </div>;
 }
