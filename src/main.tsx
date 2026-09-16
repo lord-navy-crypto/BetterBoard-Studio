@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { Bot, CircuitBoard, Focus, FlaskConical, LayoutGrid, RadioTower, X } from 'lucide-react';
+import AdvancedCapabilityLauncher from './AdvancedCapabilityLauncher';
 import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
 import CapabilityNavigator from './CapabilityNavigator';
@@ -287,6 +288,7 @@ function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWor
 
     {workspace === 'studio' && <EngineeringFlowLauncher onOpenCapability={openCapability} />}
     {workspace === 'studio' && <CurrentWorkSummary items={currentWorkItems} onOpenCapability={openCapability} />}
+    {workspace === 'studio' && <AdvancedCapabilityLauncher onOpenCapability={openCapability} />}
 
     <button type="button" aria-label="Close All Tools" className="bb-tools-backdrop" hidden={!allToolsOpen} onClick={() => setAllToolsOpen(false)} />
     <aside className="bb-tools-drawer" hidden={!allToolsOpen} aria-label="All Tools capability navigator">
