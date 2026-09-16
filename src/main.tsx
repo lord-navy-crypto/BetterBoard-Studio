@@ -6,7 +6,8 @@ import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
 import CapabilityNavigator from './CapabilityNavigator';
 import { CapabilityNavigationProvider, useCapabilityNavigation } from './CapabilityNavigationContext';
-import EngineeringStatusMap, { type EngineeringStatusNode } from './EngineeringStatusMap';
+import EngineeringCommandSurface from './EngineeringCommandSurface';
+import type { EngineeringStatusNode } from './EngineeringStatusMap';
 import ExperimentsHub from './ExperimentsHub';
 import HardwareTopology from './HardwareTopology';
 import Observatory from './Observatory';
@@ -18,6 +19,7 @@ import { EngineeringAnnotationsProvider } from './EngineeringAnnotations';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
 import { RunComparisonProvider } from './RunComparisonContext';
 import type { BackgroundTask } from './TaskCenter';
+import type { CurrentTaskSummary, HomeAction } from './homeSurfaceModel';
 import './styles.css';
 import './visual-system.css';
 import './monitor-data.css';
@@ -28,6 +30,7 @@ import './copy-ai.css';
 import './workflow-rail.css';
 import './phase6.css';
 import './capability-navigation.css';
+import './home-surface.css';
 
 type Workspace = 'studio' | 'observatory' | 'experiments';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
@@ -39,15 +42,6 @@ const WORKSPACES: Array<{ id: Workspace; label: string; subtitle: string; icon: 
   { id: 'observatory', label: 'Observatory', subtitle: 'runtime · evidence · system state', icon: RadioTower },
   { id: 'experiments', label: 'Experiments', subtitle: 'Engineering Lab campaigns', icon: FlaskConical },
 ];
-
-const STATUS_CAPABILITY: Record<EngineeringStatusNode['id'], string> = {
-  toolchain: 'hardware-doctor',
-  hardware: 'hardware-session',
-  firmware: 'program-firmware',
-  acquisition: 'monitor-live',
-  evidence: 'measurement-evidence',
-  analysis: 'analysis-evidence',
-};
 
 function readTaskMemory(): BackgroundTask[] {
   if (typeof localStorage === 'undefined') return [];
@@ -152,16 +146,25 @@ function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWor
   const analyzed = successfulTasks.some(task => task.category === 'Analysis');
   const programRunning = runningTasks.some(task => task.category === 'Program');
 
-  const workflowNextAction = useMemo(() => {
-    if (!cli?.found) return 'Restore the Arduino toolchain';
-    if (!selectedPort) return 'Connect and select hardware';
-    if (!programmed) return 'Prepare or upload firmware';
-    if (liveSerial) return 'Save the live run as evidence';
-    if (!monitored) return 'Start Monitor & Data';
-    if (!evidenceSaved) return 'Save the captured measurement';
-    if (!analyzed) return 'Analyze or compare the evidence';
-    return 'Start the next experiment';
+  const workflowNextAction = useMemo<HomeAction>(() => {
+    if (!cli?.found) return { label: 'Restore the Arduino toolchain', capabilityId: 'hardware-doctor', detail: 'Arduino CLI is unavailable, so programming cannot proceed.' };
+    if (!selectedPort) return { label: 'Connect and select hardware', capabilityId: 'hardware-session', detail: 'Choose the physical board and profile that the rest of the workflow will share.' };
+    if (!programmed) return { label: 'Prepare or upload firmware', capabilityId: 'program-firmware', detail: 'Hardware is selected; establish the firmware state before acquisition.' };
+    if (liveSerial) return { label: 'Save the live run as evidence', capabilityId: 'measurement-evidence', detail: 'Live data is flowing but is not yet durable evidence.' };
+    if (!monitored) return { label: 'Start Monitor & Data', capabilityId: 'monitor-live', detail: 'Firmware is established; begin acquisition from the selected board.' };
+    if (!evidenceSaved) return { label: 'Save the captured measurement', capabilityId: 'measurement-evidence', detail: 'Convert captured data into traceable evidence with provenance.' };
+    if (!analyzed) return { label: 'Analyze or compare the evidence', capabilityId: 'analysis-evidence', detail: 'Evidence exists and is ready for statistical, model, or comparison work.' };
+    return { label: 'Start the next experiment', capabilityId: 'experiments-campaigns', detail: 'The current chain has evidence and analysis; continue into an Engineering Lab campaign.' };
   }, [cli?.found, selectedPort, programmed, liveSerial, monitored, evidenceSaved, analyzed]);
+
+  const workflowRecoveryAction = useMemo<HomeAction | null>(() => {
+    if (!cli?.found || diagnosis.code === 'ready') return null;
+    return {
+      label: 'Open Hardware Doctor',
+      capabilityId: 'hardware-doctor',
+      detail: diagnosis.action,
+    };
+  }, [cli?.found, diagnosis.code, diagnosis.action]);
 
   const statusNodes = useMemo<EngineeringStatusNode[]>(() => {
     const hardwareState: EngineeringStatusNode['status'] = diagnosis.code === 'ready'
@@ -180,9 +183,11 @@ function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWor
     ];
   }, [diagnosis, cli, programRunning, programmed, liveSerial, monitored, selectedPort, evidenceSaved, evidenceSource?.label, analyzed]);
 
-  function navigateStatus(node: EngineeringStatusNode) {
-    openCapability(STATUS_CAPABILITY[node.id]);
-  }
+  const activeTaskSummary: CurrentTaskSummary = latestRunning ? {
+    title: latestRunning.title,
+    detail: latestRunning.detail,
+    state: 'running',
+  } : null;
 
   const openPenguinContext = useMemo(() => [
     `Workspace: ${workspace}`,
@@ -192,8 +197,8 @@ function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWor
     `Acquisition: ${liveSerial ? 'LIVE' : 'idle'}`,
     `Running tasks: ${runningTasks.length}`,
     `Current status: ${latestRunning?.detail || hardwareStatus}`,
-    `Recommended next action: ${workflowNextAction}`,
-  ].join('\n'), [workspace, cli?.found, fqbn, selectedPort, activePort?.board_name, liveSerial, runningTasks.length, latestRunning?.detail, hardwareStatus, workflowNextAction]);
+    `Recommended next action: ${workflowNextAction.label}`,
+  ].join('\n'), [workspace, cli?.found, fqbn, selectedPort, activePort?.board_name, liveSerial, runningTasks.length, latestRunning?.detail, hardwareStatus, workflowNextAction.label]);
 
   const lastProgram = successfulTasks.find(task => task.category === 'Program');
 
@@ -224,9 +229,17 @@ function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWor
     </div>
 
     {workspace === 'studio' && <div className="bb-engineering-overview">
-      <EngineeringStatusMap nodes={statusNodes} onNavigate={navigateStatus}/>
+      <EngineeringCommandSurface
+        nodes={statusNodes}
+        nextAction={workflowNextAction}
+        recoveryAction={workflowRecoveryAction}
+        boardLabel={selectedPort ? (activePort?.board_name || 'Connected board') : 'No board selected'}
+        portLabel={selectedPort || 'No serial port'}
+        profileLabel={fqbn}
+        activeTask={activeTaskSummary}
+        onOpenCapability={openCapability}
+      />
       <div data-capability-anchor="hardware-topology"><HardwareTopology toolchainReady={Boolean(cli?.found)} selectedPort={selectedPort} activePort={activePort} selectedFqbn={fqbn} profiles={profiles} diagnosis={diagnosis} requiredLibraries={null} missingLibraries={null} firmwareLabel={lastProgram?.title ?? null} firmwareReady={Boolean(lastProgram)}/></div>
-      <div className="boundary compact" style={{ maxWidth: 1504, margin: '8px auto 0' }}><b>Next action</b> · {workflowNextAction}</div>
     </div>}
 
     <button type="button" aria-label="Close All Tools" className="bb-tools-backdrop" hidden={!allToolsOpen} onClick={() => setAllToolsOpen(false)} />
