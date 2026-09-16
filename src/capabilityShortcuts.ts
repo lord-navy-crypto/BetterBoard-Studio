@@ -15,6 +15,26 @@ export type CapabilityShortcut = {
 // They never own a second backend or duplicate the canonical execution path.
 export const CAPABILITY_SHORTCUTS: CapabilityShortcut[] = [
   {
+    id: 'engineering-status-map',
+    label: 'Engineering Status Map',
+    group: 'System',
+    description: 'Inspect Toolchain → Hardware → Firmware → Acquisition → Evidence → Analysis readiness and open each owning surface.',
+    targetCapabilityId: 'hardware-topology',
+    anchor: 'engineering-status-map',
+    owner: 'EngineeringStatusMap',
+    keywords: ['status', 'workflow', 'readiness', 'toolchain', 'hardware', 'firmware', 'evidence'],
+  },
+  {
+    id: 'evidence-source-picker',
+    label: 'Evidence Source Picker',
+    group: 'Analyze',
+    description: 'Choose saved BetterBoard evidence, load it for analysis, or assign it independently as Run A or Run B.',
+    targetCapabilityId: 'analysis-evidence',
+    anchor: 'evidence-source-picker',
+    owner: 'EvidenceSourcePicker',
+    keywords: ['evidence', 'source', 'saved session', 'run a', 'run b', 'refresh'],
+  },
+  {
     id: 'runtime-log',
     label: 'Runtime Log',
     group: 'System',
