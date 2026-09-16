@@ -206,6 +206,18 @@ export const CAPABILITY_SHORTCUTS: CapabilityShortcut[] = [
     targetCapabilityId: 'esp32-capabilities', anchor: 'esp32-configuration-risk', owner: 'EspressifCapabilityPanel',
     keywords: ['esp32', 'risk', 'flash', 'partition', 'psram', 'usb', 'upload', 'cpu', 'configuration'],
   },
+  {
+    id: 'recipe-preset-builder', label: 'Recipe Preset Builder', group: 'Build',
+    description: 'Name the current parameterized recipe and save it persistently into My Library for later reuse.',
+    targetCapabilityId: 'program-firmware', anchor: 'recipe-preset-builder', owner: 'App',
+    keywords: ['recipe', 'preset', 'save', 'parameters', 'my library', 'user recipe', 'template'],
+  },
+  {
+    id: 'my-recipe-library', label: 'My Recipe Library', group: 'Build',
+    description: 'Open saved user recipe presets in Recipe Library; if none exist yet, open Recipe Library so the first preset can be created.',
+    targetCapabilityId: 'recipe-library', anchor: 'my-recipe-library', owner: 'App',
+    keywords: ['recipe', 'my library', 'preset', 'saved', 'user recipe', 'custom'],
+  },
 ];
 
 export const CAPABILITY_SHORTCUT_BY_ID = new Map(CAPABILITY_SHORTCUTS.map(shortcut => [shortcut.id, shortcut]));
