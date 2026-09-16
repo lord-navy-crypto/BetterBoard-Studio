@@ -23,7 +23,7 @@ const CAPABILITY_ANCHOR_FALLBACKS: Record<string, DomTarget> = {
   'developer-sketchbook': { selector: '.developer-ide', activateButtonText: 'Sketchbook', activateWithin: '.developer-view-tabs' },
   'developer-diagnostics': { selector: '.developer-diagnostics-panel', activateButtonText: 'Editor', activateWithin: '.developer-view-tabs' },
   'observatory-system': { selector: '.observatory-workspace' },
-  'recipe-settings': { selector: '.recipe-parameter-panel' },
+  'recipe-settings': { selector: '.recipe-parameter-panel, [data-capability-anchor="program-firmware"]' },
   'serial-console': { selector: '.monitor-console-panel' },
   'serial-transmit': { selector: '.monitor-transmit' },
   'engineering-export-package': { selector: '.monitor-export-panel' },
