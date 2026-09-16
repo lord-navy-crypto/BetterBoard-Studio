@@ -218,6 +218,60 @@ export const CAPABILITY_SHORTCUTS: CapabilityShortcut[] = [
     targetCapabilityId: 'recipe-library', anchor: 'my-recipe-library', owner: 'App',
     keywords: ['recipe', 'my library', 'preset', 'saved', 'user recipe', 'custom'],
   },
+  {
+    id: 'developer-new-sketch', label: 'Developer · New Sketch', group: 'Develop',
+    description: 'Jump to the New action for starting a blank Arduino sketch; navigation never executes the destructive replacement action automatically.',
+    targetCapabilityId: 'developer-editor', anchor: 'developer-new-sketch', owner: 'DeveloperIDE',
+    keywords: ['developer', 'new', 'blank sketch', 'arduino', 'editor'],
+  },
+  {
+    id: 'developer-load-template', label: 'Developer · Load Recipe Template', group: 'Develop',
+    description: 'Jump to the explicit recipe-template load action in Developer Editor.',
+    targetCapabilityId: 'developer-editor', anchor: 'developer-load-template', owner: 'DeveloperIDE',
+    keywords: ['developer', 'template', 'recipe', 'load', 'source'],
+  },
+  {
+    id: 'developer-format-source', label: 'Developer · Format Source', group: 'Develop',
+    description: 'Jump to clang-format source formatting for the current Developer sketch.',
+    targetCapabilityId: 'developer-editor', anchor: 'developer-format-source', owner: 'DeveloperIDE',
+    keywords: ['developer', 'format', 'clang-format', 'source', 'cpp'],
+  },
+  {
+    id: 'developer-save-sketch', label: 'Developer · Save Sketch', group: 'Develop',
+    description: 'Jump to the current Developer sketch/project file save action.',
+    targetCapabilityId: 'developer-editor', anchor: 'developer-save-sketch', owner: 'DeveloperIDE',
+    keywords: ['developer', 'save', 'sketch', 'project file', 'source'],
+  },
+  {
+    id: 'developer-save-library', label: 'Developer · Save Source to Library', group: 'Develop',
+    description: 'Jump to the persistent Save to Library action that stores the current edited source as a BetterBoard user recipe.',
+    targetCapabilityId: 'developer-editor', anchor: 'developer-save-library', owner: 'DeveloperIDE',
+    keywords: ['developer', 'save to library', 'user recipe', 'persistent', 'source'],
+  },
+  {
+    id: 'developer-verify', label: 'Developer · Verify', group: 'Develop',
+    description: 'Jump to the Developer Verify action without starting compilation automatically.',
+    targetCapabilityId: 'developer-editor', anchor: 'developer-verify', owner: 'DeveloperIDE',
+    keywords: ['developer', 'verify', 'compile', 'arduino cli'],
+  },
+  {
+    id: 'developer-run-upload', label: 'Developer · Run / Upload', group: 'Develop',
+    description: 'Jump to the explicit compile-and-upload action without flashing hardware automatically.',
+    targetCapabilityId: 'developer-editor', anchor: 'developer-run-upload', owner: 'DeveloperIDE',
+    keywords: ['developer', 'run', 'upload', 'flash', 'compile'],
+  },
+  {
+    id: 'sketchbook-new-project', label: 'Sketchbook · New Project', group: 'Develop',
+    description: 'Open Sketchbook and focus the New project action for creating a persistent BetterBoard project.',
+    targetCapabilityId: 'developer-sketchbook', anchor: 'sketchbook-new-project', owner: 'SketchbookExplorer',
+    keywords: ['sketchbook', 'new project', 'create', 'developer', 'project'],
+  },
+  {
+    id: 'arduino-board-index-url', label: 'Arduino · Boards Manager URL', group: 'Develop',
+    description: 'Open Boards Manager and focus the Additional Boards Manager package index URL configuration.',
+    targetCapabilityId: 'developer-ecosystem', anchor: 'arduino-board-index-url', owner: 'ArduinoEcosystemManager',
+    keywords: ['arduino', 'boards manager', 'package index', 'url', 'additional url', 'core'],
+  },
 ];
 
 export const CAPABILITY_SHORTCUT_BY_ID = new Map(CAPABILITY_SHORTCUTS.map(shortcut => [shortcut.id, shortcut]));
