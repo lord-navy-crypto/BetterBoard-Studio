@@ -6,6 +6,7 @@ import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
 import CapabilityNavigator from './CapabilityNavigator';
 import { CapabilityNavigationProvider, useCapabilityNavigation } from './CapabilityNavigationContext';
+import CurrentWorkSummary from './CurrentWorkSummary';
 import EngineeringCommandSurface from './EngineeringCommandSurface';
 import EngineeringFlowLauncher from './EngineeringFlowLauncher';
 import type { EngineeringStatusNode } from './EngineeringStatusMap';
@@ -20,7 +21,7 @@ import { EngineeringAnnotationsProvider } from './EngineeringAnnotations';
 import { HardwareSessionProvider, useHardwareSession } from './HardwareSession';
 import { RunComparisonProvider } from './RunComparisonContext';
 import type { BackgroundTask } from './TaskCenter';
-import type { CurrentTaskSummary, HomeAction } from './homeSurfaceModel';
+import type { CurrentTaskSummary, CurrentWorkItem, HomeAction } from './homeSurfaceModel';
 import './styles.css';
 import './visual-system.css';
 import './monitor-data.css';
@@ -57,6 +58,14 @@ function readTaskMemory(): BackgroundTask[] {
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+}
+
+function capabilityForTask(task: BackgroundTask) {
+  if (task.category === 'Program') return 'program-firmware';
+  if (task.category === 'Monitor') return 'monitor-live';
+  if (task.category === 'Evidence') return 'measurement-evidence';
+  if (task.category === 'Analysis') return 'analysis-evidence';
+  return 'task-center';
 }
 
 function Root() {
@@ -141,6 +150,8 @@ function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWor
   const latestRunning = runningTasks[0];
   const liveSerial = runningTasks.find(task => task.category === 'Monitor' && /live serial/i.test(task.title));
   const successfulTasks = useMemo(() => tasks.filter(task => task.state === 'done'), [tasks]);
+  const latestFailed = useMemo(() => tasks.find(task => task.state === 'failed'), [tasks]);
+  const lastProgram = successfulTasks.find(task => task.category === 'Program');
   const programmed = successfulTasks.some(task => task.category === 'Program' && /upload|compile/i.test(task.title));
   const monitored = Boolean(liveSerial) || successfulTasks.some(task => task.category === 'Monitor');
   const evidenceSaved = Boolean(evidenceSource) || successfulTasks.some(task => task.category === 'Evidence');
@@ -190,6 +201,39 @@ function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWor
     state: 'running',
   } : null;
 
+  const currentWorkItems = useMemo<CurrentWorkItem[]>(() => {
+    const items: CurrentWorkItem[] = [];
+    if (latestRunning) items.push({
+      id: `running-${latestRunning.id}`,
+      label: latestRunning.title,
+      detail: latestRunning.detail,
+      status: 'active',
+      capabilityId: capabilityForTask(latestRunning),
+    });
+    if (lastProgram && lastProgram.id !== latestRunning?.id) items.push({
+      id: `program-${lastProgram.id}`,
+      label: 'Latest program result',
+      detail: `${lastProgram.title} · ${lastProgram.detail}`,
+      status: 'ready',
+      capabilityId: 'program-firmware',
+    });
+    if (evidenceSource) items.push({
+      id: 'current-evidence',
+      label: 'Current evidence',
+      detail: evidenceSource.label,
+      status: 'ready',
+      capabilityId: 'analysis-evidence',
+    });
+    if (latestFailed && latestFailed.id !== latestRunning?.id) items.push({
+      id: `failure-${latestFailed.id}`,
+      label: 'Latest unresolved failure',
+      detail: `${latestFailed.title} · ${latestFailed.detail}`,
+      status: 'failed',
+      capabilityId: 'task-center',
+    });
+    return items.slice(0, 4);
+  }, [latestRunning, lastProgram, evidenceSource, latestFailed]);
+
   const openPenguinContext = useMemo(() => [
     `Workspace: ${workspace}`,
     `Arduino CLI: ${cli?.found ? 'ready' : 'unavailable'}`,
@@ -200,8 +244,6 @@ function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWor
     `Current status: ${latestRunning?.detail || hardwareStatus}`,
     `Recommended next action: ${workflowNextAction.label}`,
   ].join('\n'), [workspace, cli?.found, fqbn, selectedPort, activePort?.board_name, liveSerial, runningTasks.length, latestRunning?.detail, hardwareStatus, workflowNextAction.label]);
-
-  const lastProgram = successfulTasks.find(task => task.category === 'Program');
 
   return <div className={`bb-root ${focusMode ? 'focus-mode' : ''}`}>
     <header className="bb-command-bar rich">
@@ -244,6 +286,7 @@ function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWor
     </div>}
 
     {workspace === 'studio' && <EngineeringFlowLauncher onOpenCapability={openCapability} />}
+    {workspace === 'studio' && <CurrentWorkSummary items={currentWorkItems} onOpenCapability={openCapability} />}
 
     <button type="button" aria-label="Close All Tools" className="bb-tools-backdrop" hidden={!allToolsOpen} onClick={() => setAllToolsOpen(false)} />
     <aside className="bb-tools-drawer" hidden={!allToolsOpen} aria-label="All Tools capability navigator">
