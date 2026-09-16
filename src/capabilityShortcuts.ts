@@ -272,6 +272,30 @@ export const CAPABILITY_SHORTCUTS: CapabilityShortcut[] = [
     targetCapabilityId: 'developer-ecosystem', anchor: 'arduino-board-index-url', owner: 'ArduinoEcosystemManager',
     keywords: ['arduino', 'boards manager', 'package index', 'url', 'additional url', 'core'],
   },
+  {
+    id: 'recipe-preflight-check', label: 'Recipe · Check Core & Libraries', group: 'Build',
+    description: 'Focus the existing recipe preflight action so the selected Arduino core and required libraries can be checked explicitly.',
+    targetCapabilityId: 'recipe-preflight', anchor: 'recipe-preflight-check', owner: 'App',
+    keywords: ['recipe', 'preflight', 'core', 'libraries', 'check', 'arduino cli'],
+  },
+  {
+    id: 'program-prepare-firmware', label: 'Program · Prepare Firmware', group: 'Build',
+    description: 'Focus the existing Prepare firmware action without generating or changing firmware automatically.',
+    targetCapabilityId: 'program-firmware', anchor: 'program-prepare-firmware', owner: 'App',
+    keywords: ['program', 'prepare', 'firmware', 'recipe', 'source'],
+  },
+  {
+    id: 'program-compile', label: 'Program · Compile', group: 'Build',
+    description: 'Focus the gated Compile action without starting compilation automatically.',
+    targetCapabilityId: 'program-firmware', anchor: 'program-compile', owner: 'App',
+    keywords: ['program', 'compile', 'verify', 'arduino', 'build'],
+  },
+  {
+    id: 'program-compile-upload', label: 'Program · Compile & Upload', group: 'Build',
+    description: 'Focus the hardware-gated Compile & Upload action without compiling or flashing hardware automatically.',
+    targetCapabilityId: 'program-firmware', anchor: 'program-compile-upload', owner: 'App',
+    keywords: ['program', 'compile', 'upload', 'flash', 'hardware', 'arduino'],
+  },
 ];
 
 export const CAPABILITY_SHORTCUT_BY_ID = new Map(CAPABILITY_SHORTCUTS.map(shortcut => [shortcut.id, shortcut]));
