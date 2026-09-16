@@ -2,11 +2,13 @@ import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode
 import { CAPABILITY_BY_ID, type AnalysisViewId, type StudioTabId, type WorkspaceId } from './capabilityRegistry';
 
 type LocalSetter<T> = (value: T) => void;
+type CapabilityActivator = () => void;
 
 export type CapabilityNavigator = {
   openCapability: (capabilityId: string) => void;
   registerStudioTabSetter: (setter: LocalSetter<StudioTabId>) => () => void;
   registerAnalysisViewSetter: (setter: LocalSetter<AnalysisViewId>) => () => void;
+  registerCapabilityActivator: (capabilityId: string, activator: CapabilityActivator) => () => void;
 };
 
 type ProviderProps = {
@@ -46,6 +48,7 @@ function revealCapabilityAnchor(capabilityId: string, anchor?: string) {
 export function CapabilityNavigationProvider({ workspace, setWorkspace, children }: ProviderProps) {
   const studioTabSetterRef = useRef<LocalSetter<StudioTabId> | null>(null);
   const analysisViewSetterRef = useRef<LocalSetter<AnalysisViewId> | null>(null);
+  const capabilityActivatorsRef = useRef(new Map<string, CapabilityActivator>());
 
   const registerStudioTabSetter = useCallback((setter: LocalSetter<StudioTabId>) => {
     studioTabSetterRef.current = setter;
@@ -58,6 +61,13 @@ export function CapabilityNavigationProvider({ workspace, setWorkspace, children
     analysisViewSetterRef.current = setter;
     return () => {
       if (analysisViewSetterRef.current === setter) analysisViewSetterRef.current = null;
+    };
+  }, []);
+
+  const registerCapabilityActivator = useCallback((capabilityId: string, activator: CapabilityActivator) => {
+    capabilityActivatorsRef.current.set(capabilityId, activator);
+    return () => {
+      if (capabilityActivatorsRef.current.get(capabilityId) === activator) capabilityActivatorsRef.current.delete(capabilityId);
     };
   }, []);
 
@@ -81,6 +91,8 @@ export function CapabilityNavigationProvider({ workspace, setWorkspace, children
       else setter(destination.view);
     }
 
+    capabilityActivatorsRef.current.get(capabilityId)?.();
+
     const anchor = destination.anchor;
     window.requestAnimationFrame(() => {
       window.setTimeout(() => revealCapabilityAnchor(capabilityId, anchor), 0);
@@ -91,7 +103,8 @@ export function CapabilityNavigationProvider({ workspace, setWorkspace, children
     openCapability,
     registerStudioTabSetter,
     registerAnalysisViewSetter,
-  }), [openCapability, registerStudioTabSetter, registerAnalysisViewSetter]);
+    registerCapabilityActivator,
+  }), [openCapability, registerStudioTabSetter, registerAnalysisViewSetter, registerCapabilityActivator]);
 
   return <CapabilityNavigationContext.Provider value={value}>{children}</CapabilityNavigationContext.Provider>;
 }
