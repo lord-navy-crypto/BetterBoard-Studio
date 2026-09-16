@@ -3,6 +3,25 @@ import { CAPABILITY_BY_ID, type AnalysisViewId, type StudioTabId, type Workspace
 
 type LocalSetter<T> = (value: T) => void;
 type CapabilityActivator = () => void;
+type DomTarget = { selector: string; activateButtonText?: string; activateWithin?: string };
+
+// Explicit fallbacks point at existing canonical UI surfaces without duplicating their backend logic.
+// They are used only where the owning component is intentionally large/stable and a data anchor would
+// otherwise require invasive edits to mature acquisition, circuit, or developer code.
+const CAPABILITY_ANCHOR_FALLBACKS: Record<string, DomTarget> = {
+  'circuit-lab': { selector: '.circuit-lab' },
+  'circuit-diagnostics': { selector: '.rule-panel' },
+  'monitor-live': { selector: '.monitor-toolbar' },
+  'monitor-snapshot': { selector: '.monitor-controls' },
+  'measurement-evidence': { selector: '.monitor-record-panel' },
+  'measurement-replay': { selector: '.monitor-history-panel' },
+  'primitive-observatory': { selector: '.monitor-plot-panel' },
+  'developer-editor': { selector: '.developer-editor-panel', activateButtonText: 'Editor', activateWithin: '.developer-view-tabs' },
+  'developer-verify-upload': { selector: '.developer-actions', activateButtonText: 'Editor', activateWithin: '.developer-view-tabs' },
+  'developer-ecosystem': { selector: '.developer-ide', activateButtonText: 'Boards & Libraries', activateWithin: '.developer-view-tabs' },
+  'developer-sketchbook': { selector: '.developer-ide', activateButtonText: 'Sketchbook', activateWithin: '.developer-view-tabs' },
+  'developer-diagnostics': { selector: '.developer-diagnostics-panel', activateButtonText: 'Editor', activateWithin: '.developer-view-tabs' },
+};
 
 export type CapabilityNavigator = {
   openCapability: (capabilityId: string) => void;
@@ -19,30 +38,45 @@ type ProviderProps = {
 
 const CapabilityNavigationContext = createContext<CapabilityNavigator | null>(null);
 
-function revealCapabilityAnchor(capabilityId: string, anchor?: string) {
+function activateDomTarget(target?: DomTarget) {
+  if (!target?.activateButtonText) return;
+  const root = target.activateWithin ? document.querySelector<HTMLElement>(target.activateWithin) : document.body;
+  const button = [...(root?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+    .find(candidate => candidate.textContent?.trim().includes(target.activateButtonText ?? ''));
+  button?.click();
+}
+
+function revealCapabilityTarget(capabilityId: string, anchor?: string) {
   if (!anchor) return;
-  const target = document.querySelector<HTMLElement>(`[data-capability-anchor="${anchor}"]`);
-  if (!target) {
-    console.warn(`[BetterBoard] Capability ${capabilityId} could not resolve anchor ${anchor}.`);
-    return;
-  }
+  const fallback = CAPABILITY_ANCHOR_FALLBACKS[anchor];
+  activateDomTarget(fallback);
 
-  let current: HTMLElement | null = target;
-  while (current) {
-    if (current instanceof HTMLDetailsElement) current.open = true;
-    current = current.parentElement;
-  }
+  window.requestAnimationFrame(() => {
+    window.setTimeout(() => {
+      const target = document.querySelector<HTMLElement>(`[data-capability-anchor="${anchor}"]`)
+        ?? (fallback ? document.querySelector<HTMLElement>(fallback.selector) : null);
+      if (!target) {
+        console.warn(`[BetterBoard] Capability ${capabilityId} could not resolve anchor ${anchor}.`);
+        return;
+      }
 
-  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-  target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
-  target.classList.add('capability-target-flash');
+      let current: HTMLElement | null = target;
+      while (current) {
+        if (current instanceof HTMLDetailsElement) current.open = true;
+        current = current.parentElement;
+      }
 
-  const focusTarget = target.matches('button, a, input, select, textarea, [tabindex]')
-    ? target
-    : target.querySelector<HTMLElement>('button, a, input, select, textarea, [tabindex]');
-  focusTarget?.focus({ preventScroll: true });
+      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+      target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+      target.classList.add('capability-target-flash');
 
-  window.setTimeout(() => target.classList.remove('capability-target-flash'), 1400);
+      const focusTarget = target.matches('button, a, input, select, textarea, [tabindex]')
+        ? target
+        : target.querySelector<HTMLElement>('button, a, input, select, textarea, [tabindex]');
+      focusTarget?.focus({ preventScroll: true });
+      window.setTimeout(() => target.classList.remove('capability-target-flash'), 1400);
+    }, 0);
+  });
 }
 
 export function CapabilityNavigationProvider({ workspace, setWorkspace, children }: ProviderProps) {
@@ -92,11 +126,7 @@ export function CapabilityNavigationProvider({ workspace, setWorkspace, children
     }
 
     capabilityActivatorsRef.current.get(capabilityId)?.();
-
-    const anchor = destination.anchor;
-    window.requestAnimationFrame(() => {
-      window.setTimeout(() => revealCapabilityAnchor(capabilityId, anchor), 0);
-    });
+    revealCapabilityTarget(capabilityId, destination.anchor);
   }, [setWorkspace, workspace]);
 
   const value = useMemo<CapabilityNavigator>(() => ({
