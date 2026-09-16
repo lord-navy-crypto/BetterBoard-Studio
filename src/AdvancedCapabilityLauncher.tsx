@@ -2,6 +2,7 @@ import { ArrowRight, ChevronDown } from 'lucide-react';
 import { CAPABILITIES } from './capabilityRegistry';
 import { CAPABILITY_SHORTCUTS } from './capabilityShortcuts';
 import { ADVANCED_CAPABILITY_GROUPS } from './homeSurfaceModel';
+import './advanced-capabilities.css';
 
 type Props = {
   onOpenCapability: (id: string) => void;
