@@ -7,6 +7,7 @@ import AnalysisVisualizationHub from './AnalysisVisualizationHub';
 import CapabilityNavigator from './CapabilityNavigator';
 import { CapabilityNavigationProvider, useCapabilityNavigation } from './CapabilityNavigationContext';
 import EngineeringCommandSurface from './EngineeringCommandSurface';
+import EngineeringFlowLauncher from './EngineeringFlowLauncher';
 import type { EngineeringStatusNode } from './EngineeringStatusMap';
 import ExperimentsHub from './ExperimentsHub';
 import HardwareTopology from './HardwareTopology';
@@ -241,6 +242,8 @@ function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWor
       />
       <div data-capability-anchor="hardware-topology"><HardwareTopology toolchainReady={Boolean(cli?.found)} selectedPort={selectedPort} activePort={activePort} selectedFqbn={fqbn} profiles={profiles} diagnosis={diagnosis} requiredLibraries={null} missingLibraries={null} firmwareLabel={lastProgram?.title ?? null} firmwareReady={Boolean(lastProgram)}/></div>
     </div>}
+
+    {workspace === 'studio' && <EngineeringFlowLauncher onOpenCapability={openCapability} />}
 
     <button type="button" aria-label="Close All Tools" className="bb-tools-backdrop" hidden={!allToolsOpen} onClick={() => setAllToolsOpen(false)} />
     <aside className="bb-tools-drawer" hidden={!allToolsOpen} aria-label="All Tools capability navigator">
