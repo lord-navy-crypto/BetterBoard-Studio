@@ -44,6 +44,7 @@ CHECKS = (
     "recipe_library_surface_reachability_self_check.py",
     "developer_action_surface_reachability_self_check.py",
     "program_action_surface_reachability_self_check.py",
+    "audited_surface_inventory_self_check.py",
 )
 
 
