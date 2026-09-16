@@ -86,6 +86,7 @@ The inventory is deliberately conservative: discoverability is not measured by s
 | `esp32-core-audit` | `EspressifCapabilityPanel.tsx` | installed core audit has independent read-only result | `shortcut` | `esp32-core-audit` | direct diagnostic discoverability |
 | `esp32-board-details` | `EspressifCapabilityPanel.tsx` | CLI board details are independent read-only metadata | `shortcut` | `esp32-board-details` | direct inspection surface |
 | `esp32-configuration-risk` | `EspressifCapabilityPanel.tsx` | configuration risk audit produces independent result | `shortcut` | `esp32-configuration-risk` | direct diagnostic surface |
+| `campaign-visualization` | `CampaignVisualization.tsx` | independently visualizes Physical source → Embedded mechanism → Evidence → Host reference → Decision plus Numeric Error mechanism coverage | `shortcut` | `campaign-visualization` | stable semantic route exposes an existing campaign result/coverage visualization without duplicating campaign execution |
 | `experiment-code-library` | `EngineeringExperimentLibrary.tsx` | repository-discovered firmware/host tools form a complete library | `canonical` | `experiment-code-library` | canonical experiment-code browser |
 | `experiment-code-view-source` | `EngineeringExperimentLibrary.tsx` | requires currently selected asset | `owner-internal` | `-` | global shortcut would open empty/no-context state |
 | `experiment-code-verify` | `EngineeringExperimentLibrary.tsx` | requires selected supported firmware asset | `owner-internal` | `-` | owner keeps verification target context |
@@ -104,7 +105,8 @@ The inventory is deliberately conservative: discoverability is not measured by s
 4. **Research Context stays one capability.** Notebook, Annotation, and Lab Journey are modes over shared evidence/research state.
 5. **Backend commands stay backend-only.** `compile_sketch`, `upload_sketch`, persistence commands, and configuration mutation commands never become navigation destinations.
 6. **Retired duplicate surfaces stay retired.** The product keeps one canonical owner per capability instead of reintroducing compatibility-era duplicate shells.
+7. **Campaign Visualization is now promoted.** Its standalone visualization/coverage value warrants a direct shortcut, while campaign execution remains owned by `experiments-campaigns`.
 
 ## Next audit pass
 
-Implementation Task 2 must continue scanning source files for independently useful surfaces not represented above. Any newly confirmed candidate is appended here first, classified, and then promoted through a focused RED/GREEN reachability contract when appropriate.
+Future source-outward audits should append newly confirmed independent surfaces here first, then promote them through focused reachability contracts. Presentation layers such as the first-principles home and All Tools tiers organize existing semantic destinations; they do not create duplicate backend ownership.
