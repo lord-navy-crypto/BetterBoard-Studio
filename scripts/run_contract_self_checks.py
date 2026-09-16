@@ -47,6 +47,7 @@ CHECKS = (
     "audited_surface_inventory_self_check.py",
     "campaign_visualization_reachability_self_check.py",
     "home_surface_contract_self_check.py",
+    "all_tools_progressive_disclosure_self_check.py",
 )
 
 
