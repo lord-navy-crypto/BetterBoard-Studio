@@ -46,6 +46,7 @@ CHECKS = (
     "program_action_surface_reachability_self_check.py",
     "audited_surface_inventory_self_check.py",
     "campaign_visualization_reachability_self_check.py",
+    "home_surface_contract_self_check.py",
 )
 
 
