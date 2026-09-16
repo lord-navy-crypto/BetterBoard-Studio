@@ -21,14 +21,14 @@ required = {
     'developer-verify': ('Developer · Verify', 'Verify'),
     'developer-run-upload': ('Developer · Run / Upload', 'Run / Upload'),
     'sketchbook-new-project': ('Sketchbook · New Project', 'New project'),
-    'arduino-board-index-url': ('Arduino · Boards Manager URL', 'Add URL'),
+    'arduino-board-index-url': ('Arduino · Boards Manager URL', 'Additional Boards Manager package index URL'),
 }
 
-for shortcut_id, (label, button_text) in required.items():
+for shortcut_id, (label, target_text) in required.items():
     assert f"id: '{shortcut_id}'" in shortcuts, f'missing developer action shortcut: {shortcut_id}'
     assert label in shortcuts, f'missing developer action label: {label}'
     assert f"'{shortcut_id}':" in navigation, f'missing developer action semantic fallback: {shortcut_id}'
-    assert button_text in navigation, f'navigation no longer targets action text: {button_text}'
+    assert target_text in navigation, f'navigation no longer targets action surface: {target_text}'
 
 # Direct shortcuts must activate the canonical parent surface first. This is what makes
 # Boards/Libraries/Examples and future nested actions work even when Developer is currently
@@ -46,6 +46,8 @@ for token in ['New</button>', 'Load recipe template', 'Format</button>', 'Save</
     assert token in developer, f'Developer action disappeared: {token}'
 assert 'New project' in sketchbook and 'developer_project_create' in sketchbook, 'Sketchbook project creation workflow missing'
 assert 'Additional Boards Manager package index URL' in ecosystem and 'arduino_board_url_add' in ecosystem, 'Boards Manager URL workflow missing'
+assert "selectorText: 'Additional Boards Manager package index URL'" in navigation, 'Boards Manager URL shortcut must focus the configuration row instead of executing Add URL'
+assert "activationSteps: [{ buttonText: 'Boards', within: '.ide-manager .ide-subtabs' }]" in navigation, 'Boards Manager URL shortcut must activate Boards first'
 
 # Discovery/navigation can point at the actions but must not execute their backends itself.
 for forbidden in ['developer_format_source', 'user_recipe_save', 'developer_project_create', 'arduino_board_url_add', 'compile_sketch', 'upload_sketch']:
@@ -55,5 +57,6 @@ for forbidden in ['developer_format_source', 'user_recipe_save', 'developer_proj
 print('Developer action surface reachability self-check: PASS')
 print('- Developer New/Template/Format/Save/Library/Verify/Run actions are directly discoverable')
 print('- Sketchbook New Project and Boards Manager URL are directly discoverable')
+print('- Boards Manager URL focuses its configuration row without executing Add URL')
 print('- Canonical parent surface activates before nested child targeting')
 print('- Exact button matching prevents ambiguous toolbar destinations')
