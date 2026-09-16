@@ -1,0 +1,177 @@
+.engineering-command-surface {
+  max-width: 1504px;
+  margin: 12px auto 0;
+  padding: 16px;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.24));
+  border-radius: 16px;
+  background: var(--panel, rgba(255, 255, 255, 0.035));
+  display: grid;
+  gap: 14px;
+}
+
+.engineering-command-head,
+.engineering-decision-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.engineering-command-title {
+  min-width: 0;
+}
+
+.engineering-command-title h2 {
+  margin: 3px 0 4px;
+  font-size: clamp(1.15rem, 2.4vw, 1.55rem);
+  letter-spacing: -0.02em;
+}
+
+.engineering-command-title p {
+  margin: 0;
+  max-width: 780px;
+  color: var(--muted);
+}
+
+.engineering-readiness {
+  min-width: 96px;
+  display: grid;
+  justify-items: end;
+}
+
+.engineering-readiness b {
+  font-size: 1.35rem;
+}
+
+.engineering-readiness span,
+.engineering-stage-label small,
+.engineering-command-context small,
+.engineering-decision-copy small {
+  color: var(--muted);
+}
+
+.engineering-command-context {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.engineering-command-context > span {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.2));
+  border-radius: 10px;
+}
+
+.engineering-command-context > span svg {
+  grid-row: 1 / span 2;
+}
+
+.engineering-command-context b,
+.engineering-command-context small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engineering-decision-row {
+  padding: 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent, currentColor) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, currentColor) 22%, transparent);
+}
+
+.engineering-decision-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.engineering-decision-copy > b {
+  font-size: 1.05rem;
+}
+
+.engineering-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.engineering-primary-action,
+.engineering-decision-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.engineering-stage-region {
+  display: grid;
+  gap: 8px;
+}
+
+.engineering-stage-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.engineering-stage-region .engineering-status-map {
+  margin: 0;
+}
+
+.bb-engineering-overview > [data-capability-anchor="hardware-topology"] {
+  max-width: 1504px;
+  margin: 8px auto 0;
+  opacity: 0.92;
+}
+
+@media (max-width: 900px) {
+  .engineering-command-context {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .engineering-command-context > span:last-child:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 680px) {
+  .engineering-command-surface {
+    margin-top: 8px;
+    padding: 12px;
+  }
+
+  .engineering-command-head,
+  .engineering-decision-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .engineering-readiness {
+    justify-items: start;
+  }
+
+  .engineering-command-context {
+    grid-template-columns: 1fr;
+  }
+
+  .engineering-command-context > span:last-child:nth-child(3) {
+    grid-column: auto;
+  }
+
+  .engineering-decision-actions {
+    justify-content: stretch;
+  }
+
+  .engineering-decision-actions button {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
