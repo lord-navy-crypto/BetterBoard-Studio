@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
-import { Bot, CircuitBoard, Focus, FlaskConical, RadioTower, X } from 'lucide-react';
+import { Bot, CircuitBoard, Focus, FlaskConical, LayoutGrid, RadioTower, X } from 'lucide-react';
 import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
+import CapabilityNavigator from './CapabilityNavigator';
+import { CapabilityNavigationProvider, useCapabilityNavigation } from './CapabilityNavigationContext';
 import EngineeringStatusMap, { type EngineeringStatusNode } from './EngineeringStatusMap';
 import ExperimentsHub from './ExperimentsHub';
 import HardwareTopology from './HardwareTopology';
@@ -25,6 +27,7 @@ import './developer-task.css';
 import './copy-ai.css';
 import './workflow-rail.css';
 import './phase6.css';
+import './capability-navigation.css';
 
 type Workspace = 'studio' | 'observatory' | 'experiments';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
@@ -36,6 +39,15 @@ const WORKSPACES: Array<{ id: Workspace; label: string; subtitle: string; icon: 
   { id: 'observatory', label: 'Observatory', subtitle: 'runtime · evidence · system state', icon: RadioTower },
   { id: 'experiments', label: 'Experiments', subtitle: 'Engineering Lab campaigns', icon: FlaskConical },
 ];
+
+const STATUS_CAPABILITY: Record<EngineeringStatusNode['id'], string> = {
+  toolchain: 'hardware-doctor',
+  hardware: 'hardware-session',
+  firmware: 'program-firmware',
+  acquisition: 'monitor-live',
+  evidence: 'measurement-evidence',
+  analysis: 'analysis-evidence',
+};
 
 function readTaskMemory(): BackgroundTask[] {
   if (typeof localStorage === 'undefined') return [];
@@ -54,10 +66,18 @@ function isEditableTarget(target: EventTarget | null) {
 
 function Root() {
   const [workspace, setWorkspace] = useState<Workspace>('studio');
+  return <CapabilityNavigationProvider workspace={workspace} setWorkspace={setWorkspace}>
+    <RootContent workspace={workspace} setWorkspace={setWorkspace} />
+  </CapabilityNavigationProvider>;
+}
+
+function RootContent({ workspace, setWorkspace }: { workspace: Workspace; setWorkspace: React.Dispatch<React.SetStateAction<Workspace>> }) {
   const [cli, setCli] = useState<CliInfo | null>(null);
   const [tasks, setTasks] = useState<BackgroundTask[]>(readTaskMemory);
   const [aiOpen, setAiOpen] = useState(false);
+  const [allToolsOpen, setAllToolsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const { openCapability } = useCapabilityNavigation();
   const { source: evidenceSource } = useEvidenceVisualization();
   const { selectedPort, activePort, hardwareStatus, fqbn, profiles, diagnosis } = useHardwareSession();
 
@@ -91,6 +111,10 @@ function Root() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (allToolsOpen) {
+          setAllToolsOpen(false);
+          return;
+        }
         if (aiOpen) {
           setAiOpen(false);
           return;
@@ -116,7 +140,7 @@ function Root() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [aiOpen, focusMode]);
+  }, [aiOpen, allToolsOpen, focusMode, setWorkspace]);
 
   const runningTasks = useMemo(() => tasks.filter(task => task.state === 'running'), [tasks]);
   const latestRunning = runningTasks[0];
@@ -157,16 +181,7 @@ function Root() {
   }, [diagnosis, cli, programRunning, programmed, liveSerial, monitored, selectedPort, evidenceSaved, evidenceSource?.label, analyzed]);
 
   function navigateStatus(node: EngineeringStatusNode) {
-    if (node.id === 'evidence') {
-      setWorkspace('observatory');
-      return;
-    }
-    setWorkspace('studio');
-    if (node.id === 'analysis') {
-      window.setTimeout(() => document.querySelector('.analysis-visualization-hub')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
-    } else {
-      window.setTimeout(() => document.querySelector('.app')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
-    }
+    openCapability(STATUS_CAPABILITY[node.id]);
   }
 
   const openPenguinContext = useMemo(() => [
@@ -193,8 +208,9 @@ function Root() {
           </button>;
         })}
       </nav>
-      <button className={`bb-focus-launch ${focusMode ? 'active' : ''}`} onClick={() => setFocusMode(value => !value)} aria-pressed={focusMode} title="Focus mode keeps critical status visible while hiding secondary navigation"><Focus size={15}/><span><b>{focusMode ? 'Exit focus' : 'Focus mode'}</b><small>{focusMode ? 'Esc to exit' : 'presentation / experiment'}</small></span></button>
-      <button className={`bb-ai-launch ${aiOpen ? 'active' : ''}`} onClick={() => setAiOpen(value => !value)} aria-pressed={aiOpen} title="Open OpenPenguin local AI bridge · ⌘/Ctrl+K"><Bot size={16}/><span><b>OpenPenguin</b><small>local AI · ⌘/Ctrl+K</small></span></button>
+      <button className={`bb-tools-launch ${allToolsOpen ? 'active' : ''}`} onClick={() => setAllToolsOpen(value => !value)} aria-pressed={allToolsOpen} title="Browse every desktop-reachable BetterBoard capability"><LayoutGrid size={15}/><span><b>All Tools</b><small>search every capability</small></span></button>
+      <button data-capability-anchor="focus-mode" className={`bb-focus-launch ${focusMode ? 'active' : ''}`} onClick={() => setFocusMode(value => !value)} aria-pressed={focusMode} title="Focus mode keeps critical status visible while hiding secondary navigation"><Focus size={15}/><span><b>{focusMode ? 'Exit focus' : 'Focus mode'}</b><small>{focusMode ? 'Esc to exit' : 'presentation / experiment'}</small></span></button>
+      <button data-capability-anchor="openguin" className={`bb-ai-launch ${aiOpen ? 'active' : ''}`} onClick={() => setAiOpen(value => !value)} aria-pressed={aiOpen} title="Open OpenPenguin local AI bridge · ⌘/Ctrl+K"><Bot size={16}/><span><b>OpenPenguin</b><small>local AI · ⌘/Ctrl+K</small></span></button>
       <div className={`bb-local-state ${selectedPort ? 'connected' : 'disconnected'}`} title={hardwareStatus}><i/><span><b>{selectedPort ? (activePort?.board_name || 'Board') : 'No board'}</b><small>{selectedPort || 'select hardware in Studio'}</small></span></div>
     </header>
 
@@ -209,9 +225,14 @@ function Root() {
 
     {workspace === 'studio' && <div className="bb-engineering-overview">
       <EngineeringStatusMap nodes={statusNodes} onNavigate={navigateStatus}/>
-      <HardwareTopology toolchainReady={Boolean(cli?.found)} selectedPort={selectedPort} activePort={activePort} selectedFqbn={fqbn} profiles={profiles} diagnosis={diagnosis} requiredLibraries={null} missingLibraries={null} firmwareLabel={lastProgram?.title ?? null} firmwareReady={Boolean(lastProgram)}/>
+      <div data-capability-anchor="hardware-topology"><HardwareTopology toolchainReady={Boolean(cli?.found)} selectedPort={selectedPort} activePort={activePort} selectedFqbn={fqbn} profiles={profiles} diagnosis={diagnosis} requiredLibraries={null} missingLibraries={null} firmwareLabel={lastProgram?.title ?? null} firmwareReady={Boolean(lastProgram)}/></div>
       <div className="boundary compact" style={{ maxWidth: 1504, margin: '8px auto 0' }}><b>Next action</b> · {workflowNextAction}</div>
     </div>}
+
+    <button type="button" aria-label="Close All Tools" className="bb-tools-backdrop" hidden={!allToolsOpen} onClick={() => setAllToolsOpen(false)} />
+    <aside className="bb-tools-drawer" hidden={!allToolsOpen} aria-label="All Tools capability navigator">
+      <CapabilityNavigator onClose={() => setAllToolsOpen(false)} />
+    </aside>
 
     <div className="bb-ai-drawer-backdrop" hidden={!aiOpen} onClick={() => setAiOpen(false)} />
     <aside className="bb-ai-drawer" hidden={!aiOpen} aria-label="OpenPenguin local AI bridge">

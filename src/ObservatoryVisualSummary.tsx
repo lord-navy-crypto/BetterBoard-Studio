@@ -127,7 +127,7 @@ export default function ObservatoryVisualSummary() {
   const sessionPoints = data.sessions.map((session, index) => ({ x: index + 1, y: session.sampleCount }));
   const taskPoints = data.tasks.map((task, index) => ({ x: index + 1, y: task.count }));
 
-  return <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }}>
+  return <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }} data-capability-anchor="observatory-operational-visualization">
     <div className="panel-title"><Layers3 size={18}/> Operational Visualization</div>
     <p className="muted">Read-only views derived from existing hardware diagnosis, saved measurement metadata, replay completeness and Task Center state. These are operational/evidence diagnostics, not calibration claims.</p>
 

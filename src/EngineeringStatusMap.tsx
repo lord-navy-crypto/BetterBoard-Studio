@@ -10,7 +10,7 @@ export type EngineeringStatusNode = {
 };
 
 export default function EngineeringStatusMap({ nodes, onNavigate }: { nodes: EngineeringStatusNode[]; onNavigate: (node: EngineeringStatusNode) => void }) {
-  return <section className="engineering-status-map" aria-label="Engineering workflow status">
+  return <section className="engineering-status-map" aria-label="Engineering workflow status" data-capability-anchor="engineering-status-map">
     <div className="engineering-status-title"><b>Engineering status</b><small>Click a stage to open its working surface. Status describes workflow readiness, not scientific validity.</small></div>
     <div className="engineering-status-flow">
       {nodes.map((node, index) => <div className="engineering-status-stage-wrap" key={node.id}>

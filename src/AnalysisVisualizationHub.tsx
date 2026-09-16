@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Database, FlaskConical, LineChart, Sigma, Wrench } from 'lucide-react';
 import AnalysisWorkflowGuide from './AnalysisWorkflowGuide';
 import AppliedStatisticsWorkbench from './AppliedStatisticsWorkbench';
@@ -11,11 +11,13 @@ import MagnetResultVisualization from './MagnetResultVisualization';
 import ModelFittingWorkbench from './ModelFittingWorkbench';
 import NumericalErrorVisualWorkbench from './NumericalErrorVisualWorkbench';
 import NumericalResultVisualization from './NumericalResultVisualization';
+import { useCapabilityNavigation } from './CapabilityNavigationContext';
+import type { AnalysisViewId } from './capabilityRegistry';
 import { useEvidenceVisualization } from './EvidenceVisualizationContext';
 import { useRunComparison } from './RunComparisonContext';
 import './analysis-visualization.css';
 
-type AnalysisView = 'evidence' | 'statistics' | 'models' | 'design' | 'numerical' | 'preparation';
+type AnalysisView = AnalysisViewId;
 
 const VIEWS = [
   { id: 'evidence' as const, label: 'Evidence', icon: Database, detail: 'Evidence · inspect source & provenance' },
@@ -28,10 +30,13 @@ const VIEWS = [
 
 export default function AnalysisVisualizationHub() {
   const [active, setActive] = useState<AnalysisView>('evidence');
+  const { registerAnalysisViewSetter } = useCapabilityNavigation();
   const shared = useEvidenceVisualization();
   const { source } = shared;
   const comparison = useRunComparison();
   const activeView = useMemo(() => VIEWS.find(view => view.id === active)!, [active]);
+
+  useEffect(() => registerAnalysisViewSetter(setActive), [registerAnalysisViewSetter]);
 
   const commonComparisonColumn = useMemo(() => {
     if (!comparison.runA || !comparison.runB) return null;
@@ -67,7 +72,7 @@ export default function AnalysisVisualizationHub() {
 
       <EvidenceSourcePicker />
 
-      {(comparison.runA || comparison.runB) && <div className="panel" style={{ marginTop: 10 }}>
+      <div className="panel" style={{ marginTop: 10 }} data-capability-anchor="analysis-run-compare">
         <div className="panel-title">Compare · Run A ↔ Run B</div>
         <div className="analysis-source-banner">
           <span><b>Run A</b><small>{comparison.runA?.label ?? 'not selected'}</small></span>
@@ -76,14 +81,15 @@ export default function AnalysisVisualizationHub() {
         <div className="action-row">
           <button className="ghost" disabled={!comparison.runA} onClick={() => comparison.runA && shared.setSource(comparison.runA)}>Analyze Run A</button>
           <button className="ghost" disabled={!comparison.runB} onClick={() => comparison.runB && shared.setSource(comparison.runB)}>Analyze Run B</button>
-          <button className="ghost" onClick={comparison.clearComparison}>Clear comparison</button>
+          <button className="ghost" disabled={!comparison.runA && !comparison.runB} onClick={comparison.clearComparison}>Clear comparison</button>
         </div>
+        <div data-capability-anchor="analysis-annotations" className="hint">USER ANNOTATION is session-local and never rewrites raw evidence. Select Run A and Run B with a common numeric channel to place notes on the comparison plot.</div>
         {comparison.runA && comparison.runB && commonComparisonColumn && comparisonSeries.length > 0
-          ? <><div className="hint">Raw overlay of common channel <b>{commonComparisonColumn}</b> by sample index. This visual does not claim automatic clock/time alignment between runs. Notes are session-local and explicitly labeled USER ANNOTATION.</div><AnnotatedEngineeringPlot annotationSourceId={comparisonAnnotationSourceId} series={comparisonSeries} xLabel="sample index" yLabel={commonComparisonColumn} height={230}/></>
+          ? <><div className="hint">Raw overlay of common channel <b>{commonComparisonColumn}</b> by sample index. This visual does not claim automatic clock/time alignment between runs.</div><AnnotatedEngineeringPlot annotationSourceId={comparisonAnnotationSourceId} series={comparisonSeries} xLabel="sample index" yLabel={commonComparisonColumn} height={230}/></>
           : comparison.runA && comparison.runB
             ? <div className="empty compact">The selected runs do not expose a common numeric column for a safe raw overlay. Analyze each run explicitly instead of fabricating a comparison.</div>
-            : <div className="empty compact">Select both Run A and Run B from Saved BetterBoard evidence.</div>}
-      </div>}
+            : <div className="empty compact">Select Run A and Run B from Saved BetterBoard evidence using the source picker above.</div>}
+      </div>
 
       <div className="analysis-view-rail" role="tablist" aria-label="Analysis and visualization views">
         {VIEWS.map(view => {
@@ -96,11 +102,11 @@ export default function AnalysisVisualizationHub() {
       <div className="boundary compact"><b>Active view · {activeView.label}</b> · derived analysis never overwrites source evidence.</div>
     </div>
 
-    <div className="analysis-view-pane" hidden={active !== 'evidence'}><EvidenceInspector /></div>
-    <div className="analysis-view-pane" hidden={active !== 'statistics'}><AppliedStatisticsWorkbench /></div>
-    <div className="analysis-view-pane" hidden={active !== 'models'}><ModelFittingWorkbench /></div>
-    <div className="analysis-view-pane" hidden={active !== 'design'}><ExperimentPlanningWorkbench /></div>
-    <div className="analysis-view-pane" hidden={active !== 'numerical'}><NumericalErrorVisualWorkbench /><NumericalResultVisualization /></div>
-    <div className="analysis-view-pane" hidden={active !== 'preparation'}><EngineeringPreparationStudio /><MagnetResultVisualization /></div>
+    <div className="analysis-view-pane" hidden={active !== 'evidence'} data-capability-anchor="analysis-evidence"><EvidenceInspector /></div>
+    <div className="analysis-view-pane" hidden={active !== 'statistics'} data-capability-anchor="analysis-statistics"><AppliedStatisticsWorkbench /></div>
+    <div className="analysis-view-pane" hidden={active !== 'models'} data-capability-anchor="analysis-models"><ModelFittingWorkbench /></div>
+    <div className="analysis-view-pane" hidden={active !== 'design'} data-capability-anchor="analysis-experiment-design"><ExperimentPlanningWorkbench /></div>
+    <div className="analysis-view-pane" hidden={active !== 'numerical'} data-capability-anchor="analysis-numerical"><NumericalErrorVisualWorkbench /><NumericalResultVisualization /></div>
+    <div className="analysis-view-pane" hidden={active !== 'preparation'} data-capability-anchor="analysis-preparation"><EngineeringPreparationStudio /><MagnetResultVisualization /></div>
   </section>;
 }

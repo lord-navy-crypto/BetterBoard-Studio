@@ -3,6 +3,7 @@ import CampaignVisualization from './CampaignVisualization';
 import CopyButton from './CopyButton';
 import EspressifCapabilityPanel from './EspressifCapabilityPanel';
 import EngineeringExperimentLibrary from './EngineeringExperimentLibrary';
+import { useCapabilityNavigation } from './CapabilityNavigationContext';
 
 // Legacy structural selectors retired by the Studio preparation migration:
 // hidden={tool!=='numerical'}
@@ -25,12 +26,14 @@ const NUMERIC_FAMILIES = [
 ];
 
 const CAMPAIGNS = [
-  { title: 'Numeric Error Depth', detail: 'Finite precision · sampling · quantization · cancellation · convergence · event/timing evidence · host reference', icon: Sigma, status: 'Active research campaign' },
-  { title: 'Oscillation & Numerical Integration', detail: 'Measured dynamics · sampling rate · discretization · integration-method validation', icon: Activity, status: 'Engineering Lab campaign' },
-  { title: 'Magnetic Model Validation', detail: 'Measured field evidence · model residual · trajectory / RADIA comparison', icon: Magnet, status: 'Engineering Lab campaign' },
+  { title: 'Numeric Error Depth', detail: 'Finite precision · sampling · quantization · cancellation · convergence · event/timing evidence · host reference', icon: Sigma, status: 'Active research campaign', target: 'numeric-error-depth' },
+  { title: 'Oscillation & Numerical Integration', detail: 'Measured dynamics · sampling rate · discretization · integration-method validation', icon: Activity, status: 'Engineering Lab campaign', target: 'analysis-numerical' },
+  { title: 'Magnetic Model Validation', detail: 'Measured field evidence · model residual · trajectory / RADIA comparison', icon: Magnet, status: 'Engineering Lab campaign', target: 'analysis-preparation' },
 ];
 
 export default function ExperimentsHub() {
+  const { openCapability } = useCapabilityNavigation();
+
   return <div className="experiments-hub">
     <section className="experiment-bridge-hero">
       <div>
@@ -40,40 +43,42 @@ export default function ExperimentsHub() {
       </div>
     </section>
 
-    <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }}>
+    <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }} data-capability-anchor="experiments-campaigns">
       <div className="panel-title">1 · Campaigns</div>
-      <p className="muted">Choose the engineering question first. Campaign cards describe the scientific purpose; executable source is exposed separately below instead of hidden behind path-only cards.</p>
+      <p className="muted">Choose the engineering question first. Every campaign card now opens the canonical tools that execute or analyze that work; no campaign is only a decorative description.</p>
       <div className="engineering-model-grid">
-        {CAMPAIGNS.map(item => { const Icon = item.icon; return <article className="panel" key={item.title}><div className="panel-title"><Icon size={18}/>{item.title}</div><p>{item.detail}</p><div className="boundary compact"><CheckCircle2 size={14}/>{item.status}</div></article>; })}
+        {CAMPAIGNS.map(item => { const Icon = item.icon; return <article className="panel" key={item.title}><div className="panel-title"><Icon size={18}/>{item.title}</div><p>{item.detail}</p><div className="boundary compact"><CheckCircle2 size={14}/>{item.status}</div><div className="action-row"><button type="button" className="primary" onClick={() => openCapability(item.target)}>Open campaign tools</button></div></article>; })}
       </div>
       <CampaignVisualization />
     </section>
 
-    <section style={{ maxWidth: 1420, margin: '14px auto' }}>
-      <div className="panel" style={{ marginBottom: 10 }}><div className="panel-title">2 · Complete Experiment Code Library</div><p className="muted">Repository-discovered firmware and host tools. Open real source; firmware Verify/Upload uses BetterBoard's existing canonical Developer backend and Hardware Doctor gates. Source bodies remain lazy-loaded.</p></div>
+    <section style={{ maxWidth: 1420, margin: '14px auto' }} data-capability-anchor="experiment-code-library">
+      <div className="panel" style={{ marginBottom: 10 }}><div className="panel-title">2 · Complete Experiment Code Library</div><p className="muted">Repository-discovered firmware and host tools. Open real source; firmware Verify/Upload uses BetterBoard's existing canonical Developer backend and Hardware Doctor gates. Source bodies remain lazy-loaded.</p><div className="action-row"><button type="button" className="ghost" onClick={() => openCapability('experiment-code-library')}>Open code library</button></div></div>
       <EngineeringExperimentLibrary />
     </section>
 
     <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }}>
       <div className="panel-title">3 · Run / Program handoff</div>
       <p>Use the code library's real <b>Verify</b> / <b>Upload</b> actions for experiment firmware. Then move to <b>Studio → Monitor & Data</b> for acquisition, evidence saving and Engineering Lab handoff. BetterBoard does not auto-open serial after upload, so programming and acquisition cannot silently contend for the same port.</p>
+      <div className="action-row"><button type="button" className="primary" onClick={() => openCapability('monitor-live')}>Open Monitor & Data</button><button type="button" className="ghost" onClick={() => openCapability('engineering-handoff')}>Open evidence handoff</button></div>
       <div className="boundary compact"><CheckCircle2 size={14}/> Reusable <b>Numerical Error Analysis</b>, <b>RADIA Magnet Studio</b> compatibility, evidence preparation and other <b>Expert workflows</b> remain in Studio. This avoids duplicate preparation engines.</div>
     </section>
 
-    <EspressifCapabilityPanel />
+    <div data-capability-anchor="esp32-capabilities"><EspressifCapabilityPanel /></div>
 
-    <section className="panel" style={{ maxWidth: 1420, margin: '14px auto 50px' }}>
+    <section className="panel" style={{ maxWidth: 1420, margin: '14px auto 50px' }} data-capability-anchor="numeric-error-depth">
       <div className="panel-title"><Sigma size={18}/> Numeric Error Depth · embedded numerical reliability</div>
       <p className="muted">Arduino UNO and its measurement/event path are systems under test. Independent host analysis owns scientific reference work. Overlapping research-pack programs are fused into integrated campaign labs where they share the same physical data path; orthogonal numerical mechanisms remain separate controlled firmware under one family.</p>
 
       <div className="engineering-model-grid">
-        <article className="panel"><div className="panel-title">1 · Interactive core</div><p>RAW / REDUCED Taylor evaluation, SINGLE / BOTH / SWEEP / LIVE / PHOTO, non-blocking sweep and queued photogate timestamp evidence.</p><div className="measurement big"><b>Firmware V2</b><span>{NUMERIC_FIRMWARE}</span></div><CopyButton text={NUMERIC_FIRMWARE} label="Copy firmware path"/></article>
+        <article className="panel"><div className="panel-title">1 · Interactive core</div><p>RAW / REDUCED Taylor evaluation, SINGLE / BOTH / SWEEP / LIVE / PHOTO, non-blocking sweep and queued photogate timestamp evidence.</p><div className="measurement big"><b>Firmware V2</b><span>{NUMERIC_FIRMWARE}</span></div><CopyButton text={NUMERIC_FIRMWARE} label="Copy firmware path"/><div className="action-row"><button type="button" className="ghost" onClick={() => openCapability('experiment-code-library')}>Open source library</button></div></article>
         <article className="panel"><div className="panel-title">2 · Signal Chain Lab</div><p>One synchronized A0 → measurement → quantization → EMA → PWM path replaces four overlapping end-to-end demos while preserving the old focused sketches as single-factor controls.</p><div className="measurement big"><b>Integrated firmware</b><span>{SIGNAL_CHAIN_FIRMWARE}</span></div><CopyButton text={SIGNAL_CHAIN_FIRMWARE} label="Copy Signal Chain path"/></article>
         <article className="panel"><div className="panel-title">3 · Event Timing Lab</div><p>Photogate queue/drop evidence, switch raw-vs-debounced transitions, PIR observed-output timing and periodic context now share one event experiment and one clock.</p><div className="measurement big"><b>Integrated firmware</b><span>{EVENT_TIMING_FIRMWARE}</span></div><CopyButton text={EVENT_TIMING_FIRMWARE} label="Copy Event Timing path"/></article>
         <article className="panel"><div className="panel-title">4 · Campaign families</div><ul className="compact-list">{NUMERIC_FAMILIES.map(item => <li key={item}>{item}</li>)}</ul></article>
-        <article className="panel"><div className="panel-title">5 · Independent host validation</div><p>Interactive Taylor rows use the Numerical Error Studio bridge; the wider experiment family uses the consolidated campaign analyzer.</p><div className="measurement big"><b>Bridge V2</b><span>{NUMERIC_BRIDGE}</span><b>Campaign analyzer</b><span>{NUMERIC_ANALYZER}</span></div><div className="action-row"><CopyButton text={NUMERIC_BRIDGE} label="Copy bridge path"/><CopyButton text={NUMERIC_ANALYZER} label="Copy analyzer path"/></div></article>
+        <article className="panel"><div className="panel-title">5 · Independent host validation</div><p>Interactive Taylor rows use the Numerical Error Studio bridge; the wider experiment family uses the consolidated campaign analyzer.</p><div className="measurement big"><b>Bridge V2</b><span>{NUMERIC_BRIDGE}</span><b>Campaign analyzer</b><span>{NUMERIC_ANALYZER}</span></div><div className="action-row"><CopyButton text={NUMERIC_BRIDGE} label="Copy bridge path"/><CopyButton text={NUMERIC_ANALYZER} label="Copy analyzer path"/><button type="button" className="ghost" onClick={() => openCapability('numerical-advanced')}>Open advanced numerical tools</button></div></article>
         <article className="panel"><div className="panel-title"><FlaskConical size={17}/> 6 · RAW vs REDUCED campaign</div><p>Run the same x-domain in RAW and range-reduced modes. Compare error, cancellation, stopping rule, reliability and false convergence without changing the independent oracle.</p><pre style={{ whiteSpace: 'pre-wrap' }}>{NUMERIC_COMMANDS}</pre><CopyButton text={NUMERIC_COMMANDS} label="Copy campaign commands"/></article>
       </div>
+      <div className="action-row"><button type="button" className="primary" onClick={() => openCapability('analysis-numerical')}>Open numerical analysis</button><button type="button" className="ghost" onClick={() => openCapability('monitor-live')}>Acquire hardware evidence</button></div>
       <div className="boundary"><CheckCircle2 size={14}/> Promotion boundary: firmware exposed here is research-grade and CI-compile gated. Real UNO upload, serial capture, host analyzer/bridge comparison and timing/drop review remain the evidence gate for claims about physical hardware behavior.</div>
     </section>
   </div>;

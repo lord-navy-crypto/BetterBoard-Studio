@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, CircleX, Eraser, Search, TerminalSquare } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, CircleX, Eraser, Search, TerminalSquare } from 'lucide-react';
 import CopyButton from './CopyButton';
+import { useCapabilityNavigation } from './CapabilityNavigationContext';
 import { deriveTaskTimeline, formatTaskDuration, taskElapsedMs } from './taskPresentation';
 
 export type TaskCategory = 'Program' | 'Monitor' | 'Evidence' | 'Analysis' | 'Export' | 'System';
@@ -26,6 +27,12 @@ type Props = {
 };
 
 const CATEGORIES: Array<'All' | TaskCategory> = ['All', 'Program', 'Monitor', 'Evidence', 'Analysis', 'Export', 'System'];
+const TASK_CAPABILITY: Partial<Record<TaskCategory, string>> = {
+  Program: 'program-firmware',
+  Monitor: 'monitor-live',
+  Evidence: 'measurement-evidence',
+  Analysis: 'analysis-evidence',
+};
 
 function stateGlyph(state: TaskState) {
   if (state === 'running') return '…';
@@ -38,6 +45,7 @@ export default function TaskCenterPanel({ tasks, onCancel, onClearFinished }: Pr
   const [open, setOpen] = useState(true);
   const [category, setCategory] = useState<'All' | TaskCategory>('All');
   const [logQuery, setLogQuery] = useState('');
+  const { openCapability } = useCapabilityNavigation();
   const running = tasks.filter(task => task.state === 'running').length;
   const failed = tasks.filter(task => task.state === 'failed').length;
   const recent = tasks.filter(task => Date.now() - (task.finishedAt ?? task.startedAt) <= 15 * 60_000).length;
@@ -79,12 +87,14 @@ export default function TaskCenterPanel({ tasks, onCancel, onClearFinished }: Pr
       {!visible.length ? <div className="task-empty">No matching {category === 'All' ? '' : `${category.toLowerCase()} `}tasks. Preflight, compile, upload, monitor, capture, analysis and export operations are tracked here.</div> : <div className="task-list rich">
         {visible.map(task => {
           const timeline = deriveTaskTimeline(task);
+          const targetCapability = TASK_CAPABILITY[task.category];
           return <details key={task.id} className={`task-row ${task.state}`} open={task.state === 'running' || task.id === latestFailure?.id}>
             <summary>
               <span className={`task-icon ${task.state}`}>{stateGlyph(task.state)}</span>
               <span className="task-category">{task.category}</span>
               <span className="task-main"><b>{task.title}</b><small>{task.detail}</small></span>
               <span className="task-time">{formatTaskDuration(taskElapsedMs(task))}</span>
+              {targetCapability && <button className="ghost mini" onClick={event => { event.preventDefault(); event.stopPropagation(); openCapability(targetCapability); }}><ArrowRight size={13}/> Go to</button>}
               {task.state === 'running' && task.cancellable && <button className="danger-soft mini" onClick={event => { event.preventDefault(); event.stopPropagation(); void onCancel(task.id); }}><CircleX size={13}/> Cancel</button>}
             </summary>
             {timeline.length > 0 && <div className="task-timeline" aria-label={`${task.title} observed stages`}>{timeline.map(stage => <span key={stage.id} className={`task-stage ${stage.state}`}><i/>{stage.label}<small>{stage.state}</small></span>)}</div>}

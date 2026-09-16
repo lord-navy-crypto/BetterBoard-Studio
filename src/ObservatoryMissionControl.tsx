@@ -47,7 +47,7 @@ export default function ObservatoryMissionControl() {
   const warnings = [diagnosis.severity === 'warning', !latest, ai && !ai.found].filter(Boolean).length;
   const state = blockers ? 'Needs attention' : warnings ? 'Ready with warnings' : 'Nominal';
 
-  return <section className="panel" style={{ margin: '14px 18px 0' }} aria-label="Observatory mission control">
+  return <section className="panel" style={{ margin: '14px 18px 0' }} aria-label="Observatory mission control" data-capability-anchor="observatory-mission">
     <div className="panel-title panel-title-with-action"><span><ShieldCheck size={18}/> Mission control</span><button className="ghost mini" disabled={busy} onClick={() => void refresh()}><RefreshCw size={13}/> Refresh</button></div>
     <p className="muted">Fast operational summary before the detailed Observatory panels below.</p>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
