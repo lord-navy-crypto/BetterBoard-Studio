@@ -23,35 +23,47 @@ required_shortcuts = [
 ]
 for shortcut_id in required_shortcuts:
     assert f"id: '{shortcut_id}'" in shortcuts, f"missing preparation surface shortcut: {shortcut_id}"
+    assert f"anchor: '{shortcut_id}'" in shortcuts, f"shortcut lacks exact local destination: {shortcut_id}"
+    assert f"'{shortcut_id}':" in navigation, f"semantic fallback missing for preparation surface: {shortcut_id}"
 
-for shortcut_id in required_shortcuts[:3]:
-    assert f"registerCapabilityActivator('{shortcut_id}'" in numerical, f"Numerical Bench cannot activate {shortcut_id}"
-    assert f"registerCapabilityActivator('{shortcut_id}'" in preparation, f"Engineering Preparation cannot mount numerical lane for {shortcut_id}"
+numerical_modes = [
+    ("numerical-bench-acquisition", "Bench 01 — Acquisition"),
+    ("numerical-bench-sampling-error", "Bench 02 — Sampling Error"),
+    ("numerical-bench-mcu-reliability", "Bench 03 — MCU Reliability"),
+]
+for shortcut_id, title in numerical_modes:
+    assert title in numerical, f"source Numerical Bench mode disappeared: {title}"
+    assert f"selectorText: '{title}'" in navigation, f"navigation does not target {title}"
+    assert "buttonText: 'Numerical evidence'" in navigation, "numerical lane activation missing"
+    assert f"buttonText: '{title}'" in navigation, f"navigation cannot activate {title}"
 
-for shortcut_id in required_shortcuts[3:6]:
-    assert f"registerCapabilityActivator('{shortcut_id}'" in magnet, f"Magnet Bench cannot activate {shortcut_id}"
-    assert f"registerCapabilityActivator('{shortcut_id}'" in preparation, f"Engineering Preparation cannot mount magnet lane for {shortcut_id}"
+magnet_modes = [
+    ("magnet-bench-vector-acquisition", "Bench 01 — Vector Acquisition"),
+    ("magnet-bench-characterization", "Bench 02 — Characterization"),
+    ("magnet-bench-model-validation", "Bench 03 — Model Validation"),
+]
+for shortcut_id, title in magnet_modes:
+    assert title in magnet, f"source Magnet Bench mode disappeared: {title}"
+    assert f"selectorText: '{title}'" in navigation, f"navigation does not target {title}"
+    assert "buttonText: 'Magnetic evidence'" in navigation, "magnetic lane activation missing"
+    assert f"buttonText: '{title}'" in navigation, f"navigation cannot activate {title}"
 
-assert "setMode('bench01')" in numerical, "Numerical Bench 01 activation missing"
-assert "setMode('bench02')" in numerical, "Numerical Bench 02 activation missing"
-assert "setMode('bench03')" in numerical, "Numerical Bench 03 activation missing"
-assert 'data-capability-anchor="numerical-bench-suite"' in numerical, "Numerical Bench suite anchor missing"
+assert "Ask OpenPenguin about this evidence" in preparation, "Research handoff OpenPenguin surface disappeared"
+assert "'research-ai-review': { selector: 'section.panel', selectorText: 'Ask OpenPenguin about this evidence' }" in navigation, "Research OpenPenguin review destination missing"
 
-assert "setMode('acquire')" in magnet, "Magnet Bench vector acquisition activation missing"
-assert "setMode('characterize')" in magnet, "Magnet Bench characterization activation missing"
-assert "setMode('validate')" in magnet, "Magnet Bench model validation activation missing"
-assert 'data-capability-anchor="magnet-bench-suite"' in magnet, "Magnet Bench suite anchor missing"
+# Parent analysis view, preparation lane, and nested bench mode may each mount on separate renders.
+# Preserve an explicit render boundary between activation steps instead of firing hidden clicks at once.
+assert "activationSteps?: DomActivationStep[]" in navigation, "sequenced nested activation type missing"
+assert "async function activateDomTarget" in navigation, "sequenced nested activation implementation missing"
+assert "for (const step of activationSteps)" in navigation, "nested activation steps are not executed in order"
+assert "await nextRenderFrame()" in navigation, "nested activation no longer yields to React rendering"
+assert "selectorText?: string" in navigation and "resolveDomTarget" in navigation, "exact text-qualified surface resolution missing"
 
-assert 'data-capability-anchor="research-ai-review"' in preparation, "Research OpenPenguin review anchor missing"
-
-# Parent lane activation can mount a previously absent child suite. The requested sub-tool
-# activator therefore needs a second lookup after React has had a render opportunity.
-assert "deferredActivator" in navigation, "semantic navigation lost deferred nested activator"
-assert "capabilityActivatorsRef.current.get(requestedId)" in navigation, "requested sub-tool activator lookup missing"
-assert "window.requestAnimationFrame" in navigation, "nested activation must wait for a render frame"
+for forbidden in ["compile_sketch", "upload_sketch", "serial_stream_start", "openguin_generate"]:
+    assert forbidden not in navigation, f"navigation layer must not own backend execution: {forbidden}"
 
 print("Preparation surface reachability self-check: PASS")
-print("- Numerical Bench 01/02/03 are directly addressable")
-print("- Magnet Bench 01/02/03 are directly addressable")
+print("- Numerical Bench 01/02/03 are directly addressable through sequenced UI activation")
+print("- Magnet Bench 01/02/03 are directly addressable through sequenced UI activation")
 print("- Research handoff OpenPenguin review is directly addressable")
-print("- Cross-lane nested activation is protected")
+print("- Parent-lane → child-mode render boundaries and backend ownership are protected")
