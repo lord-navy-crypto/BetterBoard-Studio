@@ -38,6 +38,7 @@ CHECKS = (
     "device_primitive_time_origin_self_check.py",
     "visualization_absorption_self_check.py",
     "engineering_interaction_self_check.py",
+    "desktop_capability_reachability_self_check.py",
 )
 
 
