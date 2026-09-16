@@ -176,6 +176,36 @@ export const CAPABILITY_SHORTCUTS: CapabilityShortcut[] = [
     targetCapabilityId: 'analysis-preparation', anchor: 'research-ai-review', owner: 'EngineeringPreparationStudio',
     keywords: ['research', 'handoff', 'openguin', 'local ai', 'evidence review', 'provenance', 'next experiment'],
   },
+  {
+    id: 'numerical-result-viewer', label: 'Numerical Analyzer Result Viewer', group: 'Analyze',
+    description: 'Open Bench 02/03 analyzer JSON or CSV outputs and inspect timing, convergence, precision and reliability visualizations.',
+    targetCapabilityId: 'analysis-numerical', anchor: 'numerical-result-viewer', owner: 'NumericalResultVisualization',
+    keywords: ['numerical', 'analyzer', 'result', 'json', 'csv', 'convergence', 'precision', 'bench 02', 'bench 03'],
+  },
+  {
+    id: 'magnet-result-viewer', label: 'Magnetic Analyzer Result Viewer', group: 'Analyze',
+    description: 'Open Magnet 02/03 summary, scan or residual files and inspect measured field, model and residual visualizations.',
+    targetCapabilityId: 'analysis-preparation', anchor: 'magnet-result-viewer', owner: 'MagnetResultVisualization',
+    keywords: ['magnet', 'analyzer', 'result', 'scan', 'residual', 'field', 'model', 'json', 'csv'],
+  },
+  {
+    id: 'esp32-core-audit', label: 'ESP32 / Arduino Core Audit', group: 'System',
+    description: 'Inspect the installed Arduino core required by the selected ESP32-family target without changing the installation.',
+    targetCapabilityId: 'esp32-capabilities', anchor: 'esp32-core-audit', owner: 'EspressifCapabilityPanel',
+    keywords: ['esp32', 'arduino', 'core', 'installed', 'version', 'read only', 'audit'],
+  },
+  {
+    id: 'esp32-board-details', label: 'Arduino CLI Board Details', group: 'System',
+    description: 'Inspect Arduino CLI target metadata, configuration menus, build properties and identification sets for the selected FQBN.',
+    targetCapabilityId: 'esp32-capabilities', anchor: 'esp32-board-details', owner: 'EspressifCapabilityPanel',
+    keywords: ['esp32', 'arduino cli', 'board details', 'fqbn', 'configuration', 'build properties', 'metadata'],
+  },
+  {
+    id: 'esp32-configuration-risk', label: 'Board Configuration Risk Audit', group: 'System',
+    description: 'Inspect unresolved flash, partition, PSRAM, USB, upload and CPU assumptions with severity and evidence boundaries.',
+    targetCapabilityId: 'esp32-capabilities', anchor: 'esp32-configuration-risk', owner: 'EspressifCapabilityPanel',
+    keywords: ['esp32', 'risk', 'flash', 'partition', 'psram', 'usb', 'upload', 'cpu', 'configuration'],
+  },
 ];
 
 export const CAPABILITY_SHORTCUT_BY_ID = new Map(CAPABILITY_SHORTCUTS.map(shortcut => [shortcut.id, shortcut]));
