@@ -113,6 +113,10 @@ const CAPABILITY_ANCHOR_FALLBACKS: Record<string, DomTarget> = {
     selector: '.ide-manager-controls .manager-row', selectorText: 'Additional Boards Manager package index URL',
     activationSteps: [{ buttonText: 'Boards', within: '.ide-manager .ide-subtabs' }],
   },
+  'recipe-preflight-check': { selector: '[data-capability-anchor="recipe-preflight"] button', selectorExactText: 'Check core & libraries' },
+  'program-prepare-firmware': { selector: '[data-capability-anchor="program-firmware"] .action-row button', selectorExactText: 'Prepare firmware' },
+  'program-compile': { selector: '[data-capability-anchor="program-firmware"] .action-row button', selectorExactText: 'Compile' },
+  'program-compile-upload': { selector: '[data-capability-anchor="program-firmware"] .action-row button', selectorExactText: 'Compile & Upload' },
 };
 
 export type CapabilityNavigator = {
