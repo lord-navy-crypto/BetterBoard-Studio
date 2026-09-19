@@ -546,7 +546,7 @@ export default function NumericalBenchSuiteV2({ initialMode = 'bench02' }: { ini
   return <div className="numerical-lab-surface">
     <div style={{ maxWidth: 1420, margin: '0 auto' }}>
       <header className="numerical-lab-header" style={{ ...panel, display: 'flex', justifyContent: 'space-between', gap: 20, alignItems: 'center' }}>
-        <div><div style={{ textTransform: 'uppercase', fontSize: 10, letterSpacing: '.14em', color: '#70dcff' }}>Hardware + numerical experiment</div><h1 style={{ margin: '6px 0 4px' }}>Numerical Lab</h1><p style={{ ...muted, margin: 0 }}>Acquire a real signal, study how sampling changes the evidence, then inspect finite-precision computation. Bench 02 opens by default for the recommended potentiometer/ADC demonstration.</p></div>
+        <div><div style={{ textTransform: 'uppercase', fontSize: 10, letterSpacing: '.14em', color: '#70dcff' }}>Hardware + numerical experiment</div><h1 style={{ margin: '6px 0 4px' }}>Numerical Lab</h1><p style={{ ...muted, margin: 0 }}>Acquire a real signal, study how sampling changes the evidence, then inspect finite-precision computation. Capture once, then re-analyze the same evidence without touching the hardware. Bench 02 opens by default for the recommended potentiometer/ADC demonstration.</p></div>
         <button className="ghost" onClick={refresh}><RefreshCw size={15}/> Refresh hardware</button>
       </header>
 
