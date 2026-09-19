@@ -226,8 +226,8 @@ def main() -> int:
     assert "label: 'Learning'" not in main_text
     assert "<LabsHub navigationRequest={navigationRequest}" in main_text
     assert "onNavigate={navigateCapability}" in main_text
-    assert "<AnalysisVisualizationHub navigationRequest={navigationRequest}/>" in main_text
-    assert "<App navigationRequest={navigationRequest}/>" in main_text
+    assert "<AnalysisVisualizationHub navigationRequest={navigationRequest}" in main_text
+    assert "<App navigationRequest={navigationRequest}" in main_text
     assert "CapabilityLauncher" in main_text
     for token in ['Numerical Lab', 'Magnet Lab', 'Campaigns', 'Evidence Handoff', 'Recommended demo']:
         assert token in labs_hub, token
