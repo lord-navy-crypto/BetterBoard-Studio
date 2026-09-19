@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Database, FlaskConical, LineChart, Sigma } from 'lucide-react';
 import AnalysisWorkflowGuide from './AnalysisWorkflowGuide';
 import AppliedStatisticsWorkbench from './AppliedStatisticsWorkbench';
@@ -23,12 +23,21 @@ const VIEWS = [
   { id: 'numerical' as const, label: 'Numerical Analysis', icon: BarChart3, detail: 'Error · convergence · precision · selected evidence' },
 ];
 
-export default function AnalysisVisualizationHub() {
+export default function AnalysisVisualizationHub({ navigationRequest = null }: { navigationRequest?: { target: string; token: number } | null }) {
   const [active, setActive] = useState<AnalysisView>('evidence');
   const shared = useEvidenceVisualization();
   const { source } = shared;
   const comparison = useRunComparison();
   const activeView = useMemo(() => VIEWS.find(view => view.id === active)!, [active]);
+
+  useEffect(() => {
+    if (!navigationRequest?.target.startsWith('analysis:')) return;
+    const target = navigationRequest.target.slice('analysis:'.length);
+    if (target === 'evidence' || target === 'statistics' || target === 'models' || target === 'design' || target === 'numerical') {
+      setActive(target);
+      window.setTimeout(() => document.querySelector('.analysis-visualization-hub')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    }
+  }, [navigationRequest?.token]);
 
   const commonComparisonColumn = useMemo(() => {
     if (!comparison.runA || !comparison.runB) return null;
