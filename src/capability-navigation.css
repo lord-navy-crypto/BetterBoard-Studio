@@ -1,0 +1,260 @@
+.bb-tools-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.bb-tools-launch span {
+  display: grid;
+  text-align: left;
+}
+
+.bb-tools-launch small {
+  opacity: 0.66;
+}
+
+.bb-tools-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 88;
+  background: rgba(8, 11, 16, 0.42);
+  border: 0;
+  padding: 0;
+}
+
+.bb-tools-drawer {
+  position: fixed;
+  z-index: 89;
+  top: 76px;
+  right: 18px;
+  width: min(760px, calc(100vw - 36px));
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.28));
+  border-radius: 16px;
+  background: var(--panel, #10141b);
+  color: inherit;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+}
+
+.bb-tools-drawer[hidden],
+.bb-tools-backdrop[hidden] {
+  display: none;
+}
+
+.capability-navigator {
+  padding: 16px;
+}
+
+.capability-navigator-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.capability-navigator-head > div {
+  display: grid;
+  gap: 3px;
+}
+
+.capability-navigator-head small {
+  opacity: 0.68;
+}
+
+.capability-search {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.capability-search > span {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
+.capability-search > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.28));
+  border-radius: 10px;
+  padding: 0 10px;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+.capability-search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.capability-search > small,
+.capability-tier-row > small {
+  opacity: 0.62;
+  line-height: 1.35;
+}
+
+.capability-tier-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.capability-tier-filter {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.28));
+  border-radius: 11px;
+  background: color-mix(in srgb, currentColor 2.5%, transparent);
+}
+
+.capability-tier-filter button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.capability-tier-filter button.active {
+  border-color: var(--border, rgba(128, 128, 128, 0.3));
+  background: color-mix(in srgb, var(--accent, currentColor) 10%, transparent);
+  font-weight: 700;
+}
+
+.capability-group-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
+.capability-group-filter button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.28));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.capability-group-filter button.active {
+  border-color: currentColor;
+  font-weight: 700;
+}
+
+.capability-results {
+  display: grid;
+  gap: 16px;
+}
+
+.capability-result-group {
+  display: grid;
+  gap: 8px;
+}
+
+.capability-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.capability-result {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.28));
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+
+.capability-result:hover,
+.capability-result:focus-visible {
+  border-color: currentColor;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.capability-result-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.capability-result-copy small {
+  line-height: 1.35;
+  opacity: 0.74;
+}
+
+.capability-result-copy em {
+  font-size: 11px;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.5;
+}
+
+.capability-target-flash {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .capability-target-flash {
+    animation: capability-target-pulse 700ms ease-out 1;
+  }
+}
+
+@keyframes capability-target-pulse {
+  from { outline-offset: 1px; }
+  to { outline-offset: 4px; }
+}
+
+@media (max-width: 760px) {
+  .bb-tools-drawer {
+    top: 64px;
+    right: 10px;
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 78px);
+  }
+
+  .capability-tier-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .capability-tier-filter {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .capability-tier-filter button {
+    padding-inline: 5px;
+  }
+
+  .capability-result-grid {
+    grid-template-columns: 1fr;
+  }
+}

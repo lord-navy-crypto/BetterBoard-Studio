@@ -34,7 +34,7 @@ const NUMERIC_ERROR_COVERAGE: MechanismCoverageRow[] = [
 ];
 
 export default function CampaignVisualization() {
-  return <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }}>
+  return <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }} data-capability-anchor="campaign-visualization">
     <div className="panel-title"><FlaskConical size={18}/> Campaign Visualization</div>
     <p className="muted">Capability map for the active Engineering Lab campaign family. “Available” means the repository contains the measurement or analysis path; it does not mean a physical run has passed validation.</p>
 
