@@ -351,7 +351,7 @@ def main() -> int:
     print('- historical Measurement Sessions + replay registered')
     print('- Physical Lab Bridge merged into Monitor & Data')
     print('- unified Monitor & Data workspace registered')
-    print('- persistent Studio / Observatory / Experiments architecture registered')
+    print('- persistent Studio / Labs / Analysis / Observatory architecture registered')
     print('- global CLI / hardware / acquisition / task context strip registered')
     print('- shared Hardware Session provider registered')
     print('- grouped Recipe Library registered')
