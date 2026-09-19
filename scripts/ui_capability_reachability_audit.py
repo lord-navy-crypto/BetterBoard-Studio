@@ -14,8 +14,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 
-tsx = sorted(SRC.glob("*.tsx"))
-by_name = {p.stem: p for p in tsx}
+source_files = sorted([
+    p for p in SRC.iterdir()
+    if p.is_file() and p.suffix in {".ts", ".tsx"} and not p.name.endswith(".d.ts")
+])
+by_name = {p.stem: p for p in source_files}
 
 IMPORT_RE = re.compile(
     r"""(?:import\s+(?:[^'"]+?\s+from\s+)?|import\s*\()\s*['"]\./([^'"]+)['"]"""
@@ -32,9 +35,9 @@ def deps(path: Path) -> set[Path]:
             out.add(target)
     return out
 
-graph = {p: deps(p) for p in tsx}
+graph = {p: deps(p) for p in source_files}
 root = SRC / "main.tsx"
-assert root in graph, "src/main.tsx missing from React graph"
+assert root in graph, "src/main.tsx missing from source graph"
 
 reachable: set[Path] = set()
 stack = [root]
@@ -45,11 +48,11 @@ while stack:
     reachable.add(path)
     stack.extend(graph.get(path, ()))
 
-orphans = [p for p in tsx if p not in reachable]
+orphans = [p for p in source_files if p not in reachable]
 
-print(f"BetterBoard TSX inventory: {len(tsx)}")
+print(f"BetterBoard TS/TSX inventory: {len(source_files)}")
 print(f"Reachable from main.tsx: {len(reachable)}")
-for path in tsx:
+for path in source_files:
     status = "reachable" if path in reachable else "UNREACHABLE"
     parents = sorted(p.name for p, ds in graph.items() if path in ds)
     print(f"- {path.name}: {status}; imported by {', '.join(parents) if parents else 'nobody'}")
@@ -60,9 +63,9 @@ if orphans:
         print(f"- {path.name}")
     raise SystemExit(
         "BetterBoard capability reachability audit FAILED: "
-        f"{len(orphans)} TSX surface(s) are not reachable from src/main.tsx."
+        f"{len(orphans)} TS/TSX module(s) are not reachable from src/main.tsx."
     )
 
 print("BetterBoard capability reachability audit: PASS")
-print("- every TSX surface is reachable from the running application entrypoint")
+print("- every TS/TSX source module is reachable from the running application entrypoint")
 print("- source-present but UI-orphaned capabilities are CI-detectable")
