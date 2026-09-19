@@ -6,6 +6,7 @@ import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
 import MagnetBenchAdvanced from './MagnetBenchAdvanced';
 import ExperimentsHub from './ExperimentsHub';
 import EngineeringPreparationStudio from './EngineeringPreparationStudio';
+import type { CapabilityTarget } from './CapabilityLauncher';
 import './lab-hub.css';
 
 type LabView = 'numerical' | 'magnet' | 'campaigns' | 'handoff';
@@ -45,7 +46,7 @@ const LABS = [
   },
 ];
 
-export default function LabsHub({ navigationRequest = null }: { navigationRequest?: { target: string; token: number } | null }) {
+export default function LabsHub({ navigationRequest = null, onNavigate }: { navigationRequest?: { target: string; token: number } | null; onNavigate?: (target: CapabilityTarget) => void }) {
   const [active, setActive] = useState<LabView>('numerical');
   const [numericalExpertOpen, setNumericalExpertOpen] = useState(false);
   const [magneticExpertOpen, setMagneticExpertOpen] = useState(false);
@@ -126,7 +127,7 @@ export default function LabsHub({ navigationRequest = null }: { navigationReques
       </details>
     </div>}
 
-    {active === 'campaigns' && <div className="lab-view"><ExperimentsHub/></div>}
+    {active === 'campaigns' && <div className="lab-view"><ExperimentsHub onNavigate={onNavigate}/></div>}
     {active === 'handoff' && <div className="lab-view"><EngineeringPreparationStudio/></div>}
   </section>;
 }

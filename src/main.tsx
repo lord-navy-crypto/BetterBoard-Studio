@@ -2,10 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { Bot, CircuitBoard, Focus, FlaskConical, Grid3X3, RadioTower, X } from 'lucide-react';
+import AdvancedCapabilityLauncher from './AdvancedCapabilityLauncher';
 import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
 import CapabilityLauncher, { type CapabilityTarget } from './CapabilityLauncher';
+import { currentTargetForCapability } from './capabilityCurrentRoutes';
 import EngineeringStatusMap, { type EngineeringStatusNode } from './EngineeringStatusMap';
+import EngineeringFlowLauncher from './EngineeringFlowLauncher';
 import LabsHub from './LabsHub';
 import HardwareTopology from './HardwareTopology';
 import Observatory from './Observatory';
@@ -27,6 +30,7 @@ import './copy-ai.css';
 import './workflow-rail.css';
 import './phase6.css';
 import './capability-launcher.css';
+import './home-surface.css';
 
 type Workspace = 'studio' | 'labs' | 'analysis' | 'observatory';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
@@ -202,6 +206,11 @@ function Root() {
     }
   }
 
+  function navigateSemanticCapability(capabilityId: string) {
+    const target = currentTargetForCapability(capabilityId);
+    if (target) navigateCapability(target);
+  }
+
   function navigateStatus(node: EngineeringStatusNode) {
     if (node.id === 'acquisition') return navigateCapability('studio:data');
     if (node.id === 'evidence') return navigateCapability('analysis:evidence');
@@ -252,6 +261,8 @@ function Root() {
       <EngineeringStatusMap nodes={statusNodes} onNavigate={navigateStatus}/>
       <HardwareTopology toolchainReady={Boolean(cli?.found)} selectedPort={selectedPort} activePort={activePort} selectedFqbn={fqbn} profiles={profiles} diagnosis={diagnosis} requiredLibraries={null} missingLibraries={null} firmwareLabel={lastProgram?.title ?? null} firmwareReady={Boolean(lastProgram)}/>
       <div className="boundary compact" style={{ maxWidth: 1504, margin: '8px auto 0' }}><b>Next action</b> · {workflowNextAction}</div>
+      <EngineeringFlowLauncher onOpenCapability={navigateSemanticCapability}/>
+      <AdvancedCapabilityLauncher onOpenCapability={navigateSemanticCapability}/>
     </div>}
 
     <CapabilityLauncher open={launcherOpen} onClose={() => setLauncherOpen(false)} onNavigate={navigateCapability}/>
@@ -263,8 +274,8 @@ function Root() {
     </aside>
 
     <div className="bb-workspace-frame">
-      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App navigationRequest={navigationRequest}/></div>
-      <div className="bb-workspace-pane" hidden={workspace !== 'labs'}><LabsHub navigationRequest={navigationRequest}/></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App navigationRequest={navigationRequest} onNavigate={navigateCapability}/></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'labs'}><LabsHub navigationRequest={navigationRequest} onNavigate={navigateCapability}/></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'analysis'}><AnalysisVisualizationHub navigationRequest={navigationRequest}/></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><div id="observatory-overview" className="observatory-anchor"/><ObservatoryMissionControl /><ObservatoryVisualSummary /><Observatory /></div>
     </div>

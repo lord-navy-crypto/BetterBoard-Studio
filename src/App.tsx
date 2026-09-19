@@ -10,6 +10,7 @@ import CircuitLab from './CircuitLab';
 import DeveloperIDE from './DeveloperIDE';
 import MonitorDataStudio from './MonitorDataStudio';
 import TaskCenterPanel, { type BackgroundTask, type TaskCategory, type TaskState } from './TaskCenter';
+import type { CapabilityTarget } from './CapabilityLauncher';
 import { useHardwareSession } from './HardwareSession';
 import RecipeParameterPanel, { recipeParameterDefaults, type RecipeParameterSpec } from './RecipeParameterPanel';
 
@@ -68,7 +69,7 @@ function restoreTaskMemory(): BackgroundTask[] {
   }
 }
 
-export default function App({ navigationRequest = null }: { navigationRequest?: { target: string; token: number } | null }) {
+export default function App({ navigationRequest = null, onNavigate }: { navigationRequest?: { target: string; token: number } | null; onNavigate?: (target: CapabilityTarget) => void }) {
   const [tab, setTab] = useState<Tab>('hardware');
   const [cli, setCli] = useState<CliInfo | null>(null);
   const [recipes, setRecipes] = useState<RecipeSpec[]>([]);
@@ -421,7 +422,7 @@ export default function App({ navigationRequest = null }: { navigationRequest?: 
         onTaskFinish={finishTask}
       /></div>
 
-      <TaskCenterPanel tasks={tasks} onCancel={cancelTask} onClearFinished={clearFinishedTasks}/>
+      <TaskCenterPanel tasks={tasks} onCancel={cancelTask} onClearFinished={clearFinishedTasks} onNavigate={onNavigate}/>
     </main>
   </div>;
 }
