@@ -266,7 +266,7 @@ function Root() {
       <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App navigationRequest={navigationRequest}/></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'labs'}><LabsHub navigationRequest={navigationRequest}/></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'analysis'}><AnalysisVisualizationHub navigationRequest={navigationRequest}/></div>
-      <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><ObservatoryMissionControl /><ObservatoryVisualSummary /><Observatory /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><div id="observatory-overview" className="observatory-anchor"/><ObservatoryMissionControl /><ObservatoryVisualSummary /><Observatory /></div>
     </div>
   </div>;
 }
