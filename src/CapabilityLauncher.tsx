@@ -4,37 +4,12 @@ import {
   Gauge, Grid3X3, HardDrive, LineChart, Magnet, RadioTower, Search, Sigma,
   TerminalSquare, UploadCloud, Waves, Wrench, X,
 } from 'lucide-react';
+import { CAPABILITIES as SEMANTIC_CAPABILITIES } from './capabilityRegistry';
+import { CAPABILITY_SHORTCUTS } from './capabilityShortcuts';
+import { currentTargetForCapability, type CurrentCapabilityTarget } from './capabilityCurrentRoutes';
 import './capability-launcher.css';
 
-export type CapabilityTarget =
-  | 'studio:hardware'
-  | 'studio:circuit'
-  | 'studio:library'
-  | 'studio:data'
-  | 'studio:developer'
-  | 'studio:tasks'
-  | 'labs:numerical'
-  | 'labs:numerical-expert'
-  | 'labs:magnet'
-  | 'labs:magnet-expert'
-  | 'labs:campaigns'
-  | 'labs:campaign-library'
-  | 'labs:handoff'
-  | 'analysis:evidence'
-  | 'analysis:statistics'
-  | 'analysis:models'
-  | 'analysis:magnet-results'
-  | 'analysis:design'
-  | 'analysis:numerical'
-  | 'observatory:overview'
-  | 'observatory:hardware'
-  | 'observatory:inventory'
-  | 'observatory:data'
-  | 'observatory:live'
-  | 'observatory:bridge'
-  | 'observatory:tasks'
-  | 'observatory:evidence'
-  | 'ai';
+export type CapabilityTarget = CurrentCapabilityTarget;
 
 type Capability = {
   target: CapabilityTarget;
@@ -80,6 +55,25 @@ const CAPABILITIES: Capability[] = [
 
 const GROUPS: Capability['group'][] = ['Build & connect', 'Measure & experiment', 'Analyze & decide', 'System & handoff'];
 
+const SEMANTIC_ITEMS = [
+  ...SEMANTIC_CAPABILITIES.map(item => ({
+    id: item.id,
+    title: item.label,
+    detail: item.description,
+    keywords: [item.group, item.owner, ...item.keywords].join(' '),
+    target: currentTargetForCapability(item.id),
+    kind: 'capability' as const,
+  })),
+  ...CAPABILITY_SHORTCUTS.map(item => ({
+    id: item.id,
+    title: item.label,
+    detail: item.description,
+    keywords: [item.group, item.owner, ...item.keywords].join(' '),
+    target: currentTargetForCapability(item.id),
+    kind: 'shortcut' as const,
+  })),
+].filter(item => item.target !== null);
+
 export default function CapabilityLauncher({
   open,
   onClose,
@@ -102,6 +96,14 @@ export default function CapabilityLauncher({
     const needle = query.trim().toLowerCase();
     if (!needle) return CAPABILITIES;
     return CAPABILITIES.filter(item => [item.title, item.detail, item.group, item.keywords].join(' ').toLowerCase().includes(needle));
+  }, [query]);
+
+  const semanticFiltered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const items = needle
+      ? SEMANTIC_ITEMS.filter(item => [item.title, item.detail, item.keywords].join(' ').toLowerCase().includes(needle))
+      : SEMANTIC_ITEMS;
+    return items.slice(0, needle ? 120 : 24);
   }, [query]);
 
   if (!open) return null;
@@ -134,7 +136,19 @@ export default function CapabilityLauncher({
             </div>
           </section>;
         })}
-        {!filtered.length && <div className="empty compact">No BetterBoard capability matches “{query}”.</div>}
+        <section className="capability-group">
+          <div className="capability-group-title">Detailed tools<span>{SEMANTIC_ITEMS.length}</span></div>
+          <details open={Boolean(query.trim())}>
+            <summary className="capability-rule">Search or expand direct sub-tools from the #67 semantic capability index. Every item routes to the current canonical Studio / Labs / Analysis / Observatory owner.</summary>
+            <div className="capability-grid">
+              {semanticFiltered.map(item => <button key={item.id} type="button" className="capability-card" onClick={() => item.target && onNavigate(item.target)}>
+                <span className="capability-icon"><Grid3X3 size={16}/></span>
+                <span><b>{item.title}</b><small>{item.detail}</small></span>
+              </button>)}
+            </div>
+          </details>
+        </section>
+        {!filtered.length && !semanticFiltered.length && <div className="empty compact">No BetterBoard capability matches “{query}”.</div>}
       </div>
     </aside>
   </>;
