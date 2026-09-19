@@ -6,7 +6,7 @@ import AdvancedCapabilityLauncher from './AdvancedCapabilityLauncher';
 import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
 import CapabilityLauncher, { type CapabilityTarget } from './CapabilityLauncher';
-import { openCapabilityWithRoute } from './CapabilityNavigationContext';
+import { currentTargetForCapability } from './capabilityCurrentRoutes';
 import EngineeringStatusMap, { type EngineeringStatusNode } from './EngineeringStatusMap';
 import EngineeringFlowLauncher from './EngineeringFlowLauncher';
 import LabsHub from './LabsHub';
@@ -207,7 +207,8 @@ function Root() {
   }
 
   function navigateSemanticCapability(capabilityId: string) {
-    openCapabilityWithRoute(capabilityId, navigateCapability);
+    const target = currentTargetForCapability(capabilityId);
+    if (target) navigateCapability(target);
   }
 
   function navigateStatus(node: EngineeringStatusNode) {
