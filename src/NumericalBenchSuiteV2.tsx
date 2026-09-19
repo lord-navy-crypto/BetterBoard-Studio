@@ -118,9 +118,9 @@ type Bench03Result = {
   epsilons: number[];
 };
 
-const MODES: Array<{ id: Mode; title: string; subtitle: string }> = [
+const MODES: Array<{ id: Mode; title: string; subtitle: string; recommended?: boolean }> = [
   { id: 'bench01', title: 'Bench 01 — Acquisition', subtitle: 'real potentiometer → ADC → measurement' },
-  { id: 'bench02', title: 'Bench 02 — Sampling Error', subtitle: 'real sampled series → discretization / jitter / accumulation' },
+  { id: 'bench02', title: 'Bench 02 — Sampling Error', subtitle: 'real sampled series → discretization / jitter / accumulation', recommended: true },
   { id: 'bench03', title: 'Bench 03 — MCU Reliability', subtitle: 'embedded Taylor arithmetic → host reference → reliability' },
 ];
 
@@ -406,8 +406,9 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
   </div>;
 }
 
-export default function NumericalBenchSuiteV2() {
-  const [mode, setMode] = useState<Mode>('bench01');
+export default function NumericalBenchSuiteV2({ initialMode = 'bench02' }: { initialMode?: Mode }) {
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [bench02View, setBench02View] = useState<'signal' | 'sampling' | 'numerics' | 'precision'>('signal');
   const { ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn, hardwareStatus, refreshHardware } = useHardwareSession();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('Ready');
@@ -542,9 +543,9 @@ export default function NumericalBenchSuiteV2() {
     } catch (error) { setStatus(`Bench 03 re-analysis failed: ${error}`); }
   }
 
-  return <div style={{ minHeight: '100vh', padding: '28px 34px 70px', color: '#edf5ff' }}>
+  return <div className="numerical-lab-surface">
     <div style={{ maxWidth: 1420, margin: '0 auto' }}>
-      <header style={{ ...panel, marginBottom: 14, display: 'flex', justifyContent: 'space-between', gap: 20, alignItems: 'center' }}>
+      <header className="numerical-lab-header" style={{ ...panel, display: 'flex', justifyContent: 'space-between', gap: 20, alignItems: 'center' }}>
         <div><div style={{ textTransform: 'uppercase', fontSize: 10, letterSpacing: '.14em', color: '#70dcff' }}>Numerical Analysis</div><h1 style={{ margin: '6px 0 4px' }}>Numerical Lab</h1><p style={{ ...muted, margin: 0 }}>Source → analyze → inspect complete results. Capture once, then re-analyze the same evidence without touching the hardware.</p></div>
         <button className="ghost" onClick={refresh}><RefreshCw size={15}/> Refresh hardware</button>
       </header>
@@ -558,8 +559,16 @@ export default function NumericalBenchSuiteV2() {
           </div>
           <div style={{ ...muted, fontSize: 11, marginTop: 10 }}>{status} · {hardwareStatus}</div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-          {MODES.map(item => <button key={item.id} onClick={() => setMode(item.id)} style={{ minHeight: 82, padding: 12, textAlign: 'left', borderRadius: 12, border: mode === item.id ? '1px solid rgba(112,220,255,.5)' : '1px solid rgba(255,255,255,.08)', background: mode === item.id ? 'rgba(59,123,255,.16)' : 'rgba(255,255,255,.025)', color: '#edf5ff', display: 'block' }}><b style={{ display: 'block', fontSize: 12 }}>{item.title}</b><span style={{ display: 'block', ...muted, fontSize: 10, marginTop: 5 }}>{item.subtitle}</span></button>)}
+        <div className="numerical-mode-grid">
+          {MODES.map(item => <button
+            key={item.id}
+            onClick={() => setMode(item.id)}
+            className={`numerical-mode-card ${mode === item.id ? 'active' : ''} ${item.recommended ? 'recommended' : ''}`}
+          >
+            {item.recommended && <small>Recommended demo</small>}
+            <b>{item.title}</b>
+            <span>{item.subtitle}</span>
+          </button>)}
         </div>
       </section>
 
@@ -587,7 +596,14 @@ export default function NumericalBenchSuiteV2() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 16 }}><Metric label="Accepted samples" value={String(bench02Result.sampleCount)} detail={`${bench02Result.rejectedRows} rejected`}/><Metric label="Observed rate" value={`${fmt(bench02Result.timing.observedRateHz,2)} Hz`} detail={`target ${bench02Result.timing.targetRateHz} Hz`}/><Metric label="RMS timing jitter" value={`${fmt(bench02Result.timing.jitterRmsS * 1000,3)} ms`}/><Metric label="Unique ADC codes" value={String(bench02Result.value.uniqueValues)} detail={`min step ${fmt(bench02Result.value.minimumObservedPositiveStep,2)}`}/></div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 8 }}><Metric label="ADC mean" value={fmt(bench02Result.value.mean,3)}/><Metric label="ADC std" value={fmt(bench02Result.value.std,3)}/><Metric label="Trapz float64" value={fmt(bench02Result.accumulation.float64,5)}/><Metric label="float32 − float64" value={fmt(bench02Result.accumulation.absoluteDifference,6)}/></div>
 
-            <section className="panel" style={{ marginTop: 16 }}>
+            <div className="bench-result-tabs" role="tablist" aria-label="Bench 02 result views">
+              <button type="button" className={bench02View === 'signal' ? 'active' : ''} onClick={() => setBench02View('signal')}>1 · Signal & timing</button>
+              <button type="button" className={bench02View === 'sampling' ? 'active' : ''} onClick={() => setBench02View('sampling')}>2 · Downsampling</button>
+              <button type="button" className={bench02View === 'numerics' ? 'active' : ''} onClick={() => setBench02View('numerics')}>3 · Numerical convergence</button>
+              <button type="button" className={bench02View === 'precision' ? 'active' : ''} onClick={() => setBench02View('precision')}>4 · Float precision</button>
+            </div>
+
+            {bench02View === 'signal' && <section className="panel" style={{ marginTop: 10 }}>
               <div className="panel-title"><Activity size={16}/> Measured record & sample timing</div>
               <EngineeringPlot
                 series={[{
@@ -613,9 +629,9 @@ export default function NumericalBenchSuiteV2() {
                 yLabel="Sample interval"
                 yUnit="ms"
               />
-            </section>
+            </section>}
 
-            <section className="panel" style={{ marginTop: 16 }}>
+            {bench02View === 'sampling' && <section className="panel" style={{ marginTop: 10 }}>
               <div className="panel-title"><Waves size={16}/> Downsampling sensitivity</div>
               <EngineeringPlot
                 series={bench02Result.downsampled.map(item => ({
@@ -628,9 +644,9 @@ export default function NumericalBenchSuiteV2() {
                 xUnit="s"
                 yLabel="ADC code"
               />
-            </section>
+            </section>}
 
-            <section className="panel" style={{ marginTop: 16 }}>
+            {bench02View === 'numerics' && <section className="panel" style={{ marginTop: 10 }}>
               <div className="panel-title"><BarChart3 size={16}/> Numerical convergence</div>
               <EngineeringPlot
                 series={[{
@@ -657,9 +673,10 @@ export default function NumericalBenchSuiteV2() {
                 xUnit="Hz"
                 yLabel="Integral difference"
               />
-            </section>
+              <div style={{ marginTop: 16, overflow: 'auto' }}><h3 style={{ fontSize: 13 }}><BarChart3 size={15}/> Downsampling convergence table</h3><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>factor</th><th>samples</th><th>effective Hz</th><th>integral</th><th>Δ integral vs finest</th><th>derivative RMSE vs finest</th></tr></thead><tbody>{bench02Result.convergence.map(row => <tr key={row.factor}><td>{row.factor}×</td><td>{row.samples}</td><td>{fmt(row.effectiveRateHz,2)}</td><td>{fmt(row.trapezoidIntegral,5)}</td><td>{fmt(row.integralDeltaVsFine,6)}</td><td>{fmt(row.derivativeRmseVsFine,5)}</td></tr>)}</tbody></table></div>
+            </section>}
 
-            <section className="panel" style={{ marginTop: 16 }}>
+            {bench02View === 'precision' && <section className="panel" style={{ marginTop: 10 }}>
               <div className="panel-title"><Sigma size={16}/> Float32 accumulation drift</div>
               <EngineeringPlot
                 series={[
@@ -680,10 +697,9 @@ export default function NumericalBenchSuiteV2() {
                 xUnit="s"
                 yLabel="Accumulation divergence"
               />
-            </section>
+            </section>}
 
-            <div style={{ marginTop: 16, overflow: 'auto' }}><h3 style={{ fontSize: 13 }}><BarChart3 size={15}/> Downsampling convergence</h3><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr><th>factor</th><th>samples</th><th>effective Hz</th><th>integral</th><th>Δ integral vs finest</th><th>derivative RMSE vs finest</th></tr></thead><tbody>{bench02Result.convergence.map(row => <tr key={row.factor}><td>{row.factor}×</td><td>{row.samples}</td><td>{fmt(row.effectiveRateHz,2)}</td><td>{fmt(row.trapezoidIntegral,5)}</td><td>{fmt(row.integralDeltaVsFine,6)}</td><td>{fmt(row.derivativeRmseVsFine,5)}</td></tr>)}</tbody></table></div>
-            <details style={{ marginTop: 14 }}><summary>{bench02Lines.length} source rows · {bench02Source}</summary><pre className="terminal" style={{ height: 220 }}>{bench02Lines.join('\n')}</pre></details>
+            <details style={{ marginTop: 12 }}><summary>{bench02Lines.length} source rows · {bench02Source}</summary><pre className="terminal" style={{ height: 220 }}>{bench02Lines.join('\n')}</pre></details>
           </>}
           <div className="boundary">The finest measured series is an empirical numerical baseline, not physical ground truth. These are sampling/discretization/accumulation differences, not absolute sensor error. Re-analysis intentionally reuses the same evidence so algorithm choices can be compared without changing the physical trial.</div>
         </div>}
