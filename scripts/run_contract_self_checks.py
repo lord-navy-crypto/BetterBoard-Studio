@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 CHECKS = (
     "self_check.py",
+    "navigation_discoverability_self_check.py",
     "functionality_surface_check.py",
     "monitor_provenance_self_check.py",
     "circuit_local_design_self_check.py",
