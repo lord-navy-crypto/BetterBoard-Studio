@@ -108,7 +108,7 @@ export default function EvidenceSourcePicker() {
     }
   }
 
-  return <div className="analysis-evidence-picker" data-capability-anchor="evidence-source-picker">
+  return <div className="analysis-evidence-picker">
     <div className="panel-title" style={{ marginBottom: 0 }}><Database size={15}/> Saved BetterBoard evidence</div>
     <div className="action-row" style={{ margin: 0 }}>
       <select value={selectedDirectory} disabled={busy || !sessions.length} onChange={event => setSelectedDirectory(event.target.value)}>
