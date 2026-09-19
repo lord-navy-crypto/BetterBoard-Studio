@@ -133,7 +133,7 @@ export default function CapabilityLauncher({
                 const Icon = item.icon;
                 return <button key={item.target} type="button" className="capability-card" onClick={() => onNavigate(item.target)}>
                   <span className="capability-icon"><Icon size={17}/></span>
-                  <span><b>{item.title}</b><small>{item.detail}</small><em>{item.tier} · {item.kind === 'shortcut' ? 'direct shortcut' : 'canonical capability'}</em></span>
+                  <span><b>{item.title}</b><small>{item.detail}</small></span>
                 </button>;
               })}
             </div>
@@ -146,7 +146,7 @@ export default function CapabilityLauncher({
             <div className="capability-grid">
               {semanticFiltered.map(item => <button key={item.id} type="button" className="capability-card" onClick={() => item.target && onNavigate(item.target)}>
                 <span className="capability-icon"><Grid3X3 size={16}/></span>
-                <span><b>{item.title}</b><small>{item.detail}</small></span>
+                <span><b>{item.title}</b><small>{item.detail}</small><em>{item.tier} · {item.kind === 'shortcut' ? 'direct shortcut' : 'canonical capability'}</em></span>
               </button>)}
             </div>
           </details>
