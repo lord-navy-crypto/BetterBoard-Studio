@@ -50,6 +50,7 @@ const CAPABILITIES: Capability[] = [
   { target: 'observatory:data', group: 'System & handoff', title: 'Latest Data Observation', detail: 'Latest saved evidence, sample rate and parse coverage.', keywords: 'latest data sampling evidence coverage', icon: Database },
   { target: 'observatory:live', group: 'System & handoff', title: 'Live Acquisition State', detail: 'Current live serial activity and observed row counts.', keywords: 'live acquisition serial rows', icon: Activity },
   { target: 'observatory:bridge', group: 'System & handoff', title: 'Engineering Lab Bridge Readiness', detail: 'Check whether handoff artifacts are complete.', keywords: 'bridge readiness engineering lab export', icon: UploadCloud },
+  { target: 'observatory:tasks', group: 'System & handoff', title: 'Background Tasks', detail: 'Inspect recent and active BetterBoard operations from Observatory.', keywords: 'tasks background operations history observatory', icon: TerminalSquare },
   { target: 'observatory:evidence', group: 'System & handoff', title: 'Recent Measurement Evidence', detail: 'Saved session history and evidence metadata.', keywords: 'measurement history sessions evidence recent', icon: Database },
   { target: 'ai', group: 'System & handoff', title: 'OpenPenguin', detail: 'Local AI bridge with current BetterBoard context.', keywords: 'ai local assistant openguin', icon: Bot },
 ];
