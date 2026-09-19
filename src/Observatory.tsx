@@ -219,6 +219,16 @@ export default function Observatory() {
       <button className="ghost" disabled={refreshingRuntime || refreshing} onClick={() => { void refreshHardware(); void refreshRuntime(); }}><RefreshCw size={15}/> Refresh all observations</button>
     </section>
 
+    <nav className="observatory-jump-nav" aria-label="Observatory sections">
+      <a href="#observatory-hardware">Hardware & toolchain</a>
+      <a href="#observatory-inventory">Recipe & device inventory</a>
+      <a href="#observatory-data">Latest data</a>
+      <a href="#observatory-live">Live acquisition</a>
+      <a href="#observatory-bridge">Bridge readiness</a>
+      <a href="#observatory-tasks">Background operations</a>
+      <a href="#observatory-evidence">Evidence history</a>
+    </nav>
+
     <section className="observatory-kpis">
       <div className="runtime-kpi"><ShieldCheck size={17}/><span>Operational state</span><b>{operationalState}</b><small>{operationalIssues} issue(s) · {operationalWarnings} warning(s)</small></div>
       <div className="runtime-kpi"><Cpu size={17}/><span>Board</span><b>{diagnosis.title}</b><small>{selectedPort || diagnosis.action}</small></div>
@@ -230,19 +240,19 @@ export default function Observatory() {
     {warnings.length > 0 && <section className="panel observatory-alerts"><div className="panel-title"><CircleAlert size={18}/> Attention</div>{warnings.map(item => <div key={item} className="boundary compact"><CircleAlert size={14}/>{item}</div>)}</section>}
 
     <section className="observatory-grid">
-      <div className="panel observatory-panel"><div className="panel-title"><Gauge size={18}/> Hardware Doctor & toolchain</div><div className="observatory-facts">
+      <div id="observatory-hardware" className="panel observatory-panel observatory-anchor"><div className="panel-title"><Gauge size={18}/> Hardware Doctor & toolchain</div><div className="observatory-facts">
         <span>Diagnosis</span><b>{diagnosis.title}</b><span>Severity</span><b>{diagnosis.severity}</b><span>Serial port</span><b>{selectedPort || '—'}</b><span>Board profile</span><b>{fqbn}</b>
         <span>Detected target</span><b>{activePort?.fqbn || activePort?.board_name || '—'}</b><span>Upload gate</span><b>{diagnosis.canUpload ? 'ready' : 'blocked'}</b>
         <span>Arduino CLI</span><b>{cli?.found ? cli.version || 'ready' : cli?.error || 'unavailable'}</b><span>CLI path</span><b>{cli?.path || '—'}</b>
         <span>Runtime snapshot</span><b>{new Date(lastRefresh).toLocaleTimeString([], { hour12: false })} · {ageLabel(snapshotAgeMs)}</b>
       </div><div className={`boundary compact ${diagnosis.severity === 'success' ? 'ok' : ''}`}><ShieldCheck size={14}/><span><b>{diagnosis.detail}</b> {diagnosis.action}</span></div></div>
 
-      <div className="panel observatory-panel"><div className="panel-title"><Layers3 size={18}/> Recipe & device inventory</div><div className="observatory-facts">
+      <div id="observatory-inventory" className="panel observatory-panel observatory-anchor"><div className="panel-title"><Layers3 size={18}/> Recipe & device inventory</div><div className="observatory-facts">
         <span>Recipes available</span><b>{recipes.length}</b><span>My Library recipes</span><b>{userRecipes}</b><span>Device definitions</span><b>{devices.length}</b>
         <span>Ready/known devices</span><b>{devices.filter(d => /ready|supported|known/i.test(d.status)).length}</b>
       </div><div className="observatory-mini-list">{devices.slice(0,6).map(d => <span key={d.id}><b>{d.name}</b><small>{d.interface} · {d.status}</small></span>)}</div></div>
 
-      <div className="panel observatory-panel wide"><div className="panel-title"><Waves size={18}/> Latest data observation</div>
+      <div id="observatory-data" className="panel observatory-panel wide observatory-anchor"><div className="panel-title"><Waves size={18}/> Latest data observation</div>
         {!latestSession ? <div className="empty compact">No saved measurement session yet.</div> : <>
           <div className="observatory-facts four"><span>Recipe</span><b>{latestSession.recipe_title}</b><span>Saved rows</span><b>{latestSession.sample_count.toLocaleString()}</b><span>Replay rows</span><b>{latestReplay?.rows.length.toLocaleString() ?? '—'}</b><span>Channels</span><b>{latestReplay?.columns.length ?? '—'}</b><span>Declared rate</span><b>{latestReplay?.sample_rate_hz ? `${latestReplay.sample_rate_hz} Hz` : '—'}</b>
           {stats && <><span>Observed rate</span><b>{stats.observedHz ? `${stats.observedHz.toFixed(3)} Hz` : '—'}</b><span>Rate deviation</span><b>{rateDeviation === null ? '—' : `${rateDeviation.toFixed(2)}%`}</b><span>Duration</span><b>{stats.durationS.toFixed(3)} s</b><span>Primary</span><b>{stats.primary}</b><span>Latest</span><b>{stats.last === null ? '—' : `${stats.last.toFixed(5)} ${stats.unit}`}</b><span>Min / max</span><b>{stats.min === null ? '—' : `${stats.min.toFixed(5)} / ${stats.max?.toFixed(5)} ${stats.unit}`}</b><span>Numeric coverage</span><b>{numericCoverage === null ? '—' : `${(numericCoverage * 100).toFixed(1)}%`}</b><span>Primary parse coverage</span><b>{primaryCoverage === null ? '—' : `${(primaryCoverage * 100).toFixed(1)}%`}</b></>}
@@ -252,20 +262,20 @@ export default function Observatory() {
         </>}
       </div>
 
-      <div className="panel observatory-panel"><div className="panel-title"><Activity size={18}/> Live acquisition</div>
+      <div id="observatory-live" className="panel observatory-panel observatory-anchor"><div className="panel-title"><Activity size={18}/> Live acquisition</div>
         {liveTask ? <div className="runtime-live-card"><div className="live-badge live"><span/><b>LIVE</b></div><b>{liveTask.title}</b><p>{liveTask.detail}</p><small>{rxRows === null ? 'Waiting for the next row-count report.' : `${rxRows.toLocaleString()} RX rows observed by Task Center`}</small></div> : <div className="empty">No live serial acquisition is running.</div>}
         <div className="boundary compact"><Activity size={14}/> Live counts show runtime activity, not calibration or physical truth.</div>
       </div>
 
-      <div className="panel observatory-panel"><div className="panel-title"><ShieldCheck size={18}/> Engineering Lab bridge readiness</div>
+      <div id="observatory-bridge" className="panel observatory-panel observatory-anchor"><div className="panel-title"><ShieldCheck size={18}/> Engineering Lab bridge readiness</div>
         {latestSession ? <><div className="observatory-facts"><span>Physical Lab CSV</span><b>{latestSession.physical_lab_csv_path ? 'ready' : 'missing'}</b><span>Bridge manifest</span><b>{latestSession.physical_lab_bridge_path ? 'ready' : 'missing'}</b><span>Package state</span><b>{bridgeReady ? 'handoff ready' : 'incomplete'}</b><span>Workflow</span><b>BetterBoard measurement → Engineering Lab independent validation</b></div><div className="boundary compact"><ShieldCheck size={14}/>{bridgeReady ? 'Both handoff artifacts are present.' : 'Record or regenerate a complete Measurement Evidence package before Engineering Lab handoff.'}</div></> : <div className="empty compact">Record Measurement Evidence first; Experiments can then hand the package into Engineering Lab workflows.</div>}
       </div>
 
-      <div className="panel observatory-panel wide"><div className="panel-title"><TerminalSquare size={18}/> Background operations</div>
+      <div id="observatory-tasks" className="panel observatory-panel wide observatory-anchor"><div className="panel-title"><TerminalSquare size={18}/> Background operations</div>
         {!tasks.length ? <div className="empty compact">No Task Center history yet.</div> : <div className="observatory-task-list">{tasks.slice(0,12).map(task => <div className={`observatory-task ${task.state}`} key={task.id}><span>{task.category}</span><b>{task.title}</b><small>{task.detail}</small><time>{new Date(task.startedAt).toLocaleTimeString([], { hour12: false })}</time></div>)}</div>}
       </div>
 
-      <div className="panel observatory-panel wide"><div className="panel-title"><Clock3 size={18}/> Recent measurement evidence</div>
+      <div id="observatory-evidence" className="panel observatory-panel wide observatory-anchor"><div className="panel-title"><Clock3 size={18}/> Recent measurement evidence</div>
         {!sessions.length ? <div className="empty compact">No saved Measurement Sessions yet.</div> : <div className="observatory-session-list">{sessions.slice(0,10).map(session => <div key={session.directory}><span>{session.recipe_title}</span><b>{session.sample_count.toLocaleString()} samples</b><small>{new Date(session.created_at_utc).toLocaleString()} · {session.acquisition_mode} · {session.board_profile || 'profile unavailable'} · {session.port || 'port unavailable'}</small></div>)}</div>}
       </div>
 
