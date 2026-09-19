@@ -20,7 +20,7 @@ targets = [
     "studio:hardware", "studio:circuit", "studio:library", "studio:data", "studio:developer", "studio:tasks",
     "labs:numerical", "labs:numerical-expert", "labs:magnet", "labs:magnet-expert",
     "labs:campaigns", "labs:campaign-library", "labs:handoff",
-    "analysis:evidence", "analysis:statistics", "analysis:models", "analysis:design", "analysis:numerical",
+    "analysis:evidence", "analysis:statistics", "analysis:models", "analysis:magnet-results", "analysis:design", "analysis:numerical",
     "observatory:overview", "observatory:hardware", "observatory:inventory", "observatory:data",
     "observatory:live", "observatory:bridge", "observatory:tasks", "observatory:evidence",
     "ai",
@@ -32,7 +32,7 @@ for title in [
     "Hardware & Program", "Circuit Lab", "Recipe Library", "Monitor & Data", "Developer", "Task Center",
     "Numerical Lab", "Numerical Expert Tools", "Magnet Lab", "Magnetic Expert Tools",
     "Campaigns", "Experiment Code Library", "Evidence Handoff",
-    "Evidence", "Signal & Statistics", "Models", "Experiment Design", "Numerical Analysis",
+    "Evidence", "Signal & Statistics", "Models", "Magnetic Result Viewer", "Experiment Design", "Numerical Analysis",
     "System Observatory", "Toolchain & Hardware State", "Recipe & Device Inventory",
     "Latest Data Observation", "Live Acquisition State", "Engineering Lab Bridge Readiness",
     "Recent Measurement Evidence", "OpenPenguin",
@@ -60,7 +60,7 @@ for token in [
     assert token in labs + experiments, f"Labs direct navigation lost {token}"
 
 # Analysis views are all individually addressable.
-for token in ["analysis:", "evidence", "statistics", "models", "design", "numerical"]:
+for token in ["analysis:", "evidence", "statistics", "models", "magnet-results", "analysis-magnet-results", "design", "numerical"]:
     assert token in analysis, f"Analysis deep navigation lost {token}"
 
 # Long Observatory pages must expose a visible section map and direct anchors.

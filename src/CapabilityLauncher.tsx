@@ -23,6 +23,7 @@ export type CapabilityTarget =
   | 'analysis:evidence'
   | 'analysis:statistics'
   | 'analysis:models'
+  | 'analysis:magnet-results'
   | 'analysis:design'
   | 'analysis:numerical'
   | 'observatory:overview'
@@ -61,6 +62,7 @@ const CAPABILITIES: Capability[] = [
   { target: 'analysis:evidence', group: 'Analyze & decide', title: 'Evidence', detail: 'Select saved evidence or external tables and inspect provenance.', keywords: 'evidence source provenance session import', icon: Database },
   { target: 'analysis:statistics', group: 'Analyze & decide', title: 'Signal & Statistics', detail: 'Uncertainty, signal health, spectra and change analysis.', keywords: 'statistics fft spectrum uncertainty signal noise', icon: Activity },
   { target: 'analysis:models', group: 'Analyze & decide', title: 'Models', detail: 'Fit models, compare references and inspect residuals.', keywords: 'model fitting regression residual reference compare', icon: LineChart },
+  { target: 'analysis:magnet-results', group: 'Analyze & decide', title: 'Magnetic Result Viewer', detail: 'Open Magnet Bench 02/03 summaries, scans and residual files for derived visualization.', keywords: 'magnet result visualization residual scan magnet02 magnet03', icon: Magnet },
   { target: 'analysis:design', group: 'Analyze & decide', title: 'Experiment Design', detail: 'Coverage, replication, information and next-run planning.', keywords: 'experiment design replication plan coverage information', icon: FlaskConical },
   { target: 'analysis:numerical', group: 'Analyze & decide', title: 'Numerical Analysis', detail: 'Error, convergence and precision on selected evidence.', keywords: 'numerical error convergence precision', icon: BarChart3 },
 

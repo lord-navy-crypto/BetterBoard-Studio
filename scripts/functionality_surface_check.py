@@ -47,6 +47,7 @@ task_center = (SRC / 'TaskCenter.tsx').read_text()
 observatory = (SRC / 'Observatory.tsx').read_text()
 numerical_v2 = (SRC / 'NumericalBenchSuiteV2.tsx').read_text()
 magnet_v2 = (SRC / 'MagnetBenchSuiteV2.tsx').read_text()
+magnet_result = (SRC / 'MagnetResultVisualization.tsx').read_text()
 rust = RUST.read_text()
 
 # Retired compatibility UI must stay gone; its capabilities live in canonical surfaces.
@@ -111,6 +112,10 @@ for forbidden in ['NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'NumericalBench
 for token in ['Evidence', 'Signal & Statistics', 'Models', 'Experiment Design', 'Numerical Analysis']:
     assert token in analysis, f'Analysis workspace lost {token}'
 assert 'Engineering Preparation' not in analysis, 'Analysis regressed to nesting hardware preparation'
+for token in ['MagnetResultVisualization', 'analysis-magnet-results', 'magnet-results']:
+    assert token in analysis, f'Analysis lost restored magnetic result visualization route: {token}'
+for token in ['Magnetic Analyzer Results', 'magnet02_summary.json', 'magnet03_residuals.csv', 'Measured ↔ model field profile', 'Residual structure']:
+    assert token in magnet_result, f'Magnetic result viewer lost {token}'
 
 # Streamlined preparation workflows must remain real.
 for token in ['Start Live', 'Snapshot 3 s', 'Measurement sessions', 'Physical Lab export & bridge', 'serial_stream_write']:

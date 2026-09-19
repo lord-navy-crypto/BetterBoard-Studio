@@ -7,6 +7,7 @@ import EvidenceInspector from './EvidenceInspector';
 import EvidenceSourcePicker from './EvidenceSourcePicker';
 import ExperimentPlanningWorkbench from './ExperimentPlanningWorkbench';
 import ModelFittingWorkbench from './ModelFittingWorkbench';
+import MagnetResultVisualization from './MagnetResultVisualization';
 import NumericalErrorVisualWorkbench from './NumericalErrorVisualWorkbench';
 import NumericalResultVisualization from './NumericalResultVisualization';
 import { useEvidenceVisualization } from './EvidenceVisualizationContext';
@@ -33,6 +34,11 @@ export default function AnalysisVisualizationHub({ navigationRequest = null }: {
   useEffect(() => {
     if (!navigationRequest?.target.startsWith('analysis:')) return;
     const target = navigationRequest.target.slice('analysis:'.length);
+    if (target === 'magnet-results') {
+      setActive('models');
+      window.setTimeout(() => document.getElementById('analysis-magnet-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+      return;
+    }
     if (target === 'evidence' || target === 'statistics' || target === 'models' || target === 'design' || target === 'numerical') {
       setActive(target);
       window.setTimeout(() => document.querySelector('.analysis-visualization-hub')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
@@ -104,7 +110,7 @@ export default function AnalysisVisualizationHub({ navigationRequest = null }: {
 
     <div className="analysis-view-pane" hidden={active !== 'evidence'}><EvidenceInspector /></div>
     <div className="analysis-view-pane" hidden={active !== 'statistics'}><AppliedStatisticsWorkbench /></div>
-    <div className="analysis-view-pane" hidden={active !== 'models'}><ModelFittingWorkbench /></div>
+    <div className="analysis-view-pane" hidden={active !== 'models'}><ModelFittingWorkbench /><div id="analysis-magnet-results" style={{ scrollMarginTop: 110 }}><MagnetResultVisualization /></div></div>
     <div className="analysis-view-pane" hidden={active !== 'design'}><ExperimentPlanningWorkbench /></div>
     <div className="analysis-view-pane" hidden={active !== 'numerical'}><NumericalErrorVisualWorkbench /><NumericalResultVisualization /></div>
   </section>;
