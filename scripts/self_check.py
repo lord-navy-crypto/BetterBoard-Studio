@@ -13,6 +13,9 @@ MONITOR_DATA = ROOT / 'src' / 'MonitorDataStudio.tsx'
 NUMERICAL_SUITE = ROOT / 'src' / 'NumericalBenchSuiteV2.tsx'
 MAGNET_SUITE = ROOT / 'src' / 'MagnetBenchSuiteV2.tsx'
 EXPERIMENTS_HUB = ROOT / 'src' / 'ExperimentsHub.tsx'
+LABS_HUB = ROOT / 'src' / 'LabsHub.tsx'
+ANALYSIS_HUB = ROOT / 'src' / 'AnalysisVisualizationHub.tsx'
+HANDOFF_STUDIO = ROOT / 'src' / 'EngineeringPreparationStudio.tsx'
 HARDWARE_SESSION = ROOT / 'src' / 'HardwareSession.tsx'
 OBSERVATORY = ROOT / 'src' / 'Observatory.tsx'
 RECIPE_PARAMETERS = ROOT / 'src' / 'RecipeParameterPanel.tsx'
@@ -71,7 +74,7 @@ def main() -> int:
     assert 'uT' in units and 'm/s^2' in units and 'V' in units
 
     for required in [
-        APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB,
+        APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB, LABS_HUB, ANALYSIS_HUB, HANDOFF_STUDIO,
         HARDWARE_SESSION, OBSERVATORY, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, COPY_BUTTON, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
     ]:
         assert required.is_file(), required
@@ -83,7 +86,7 @@ def main() -> int:
     rust = LIB.read_text()
     frontend = '\n'.join(path.read_text() for path in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE,
-        EXPERIMENTS_HUB, HARDWARE_SESSION, OBSERVATORY, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
+        EXPERIMENTS_HUB, LABS_HUB, ANALYSIS_HUB, HANDOFF_STUDIO, HARDWARE_SESSION, OBSERVATORY, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
     ])
     by_id = {r['id']: r for r in catalog}
 
@@ -188,6 +191,9 @@ def main() -> int:
     app_text = APP.read_text()
     main_text = MAIN.read_text()
     hub = EXPERIMENTS_HUB.read_text()
+    labs_hub = LABS_HUB.read_text()
+    analysis_hub = ANALYSIS_HUB.read_text()
+    handoff = HANDOFF_STUDIO.read_text()
     hardware = HARDWARE_SESSION.read_text()
     observatory = OBSERVATORY.read_text()
     numerical = NUMERICAL_SUITE.read_text()
@@ -214,10 +220,21 @@ def main() -> int:
     assert 'Numerical & Measurement' in app_text
     assert 'Magnetism & Fields' in app_text
 
-    assert "type Workspace = 'studio' | 'observatory' | 'experiments'" in main_text
-    for label in ['Studio', 'Observatory', 'Experiments']:
+    assert "type Workspace = 'studio' | 'labs' | 'analysis' | 'observatory'" in main_text
+    for label in ['Studio', 'Labs', 'Analysis', 'Observatory']:
         assert f"label: '{label}'" in main_text
     assert "label: 'Learning'" not in main_text
+    assert "<LabsHub />" in main_text
+    assert "<AnalysisVisualizationHub />" in main_text
+    for token in ['Numerical Lab', 'Magnet Lab', 'Campaigns', 'Evidence Handoff', 'Recommended demo']:
+        assert token in labs_hub, token
+    assert 'initialMode="bench02"' in labs_hub
+    assert "useState<Mode>(initialMode)" in numerical
+    assert "recommended: true" in numerical
+    assert 'Signal & timing' in numerical and 'Downsampling' in numerical and 'Numerical convergence' in numerical and 'Float precision' in numerical
+    assert 'NumericalBenchSuiteV2' not in handoff and 'MagnetBenchSuiteV2' not in handoff
+    assert 'Evidence Handoff' in handoff
+    assert 'Engineering Preparation' not in analysis_hub
     assert 'bb-context-strip' in main_text
     assert 'bb-workspace-pane' in main_text
     assert "hidden={workspace !== 'studio'}" in main_text
@@ -227,7 +244,7 @@ def main() -> int:
         assert token in observatory, token
     assert not (ROOT / 'src' / 'LearningHub.tsx').exists()
     assert "id: 'learning'" not in main_text
-    for token in ['Campaigns','Complete Experiment Code Library','Run / Program handoff','Studio → Monitor & Data','Numerical Error Analysis','Oscillation & Numerical Integration','RADIA Magnet Studio']:
+    for token in ['Campaigns','Complete Experiment Code Library','Run / Program handoff','Studio → Monitor & Data','Numeric Error Depth','Oscillation & Numerical Integration','Magnetic Model Validation']:
         assert token in hub, token
     assert 'Capture 7 s & Analyze' in numerical
     assert 'Capture Complete Campaign & Analyze' in numerical
@@ -256,7 +273,7 @@ def main() -> int:
     assert 'recipe_parameters' in rust and 'firmware_sha256: sha256_text(&source)' in rust
     for token in ['openguin_probe', 'openguin_generate', '127.0.0.1:11435']:
         assert token in OPENGUIN_BRIDGE.read_text() or token in (ROOT / 'src-tauri' / 'src' / 'openguin_bridge.rs').read_text(), token
-    assert 'Expert workflows' in hub and 'Advanced Tools' not in hub
+    assert 'Interactive hardware labs now live in' in hub and 'Advanced Tools' not in hub
     # Page state and engineering plot contracts.
     engineering_plot = ENGINEERING_PLOT.read_text()
     for token in ['xLabel', 'yLabel', 'xTicks', 'yTicks', 'axisTitle', 'engineering-grid-line']:
@@ -264,8 +281,10 @@ def main() -> int:
     assert "hidden={tab !== 'data'}" in app_text
     assert "hidden={tab !== 'developer'}" in app_text
     assert "hidden={tab !== 'circuit'}" in app_text
-    assert "hidden={tool!=='numerical'}" in hub
-    assert "hidden={tool!=='magnet'}" in hub
+    assert "active === 'numerical'" in labs_hub
+    assert "active === 'magnet'" in labs_hub
+    assert "active === 'campaigns'" in labs_hub
+    assert "active === 'handoff'" in labs_hub
     assert 'EngineeringPlot' in monitor_text
     assert 'xLabel="time"' in monitor_text and 'xUnit="s"' in monitor_text
     assert 'EngineeringPlot' in magnet_ui
@@ -332,7 +351,7 @@ def main() -> int:
     print('- historical Measurement Sessions + replay registered')
     print('- Physical Lab Bridge merged into Monitor & Data')
     print('- unified Monitor & Data workspace registered')
-    print('- persistent Studio / Observatory / Experiments architecture registered')
+    print('- persistent Studio / Labs / Analysis / Observatory architecture registered')
     print('- global CLI / hardware / acquisition / task context strip registered')
     print('- shared Hardware Session provider registered')
     print('- grouped Recipe Library registered')

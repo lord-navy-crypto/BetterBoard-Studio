@@ -5,7 +5,7 @@ import { Bot, CircuitBoard, Focus, FlaskConical, RadioTower, X } from 'lucide-re
 import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
 import EngineeringStatusMap, { type EngineeringStatusNode } from './EngineeringStatusMap';
-import ExperimentsHub from './ExperimentsHub';
+import LabsHub from './LabsHub';
 import HardwareTopology from './HardwareTopology';
 import Observatory from './Observatory';
 import ObservatoryMissionControl from './ObservatoryMissionControl';
@@ -26,15 +26,16 @@ import './copy-ai.css';
 import './workflow-rail.css';
 import './phase6.css';
 
-type Workspace = 'studio' | 'observatory' | 'experiments';
+type Workspace = 'studio' | 'labs' | 'analysis' | 'observatory';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 
 const TASK_MEMORY_KEY = 'betterboard.task-center.v1';
 
 const WORKSPACES: Array<{ id: Workspace; label: string; subtitle: string; icon: typeof CircuitBoard }> = [
-  { id: 'studio', label: 'Studio', subtitle: 'build · monitor · prepare · handoff', icon: CircuitBoard },
-  { id: 'observatory', label: 'Observatory', subtitle: 'runtime · evidence · system state', icon: RadioTower },
-  { id: 'experiments', label: 'Experiments', subtitle: 'Engineering Lab campaigns', icon: FlaskConical },
+  { id: 'studio', label: 'Studio', subtitle: 'connect · program · monitor', icon: CircuitBoard },
+  { id: 'labs', label: 'Labs', subtitle: 'run · measure · inspect', icon: FlaskConical },
+  { id: 'analysis', label: 'Analysis', subtitle: 'evidence · statistics · models', icon: Focus },
+  { id: 'observatory', label: 'Observatory', subtitle: 'runtime · provenance · system', icon: RadioTower },
 ];
 
 function readTaskMemory(): BackgroundTask[] {
@@ -107,7 +108,7 @@ function Root() {
         setAiOpen(value => !value);
         return;
       }
-      const workspaceShortcut: Record<string, Workspace> = { '1': 'studio', '2': 'observatory', '3': 'experiments' };
+      const workspaceShortcut: Record<string, Workspace> = { '1': 'studio', '2': 'labs', '3': 'analysis', '4': 'observatory' };
       const nextWorkspace = workspaceShortcut[key];
       if (nextWorkspace) {
         event.preventDefault();
@@ -161,12 +162,12 @@ function Root() {
       setWorkspace('observatory');
       return;
     }
-    setWorkspace('studio');
     if (node.id === 'analysis') {
-      window.setTimeout(() => document.querySelector('.analysis-visualization-hub')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
-    } else {
-      window.setTimeout(() => document.querySelector('.app')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+      setWorkspace('analysis');
+      return;
     }
+    setWorkspace('studio');
+    window.setTimeout(() => document.querySelector('.app')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
 
   const openPenguinContext = useMemo(() => [
@@ -220,9 +221,10 @@ function Root() {
     </aside>
 
     <div className="bb-workspace-frame">
-      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /><AnalysisVisualizationHub /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'labs'}><LabsHub /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'analysis'}><AnalysisVisualizationHub /></div>
       <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><ObservatoryMissionControl /><ObservatoryVisualSummary /><Observatory /></div>
-      <div className="bb-workspace-pane" hidden={workspace !== 'experiments'}><ExperimentsHub /></div>
     </div>
   </div>;
 }

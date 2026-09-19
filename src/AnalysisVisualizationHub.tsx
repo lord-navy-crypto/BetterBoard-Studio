@@ -1,13 +1,11 @@
 import { useMemo, useState } from 'react';
-import { BarChart3, Database, FlaskConical, LineChart, Sigma, Wrench } from 'lucide-react';
+import { BarChart3, Database, FlaskConical, LineChart, Sigma } from 'lucide-react';
 import AnalysisWorkflowGuide from './AnalysisWorkflowGuide';
 import AppliedStatisticsWorkbench from './AppliedStatisticsWorkbench';
 import AnnotatedEngineeringPlot from './AnnotatedEngineeringPlot';
-import EngineeringPreparationStudio from './EngineeringPreparationStudio';
 import EvidenceInspector from './EvidenceInspector';
 import EvidenceSourcePicker from './EvidenceSourcePicker';
 import ExperimentPlanningWorkbench from './ExperimentPlanningWorkbench';
-import MagnetResultVisualization from './MagnetResultVisualization';
 import ModelFittingWorkbench from './ModelFittingWorkbench';
 import NumericalErrorVisualWorkbench from './NumericalErrorVisualWorkbench';
 import NumericalResultVisualization from './NumericalResultVisualization';
@@ -15,15 +13,14 @@ import { useEvidenceVisualization } from './EvidenceVisualizationContext';
 import { useRunComparison } from './RunComparisonContext';
 import './analysis-visualization.css';
 
-type AnalysisView = 'evidence' | 'statistics' | 'models' | 'design' | 'numerical' | 'preparation';
+type AnalysisView = 'evidence' | 'statistics' | 'models' | 'design' | 'numerical';
 
 const VIEWS = [
   { id: 'evidence' as const, label: 'Evidence', icon: Database, detail: 'Evidence · inspect source & provenance' },
   { id: 'statistics' as const, label: 'Signal & Statistics', icon: Sigma, detail: 'Analyze · uncertainty · spectrum · change' },
   { id: 'models' as const, label: 'Models', icon: LineChart, detail: 'Compare · fit · residuals · reference' },
   { id: 'design' as const, label: 'Experiment Design', icon: FlaskConical, detail: 'Decide · coverage · information · replication' },
-  { id: 'numerical' as const, label: 'Numerical Reliability', icon: BarChart3, detail: 'Analyze · error · convergence · precision' },
-  { id: 'preparation' as const, label: 'Engineering Preparation', icon: Wrench, detail: 'Decide · prepare · contextualize · handoff' },
+  { id: 'numerical' as const, label: 'Numerical Analysis', icon: BarChart3, detail: 'Error · convergence · precision · selected evidence' },
 ];
 
 export default function AnalysisVisualizationHub() {
@@ -56,8 +53,8 @@ export default function AnalysisVisualizationHub() {
 
   return <section className="analysis-visualization-hub" style={{ maxWidth: 1460, margin: '20px auto 60px' }}>
     <div className="panel" style={{ marginBottom: 12 }}>
-      <div className="panel-title"><BarChart3 size={18}/> Analysis & Visualization</div>
-      <p className="muted">One evidence source, multiple analysis lenses. Raw evidence stays immutable; statistics, models, numerical diagnostics and planning remain downstream derived views.</p>
+      <div className="panel-title"><BarChart3 size={18}/> Analysis</div>
+      <p className="muted">Analyze already-captured evidence here. Hardware-facing experiments now live in the top-level Labs workspace, while this surface stays focused on evidence, statistics, models, experiment design and numerical interpretation.</p>
       <AnalysisWorkflowGuide />
 
       <div className="analysis-source-banner">
@@ -101,6 +98,5 @@ export default function AnalysisVisualizationHub() {
     <div className="analysis-view-pane" hidden={active !== 'models'}><ModelFittingWorkbench /></div>
     <div className="analysis-view-pane" hidden={active !== 'design'}><ExperimentPlanningWorkbench /></div>
     <div className="analysis-view-pane" hidden={active !== 'numerical'}><NumericalErrorVisualWorkbench /><NumericalResultVisualization /></div>
-    <div className="analysis-view-pane" hidden={active !== 'preparation'}><EngineeringPreparationStudio /><MagnetResultVisualization /></div>
   </section>;
 }

@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Bot, CircleAlert, Database, FileCheck2, Magnet, Plus, RefreshCw, Sigma, UploadCloud, Wrench } from 'lucide-react';
-import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
-import NumericalBenchAdvanced from './NumericalBenchAdvanced';
-import MagnetBenchSuiteV2 from './MagnetBenchSuiteV2';
-import MagnetBenchAdvanced from './MagnetBenchAdvanced';
+import { Bot, CircleAlert, Database, FileCheck2, Plus, RefreshCw, UploadCloud } from 'lucide-react';
 import CopyButton from './CopyButton';
 import { bridgeForOpenPenguin, buildResearchBridge, researchSessionId } from './ResearchBridge';
 import { emptyResearchContext, loadResearchContext, makeResearchEvent, saveResearchContext, type ResearchContextState } from './ResearchContextStore';
@@ -31,16 +27,10 @@ type OpenPenguinStatus = {
   error?: string | null;
 };
 
-type Lane = 'numerical' | 'magnet';
 type ContextLane = 'notebook' | 'annotation' | 'journey';
 
-const CAMPAIGN_ANALYZER = 'scripts/numeric_error_campaign_analyzer.py';
-const CAMPAIGN_SELF_CHECK = 'scripts/numeric_error_campaign_self_check.py';
-const INTERACTIVE_BRIDGE = 'scripts/arduino_numeric_error_bridge_v2.py';
-const ABSORPTION_LEDGER = 'docs/NUMERIC_ERROR_ABSORPTION_LEDGER.md';
 
 export default function EngineeringPreparationStudio() {
-  const [lane, setLane] = useState<Lane>('numerical');
   const [sessions, setSessions] = useState<MeasurementSessionSummary[]>([]);
   const [selected, setSelected] = useState<MeasurementSessionSummary | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -153,63 +143,23 @@ export default function EngineeringPreparationStudio() {
     researchBridge ? `Research session: ${researchBridge.session_id}` : '',
   ].filter(Boolean).join('\n') : '', [selected, researchBridge]);
 
-  return <section className="panel" style={{ maxWidth: 1420, margin: '18px auto 52px' }}>
-    <div className="panel-title"><Wrench size={18}/> Engineering Preparation</div>
-    <p className="muted">Turn saved measurements into analysis-ready evidence. Choose a preparation lane, inspect the evidence, add research context, then hand the package to Engineering Lab or local AI.</p>
-
-    <div className="engineering-model-grid" style={{ marginBottom: 14 }}>
-      <button className={`panel ${lane === 'numerical' ? 'selected' : ''}`} onClick={() => setLane('numerical')} style={{ textAlign: 'left', cursor: 'pointer' }}>
-        <div className="panel-title"><Sigma size={17}/> Numerical evidence</div>
-        <p className="muted">Check sampling, discretization and embedded numerical reliability before interpreting a model comparison.</p>
-        <b>Prepare numerical evidence →</b>
-      </button>
-      <button className={`panel ${lane === 'magnet' ? 'selected' : ''}`} onClick={() => setLane('magnet')} style={{ textAlign: 'left', cursor: 'pointer' }}>
-        <div className="panel-title"><Magnet size={17}/> Magnetic evidence</div>
-        <p className="muted">Characterize field measurements and residuals while keeping calibration assumptions separate from the raw sensor record.</p>
-        <b>Prepare magnetic evidence →</b>
-      </button>
-    </div>
+  return <section className="handoff-workspace" style={{ maxWidth: 1420, margin: '18px auto 52px' }}>
+    <header className="experiment-bridge-hero" style={{ padding: '0 0 12px' }}>
+      <div>
+        <div className="eyebrow">Evidence Handoff</div>
+        <h1>Package the run after the experiment.</h1>
+        <p>Numerical and magnetic experiments now live in Labs. This workspace starts after evidence has been saved: select a run, attach research context, then hand the traceable package to Engineering Lab or local AI.</p>
+      </div>
+    </header>
 
     <div className="observatory-facts" style={{ marginBottom: 14 }}>
-      <span>1 · Inspect</span><b>Measurement evidence</b>
-      <span>2 · Prepare</span><b>{lane === 'numerical' ? 'Numerical reliability' : 'Field characterization'}</b>
-      <span>3 · Context</span><b>Question · notes · annotations</b>
-      <span>4 · Handoff</span><b>Research Bridge</b>
+      <span>1 · Select</span><b>Saved measurement</b>
+      <span>2 · Context</span><b>Question · hypothesis · notes</b>
+      <span>3 · Verify</span><b>Paths · provenance · bridge</b>
+      <span>4 · Handoff</span><b>Engineering Lab / OpenPenguin</b>
     </div>
 
-    {lane === 'numerical' && <>
-      <div className="boundary compact"><FileCheck2 size={14}/> Numerical preparation asks whether the captured data and computation are trustworthy enough to support the next scientific claim. Bench 01 / 02 / 03 remain separate evidence stages.</div>
-      <NumericalBenchSuiteV2/>
-
-      <details style={{ marginTop: 14 }}>
-        <summary><b>Advanced implementation tools</b> · analyzer paths, validation and exact controls</summary>
-        <section className="panel" style={{ marginTop: 10 }}>
-          <div className="panel-title"><Sigma size={17}/> Numeric Error implementation tools</div>
-          <p className="muted">Use these direct paths when maintaining or validating the numerical analysis pipeline. They are implementation details, not required for the normal evidence-preparation workflow.</p>
-          <div className="measurement big">
-            <b>Campaign analyzer</b><span>{CAMPAIGN_ANALYZER}</span>
-            <b>Campaign self-check</b><span>{CAMPAIGN_SELF_CHECK}</span>
-            <b>Interactive Studio bridge</b><span>{INTERACTIVE_BRIDGE}</span>
-            <b>Absorption ledger</b><span>{ABSORPTION_LEDGER}</span>
-          </div>
-          <div className="action-row">
-            <CopyButton text={CAMPAIGN_ANALYZER} label="Copy analyzer path"/>
-            <CopyButton text={CAMPAIGN_SELF_CHECK} label="Copy self-check path"/>
-            <CopyButton text={INTERACTIVE_BRIDGE} label="Copy bridge path"/>
-            <CopyButton text={ABSORPTION_LEDGER} label="Copy ledger path"/>
-          </div>
-          <details style={{ marginTop: 12 }}><summary><b>Numerical expert analyzer</b> · classic / exact controls</summary><NumericalBenchAdvanced/></details>
-        </section>
-      </details>
-    </>}
-
-    {lane === 'magnet' && <>
-      <div className="boundary compact"><FileCheck2 size={14}/> Magnetic preparation follows acquisition → field characterization → residual/model handoff. A clean curve never substitutes for calibration and provenance.</div>
-      <MagnetBenchSuiteV2/>
-      <details style={{ marginTop: 14 }}><summary><b>Advanced magnetic tools</b> · residual / characterization controls</summary><MagnetBenchAdvanced/></details>
-    </>}
-
-    <section className="panel engineering-handoff" style={{ marginTop: 18 }}>
+    <section className="panel engineering-handoff" style={{ marginTop: 0 }}>
       <div className="panel-title"><UploadCloud size={18}/> Evidence handoff</div>
       <p className="muted">Select a saved run and package its immutable measurement evidence with human research context. Engineering results and AI suggestions remain downstream layers rather than being mixed into the raw data.</p>
       <button className="primary" disabled={loadingEvidence} onClick={() => void loadEvidence()}><Database size={15}/> {loadingEvidence ? 'Loading evidence…' : loaded ? 'Refresh saved evidence' : 'Choose saved evidence'}</button>

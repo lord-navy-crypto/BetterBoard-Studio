@@ -17,7 +17,7 @@
 .analysis-evidence-picker .action-row { display: grid; grid-template-columns: minmax(240px, 1fr) auto auto; gap: 8px; align-items: center; }
 .analysis-evidence-picker select { min-width: 0; width: 100%; }
 
-.analysis-view-rail { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.analysis-view-rail { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
 .analysis-view-tab { min-width: 0; display: flex; align-items: center; gap: 9px; justify-content: flex-start; text-align: left; padding: 11px 12px; border-radius: 12px; }
 .analysis-view-tab > span { display: grid; min-width: 0; gap: 2px; }
 .analysis-view-tab small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .68; }
@@ -66,6 +66,7 @@
 
 @media (max-width: 1180px) { .signal-health-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 1100px) { .observatory-readiness-pipeline { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .analysis-view-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 920px) {
   .analysis-view-rail,
   .signal-health-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }

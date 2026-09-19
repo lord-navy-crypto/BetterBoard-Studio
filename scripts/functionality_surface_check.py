@@ -7,7 +7,9 @@ RUST = ROOT / 'src-tauri' / 'src' / 'lib.rs'
 
 required_files = {
     'new Studio': SRC / 'App.tsx',
-    'Engineering Preparation': SRC / 'EngineeringPreparationStudio.tsx',
+    'Evidence Handoff': SRC / 'EngineeringPreparationStudio.tsx',
+    'Labs Hub': SRC / 'LabsHub.tsx',
+    'Analysis Hub': SRC / 'AnalysisVisualizationHub.tsx',
     'Circuit Lab': SRC / 'CircuitLab.tsx',
     'Monitor & Data': SRC / 'MonitorDataStudio.tsx',
     'Developer IDE': SRC / 'DeveloperIDE.tsx',
@@ -33,6 +35,8 @@ for label, path in required_files.items():
 main = (SRC / 'main.tsx').read_text()
 app = (SRC / 'App.tsx').read_text()
 preparation = (SRC / 'EngineeringPreparationStudio.tsx').read_text()
+labs = (SRC / 'LabsHub.tsx').read_text()
+analysis = (SRC / 'AnalysisVisualizationHub.tsx').read_text()
 circuit = (SRC / 'CircuitLab.tsx').read_text()
 hub = (SRC / 'ExperimentsHub.tsx').read_text()
 numerical = (SRC / 'NumericalBenchAdvanced.tsx').read_text()
@@ -52,14 +56,16 @@ assert 'Studio compatibility tools' not in preparation, 'Legacy compatibility sh
 
 # Global workspace/mission/hardware hierarchy must not collapse back into a flat shell.
 for token in [
-    "'studio' | 'observatory' | 'experiments'",
-    'build · monitor · prepare · handoff',
-    'runtime · evidence · system state',
-    'Engineering Lab campaigns',
+    "'studio' | 'labs' | 'analysis' | 'observatory'",
+    'connect · program · monitor',
+    'run · measure · inspect',
+    'evidence · statistics · models',
+    'runtime · provenance · system',
     'bb-context-strip',
     'No board selected',
     'Acquisition',
     'Tasks',
+    'LabsHub',
     'AnalysisVisualizationHub',
 ]:
     assert token in main, f'Global workspace/status layer lost {token}'
@@ -87,19 +93,24 @@ for token in [
 for forbidden in ['<NumericalBenchSuiteV2', '<MagnetBenchSuiteV2', '<NumericalBenchAdvanced', '<MagnetBenchAdvanced']:
     assert forbidden not in hub, f'Preparation/expert surface regressed into Experiments: {forbidden}'
 
-# Studio Engineering Preparation owns reusable preparation, analyzers, bridges and handoff.
-# Protect product capabilities and information hierarchy rather than freezing old button copy.
+# Hardware-facing labs are first-class in Labs; handoff remains a separate downstream surface.
 for token in [
-    'Engineering Preparation', 'Numerical evidence', 'Magnetic evidence',
-    'Numerical preparation', 'Magnetic preparation',
+    'Numerical Lab', 'Magnet Lab', 'Campaigns', 'Evidence Handoff',
     'NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'NumericalBenchAdvanced', 'MagnetBenchAdvanced',
+    'initialMode="bench02"', 'Recommended demo',
+]:
+    assert token in labs, f'Labs workspace lost {token}'
+for token in [
     'BetterBoard → Engineering Lab handoff', 'Choose saved evidence', 'Refresh saved evidence',
     'Evidence handoff', 'Research context', 'Ask OpenPenguin about this evidence',
-    'Advanced implementation tools', 'Copy handoff',
-    'numeric_error_campaign_analyzer.py', 'numeric_error_campaign_self_check.py',
-    'arduino_numeric_error_bridge_v2.py', 'NUMERIC_ERROR_ABSORPTION_LEDGER.md',
+    'Copy handoff', 'betterboard.research-bridge/1.0',
 ]:
-    assert token in preparation, f'Engineering Preparation lost {token}'
+    assert token in preparation, f'Evidence Handoff lost {token}'
+for forbidden in ['NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'NumericalBenchAdvanced', 'MagnetBenchAdvanced']:
+    assert forbidden not in preparation, f'Evidence Handoff remounted lab implementation: {forbidden}'
+for token in ['Evidence', 'Signal & Statistics', 'Models', 'Experiment Design', 'Numerical Analysis']:
+    assert token in analysis, f'Analysis workspace lost {token}'
+assert 'Engineering Preparation' not in analysis, 'Analysis regressed to nesting hardware preparation'
 
 # Streamlined preparation workflows must remain real.
 for token in ['Start Live', 'Snapshot 3 s', 'Measurement sessions', 'Physical Lab export & bridge', 'serial_stream_write']:
@@ -229,8 +240,8 @@ assert 'xLabel="position"' in magnet_v2 and 'yUnit="µT"' in magnet_v2
 print('BetterBoard functionality surface check: PASS')
 print('- retired StudioAdvanced compatibility UI stays removed')
 print('- canonical Studio / Monitor / Developer / Task Center own its former product capabilities')
-print('- three-workspace hierarchy protected: Studio / Observatory / Experiments')
-print('- Engineering Preparation retains productized evidence preparation / analyzer / handoff surfaces')
+print('- four-workspace hierarchy protected: Studio / Labs / Analysis / Observatory')
+print('- Labs owns hardware experiments; Evidence Handoff owns provenance/context transfer')
 print('- live Physical Lab compatibility export remains protected until explicitly migrated')
 print('- Numerical and Magnet V2 evidence/re-analysis contracts remain protected')
 print('- Developer, Task Center, Circuit, Monitor and IDE-parity capabilities protected')

@@ -57,7 +57,7 @@ export default function ExperimentsHub() {
     <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }}>
       <div className="panel-title">3 · Run / Program handoff</div>
       <p>Use the code library's real <b>Verify</b> / <b>Upload</b> actions for experiment firmware. Then move to <b>Studio → Monitor & Data</b> for acquisition, evidence saving and Engineering Lab handoff. BetterBoard does not auto-open serial after upload, so programming and acquisition cannot silently contend for the same port.</p>
-      <div className="boundary compact"><CheckCircle2 size={14}/> Reusable <b>Numerical Error Analysis</b>, <b>RADIA Magnet Studio</b> compatibility, evidence preparation and other <b>Expert workflows</b> remain in Studio. This avoids duplicate preparation engines.</div>
+      <div className="boundary compact"><CheckCircle2 size={14}/> Interactive hardware labs now live in <b>Labs</b>; evidence-only statistics, model fitting and numerical interpretation live in <b>Analysis</b>. Campaigns stay here as the executable experiment library rather than duplicating those workspaces.</div>
     </section>
 
     <EspressifCapabilityPanel />

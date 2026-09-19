@@ -36,9 +36,8 @@ def main() -> int:
         "src/AnalysisVisualizationHub.tsx",
         "Signal & Statistics",
         "Experiment Design",
-        "Engineering Preparation",
+        "Numerical Analysis",
         "NumericalResultVisualization",
-        "MagnetResultVisualization",
         "EvidenceSourcePicker",
     )
     for workbench in (
@@ -69,6 +68,7 @@ def main() -> int:
         "Session History",
         "Task Activity",
     )
+    require("src/LabsHub.tsx", "Numerical Lab", "Magnet Lab", "Campaigns", "Evidence Handoff", 'initialMode="bench02"')
     require("src/ExperimentsHub.tsx", "CampaignVisualization", "EngineeringExperimentLibrary")
     require(
         "src/EngineeringExperimentLibrary.tsx",
@@ -120,8 +120,11 @@ def main() -> int:
     assert "computeHostPrimitiveObservability" in primitive, "Signal Health must stay attached to the canonical host primitive engine"
 
     hub = read("src/AnalysisVisualizationHub.tsx")
-    assert "<NumericalErrorVisualWorkbench /><NumericalResultVisualization />" in hub, "Numerical depth results must be on the normal Numerical Reliability surface"
-    assert "<EngineeringPreparationStudio /><MagnetResultVisualization />" in hub, "Magnetic analyzer results must be on the normal preparation surface"
+    assert "<NumericalErrorVisualWorkbench /><NumericalResultVisualization />" in hub, "Numerical evidence analysis must remain on the normal Analysis surface"
+    assert "EngineeringPreparationStudio" not in hub, "Hardware/handoff workflow must not be nested back into Analysis"
+    labs = read("src/LabsHub.tsx")
+    assert "<NumericalBenchSuiteV2 initialMode=\"bench02\"/>" in labs, "Sampling Error lab must be directly reachable from Labs"
+    assert "<MagnetBenchSuiteV2/>" in labs, "Magnet Lab must be directly reachable from Labs"
 
     print("Visualization absorption contract: PASS")
     return 0
