@@ -3,6 +3,7 @@ import CampaignVisualization from './CampaignVisualization';
 import CopyButton from './CopyButton';
 import EspressifCapabilityPanel from './EspressifCapabilityPanel';
 import EngineeringExperimentLibrary from './EngineeringExperimentLibrary';
+import type { CapabilityTarget } from './CapabilityLauncher';
 
 // Legacy structural selectors retired by the Studio preparation migration:
 // hidden={tool!=='numerical'}
@@ -25,12 +26,12 @@ const NUMERIC_FAMILIES = [
 ];
 
 const CAMPAIGNS = [
-  { title: 'Numeric Error Depth', detail: 'Finite precision · sampling · quantization · cancellation · convergence · event/timing evidence · host reference', icon: Sigma, status: 'Active research campaign' },
-  { title: 'Oscillation & Numerical Integration', detail: 'Measured dynamics · sampling rate · discretization · integration-method validation', icon: Activity, status: 'Engineering Lab campaign' },
-  { title: 'Magnetic Model Validation', detail: 'Measured field evidence · model residual · trajectory / RADIA comparison', icon: Magnet, status: 'Engineering Lab campaign' },
+  { title: 'Numeric Error Depth', detail: 'Finite precision · sampling · quantization · cancellation · convergence · event/timing evidence · host reference', icon: Sigma, status: 'Active research campaign', target: 'labs:numerical' as CapabilityTarget },
+  { title: 'Oscillation & Numerical Integration', detail: 'Measured dynamics · sampling rate · discretization · integration-method validation', icon: Activity, status: 'Engineering Lab campaign', target: 'analysis:numerical' as CapabilityTarget },
+  { title: 'Magnetic Model Validation', detail: 'Measured field evidence · model residual · trajectory / RADIA comparison', icon: Magnet, status: 'Engineering Lab campaign', target: 'labs:magnet' as CapabilityTarget },
 ];
 
-export default function ExperimentsHub() {
+export default function ExperimentsHub({ onNavigate }: { onNavigate?: (target: CapabilityTarget) => void }) {
   return <div className="experiments-hub">
     <section className="experiment-bridge-hero">
       <div>
@@ -44,7 +45,7 @@ export default function ExperimentsHub() {
       <div className="panel-title">1 · Campaigns</div>
       <p className="muted">Choose the engineering question first. Campaign cards describe the scientific purpose; executable source is exposed separately below instead of hidden behind path-only cards.</p>
       <div className="engineering-model-grid">
-        {CAMPAIGNS.map(item => { const Icon = item.icon; return <article className="panel" key={item.title}><div className="panel-title"><Icon size={18}/>{item.title}</div><p>{item.detail}</p><div className="boundary compact"><CheckCircle2 size={14}/>{item.status}</div></article>; })}
+        {CAMPAIGNS.map(item => { const Icon = item.icon; return <article className="panel" key={item.title}><div className="panel-title"><Icon size={18}/>{item.title}</div><p>{item.detail}</p><div className="boundary compact"><CheckCircle2 size={14}/>{item.status}</div>{onNavigate && <div className="action-row"><button type="button" className="primary" onClick={() => onNavigate(item.target)}>Open campaign tools</button></div>}</article>; })}
       </div>
       <CampaignVisualization />
     </section>
@@ -57,6 +58,7 @@ export default function ExperimentsHub() {
     <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }}>
       <div className="panel-title">3 · Run / Program handoff</div>
       <p>Use the code library's real <b>Verify</b> / <b>Upload</b> actions for experiment firmware. Then move to <b>Studio → Monitor & Data</b> for acquisition, evidence saving and Engineering Lab handoff. BetterBoard does not auto-open serial after upload, so programming and acquisition cannot silently contend for the same port.</p>
+      {onNavigate && <div className="action-row"><button type="button" className="primary" onClick={() => onNavigate('studio:data')}>Open Monitor & Data</button><button type="button" className="ghost" onClick={() => onNavigate('labs:handoff')}>Open evidence handoff</button></div>}
       <div className="boundary compact"><CheckCircle2 size={14}/> Interactive hardware labs now live in <b>Labs</b>; evidence-only statistics, model fitting and numerical interpretation live in <b>Analysis</b>. Campaigns stay here as the executable experiment library rather than duplicating those workspaces.</div>
     </section>
 
