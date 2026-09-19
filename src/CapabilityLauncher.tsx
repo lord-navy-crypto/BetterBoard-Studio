@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { CAPABILITIES as SEMANTIC_CAPABILITIES } from './capabilityRegistry';
 import { CAPABILITY_SHORTCUTS } from './capabilityShortcuts';
+import { getCapabilityTier } from './capabilityTierModel';
 import { currentTargetForCapability, type CurrentCapabilityTarget } from './capabilityCurrentRoutes';
 import './capability-launcher.css';
 
@@ -62,6 +63,7 @@ const SEMANTIC_ITEMS = [
     detail: item.description,
     keywords: [item.group, item.owner, ...item.keywords].join(' '),
     target: currentTargetForCapability(item.id),
+    tier: getCapabilityTier(item.id),
     kind: 'capability' as const,
   })),
   ...CAPABILITY_SHORTCUTS.map(item => ({
@@ -70,6 +72,7 @@ const SEMANTIC_ITEMS = [
     detail: item.description,
     keywords: [item.group, item.owner, ...item.keywords].join(' '),
     target: currentTargetForCapability(item.id),
+    tier: getCapabilityTier(item.id),
     kind: 'shortcut' as const,
   })),
 ].filter(item => item.target !== null);
@@ -130,7 +133,7 @@ export default function CapabilityLauncher({
                 const Icon = item.icon;
                 return <button key={item.target} type="button" className="capability-card" onClick={() => onNavigate(item.target)}>
                   <span className="capability-icon"><Icon size={17}/></span>
-                  <span><b>{item.title}</b><small>{item.detail}</small></span>
+                  <span><b>{item.title}</b><small>{item.detail}</small><em>{item.tier} · {item.kind === 'shortcut' ? 'direct shortcut' : 'canonical capability'}</em></span>
                 </button>;
               })}
             </div>
