@@ -87,25 +87,25 @@ export default function LabsHub() {
       <span><b>Active lab · {selected.title}</b><small>{selected.subtitle}</small></span>
     </div>
 
-    <div className="lab-view" hidden={active !== 'numerical'}>
+    {active === 'numerical' && <div className="lab-view">
       <NumericalBenchSuiteV2 initialMode="bench02"/>
       <details className="lab-expert-tools">
         <summary>Numerical expert tools</summary>
         <p>Classic analyzers and implementation-level controls are available here without crowding the normal experiment workflow.</p>
         <NumericalBenchAdvanced/>
       </details>
-    </div>
+    </div>}
 
-    <div className="lab-view" hidden={active !== 'magnet'}>
+    {active === 'magnet' && <div className="lab-view">
       <MagnetBenchSuiteV2/>
       <details className="lab-expert-tools">
         <summary>Magnetic expert tools</summary>
         <p>Open deeper residual and characterization controls only when the normal Magnet Lab surface is not enough.</p>
         <MagnetBenchAdvanced/>
       </details>
-    </div>
+    </div>}
 
-    <div className="lab-view" hidden={active !== 'campaigns'}><ExperimentsHub/></div>
-    <div className="lab-view" hidden={active !== 'handoff'}><EngineeringPreparationStudio/></div>
+    {active === 'campaigns' && <div className="lab-view"><ExperimentsHub/></div>}
+    {active === 'handoff' && <div className="lab-view"><EngineeringPreparationStudio/></div>}
   </section>;
 }
