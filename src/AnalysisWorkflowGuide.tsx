@@ -2,7 +2,7 @@ const STEPS = [
   { id: 'evidence', label: 'Evidence', detail: 'Choose and inspect immutable measured/replayed evidence plus provenance.' },
   { id: 'analyze', label: 'Analyze', detail: 'Use statistics, signals, models and numerical reliability as derived lenses.' },
   { id: 'compare', label: 'Compare', detail: 'Compare runs or measured ↔ model results without merging their source rows.' },
-  { id: 'decide', label: 'Decide', detail: 'Use experiment design and engineering preparation to choose the next action.' },
+  { id: 'decide', label: 'Decide', detail: 'Use experiment design to choose the next action; return to Labs for new hardware evidence or handoff.' },
 ] as const;
 
 export default function AnalysisWorkflowGuide() {
