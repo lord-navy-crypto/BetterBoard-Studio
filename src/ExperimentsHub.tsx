@@ -50,7 +50,7 @@ export default function ExperimentsHub() {
     </section>
 
     <section style={{ maxWidth: 1420, margin: '14px auto' }}>
-      <div className="panel" style={{ marginBottom: 10 }}><div className="panel-title">2 · Complete Experiment Code Library</div><p className="muted">Repository-discovered firmware and host tools. Open real source; firmware Verify/Upload uses BetterBoard's existing canonical Developer backend and Hardware Doctor gates. Source bodies remain lazy-loaded.</p></div>
+      <div id="campaign-code-library" className="panel" style={{ marginBottom: 10, scrollMarginTop: 110 }}><div className="panel-title">2 · Complete Experiment Code Library</div><p className="muted">Repository-discovered firmware and host tools. Open real source; firmware Verify/Upload uses BetterBoard's existing canonical Developer backend and Hardware Doctor gates. Source bodies remain lazy-loaded.</p></div>
       <EngineeringExperimentLibrary />
     </section>
 
