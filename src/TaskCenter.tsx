@@ -54,7 +54,7 @@ export default function TaskCenterPanel({ tasks, onCancel, onClearFinished }: Pr
     window.dispatchEvent(new CustomEvent<BackgroundTask[]>('betterboard:tasks-changed', { detail: snapshot }));
   }, [tasks]);
 
-  return <section className="task-center panel">
+  return <section id="task-center" className="task-center panel" style={{ scrollMarginTop: 110 }}>
     <div className="task-center-head">
       <button className="task-center-toggle" onClick={() => setOpen(value => !value)} aria-expanded={open}>
         <TerminalSquare size={17}/>

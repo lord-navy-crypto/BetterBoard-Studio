@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Activity, FlaskConical, Magnet, Sigma, UploadCloud } from 'lucide-react';
 import NumericalBenchSuiteV2 from './NumericalBenchSuiteV2';
 import NumericalBenchAdvanced from './NumericalBenchAdvanced';
@@ -45,9 +45,30 @@ const LABS = [
   },
 ];
 
-export default function LabsHub() {
+export default function LabsHub({ navigationRequest = null }: { navigationRequest?: { target: string; token: number } | null }) {
   const [active, setActive] = useState<LabView>('numerical');
+  const [numericalExpertOpen, setNumericalExpertOpen] = useState(false);
+  const [magneticExpertOpen, setMagneticExpertOpen] = useState(false);
   const selected = LABS.find(item => item.id === active)!;
+
+  useEffect(() => {
+    if (!navigationRequest?.target.startsWith('labs:')) return;
+    const target = navigationRequest.target.slice('labs:'.length);
+    if (target === 'numerical' || target === 'numerical-expert') {
+      setActive('numerical');
+      if (target === 'numerical-expert') setNumericalExpertOpen(true);
+    } else if (target === 'magnet' || target === 'magnet-expert') {
+      setActive('magnet');
+      if (target === 'magnet-expert') setMagneticExpertOpen(true);
+    } else if (target === 'campaigns' || target === 'campaign-library') {
+      setActive('campaigns');
+      if (target === 'campaign-library') {
+        window.setTimeout(() => document.getElementById('campaign-code-library')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+      }
+    } else if (target === 'handoff') {
+      setActive('handoff');
+    }
+  }, [navigationRequest?.token]);
 
   return <section className="labs-workspace">
     <header className="labs-hero">
@@ -89,7 +110,7 @@ export default function LabsHub() {
 
     {active === 'numerical' && <div className="lab-view">
       <NumericalBenchSuiteV2 initialMode="bench02"/>
-      <details className="lab-expert-tools">
+      <details className="lab-expert-tools" open={numericalExpertOpen} onToggle={event => setNumericalExpertOpen(event.currentTarget.open)}>
         <summary>Numerical expert tools</summary>
         <p>Classic analyzers and implementation-level controls are available here without crowding the normal experiment workflow.</p>
         <NumericalBenchAdvanced/>
@@ -98,7 +119,7 @@ export default function LabsHub() {
 
     {active === 'magnet' && <div className="lab-view">
       <MagnetBenchSuiteV2/>
-      <details className="lab-expert-tools">
+      <details className="lab-expert-tools" open={magneticExpertOpen} onToggle={event => setMagneticExpertOpen(event.currentTarget.open)}>
         <summary>Magnetic expert tools</summary>
         <p>Open deeper residual and characterization controls only when the normal Magnet Lab surface is not enough.</p>
         <MagnetBenchAdvanced/>

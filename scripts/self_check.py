@@ -224,8 +224,10 @@ def main() -> int:
     for label in ['Studio', 'Labs', 'Analysis', 'Observatory']:
         assert f"label: '{label}'" in main_text
     assert "label: 'Learning'" not in main_text
-    assert "<LabsHub />" in main_text
-    assert "<AnalysisVisualizationHub />" in main_text
+    assert "<LabsHub navigationRequest={navigationRequest}/>" in main_text
+    assert "<AnalysisVisualizationHub navigationRequest={navigationRequest}/>" in main_text
+    assert "<App navigationRequest={navigationRequest}/>" in main_text
+    assert "CapabilityLauncher" in main_text
     for token in ['Numerical Lab', 'Magnet Lab', 'Campaigns', 'Evidence Handoff', 'Recommended demo']:
         assert token in labs_hub, token
     assert 'initialMode="bench02"' in labs_hub

@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
-import { Bot, CircuitBoard, Focus, FlaskConical, RadioTower, X } from 'lucide-react';
+import { Bot, CircuitBoard, Focus, FlaskConical, Grid3X3, RadioTower, X } from 'lucide-react';
 import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
+import CapabilityLauncher, { type CapabilityTarget } from './CapabilityLauncher';
 import EngineeringStatusMap, { type EngineeringStatusNode } from './EngineeringStatusMap';
 import LabsHub from './LabsHub';
 import HardwareTopology from './HardwareTopology';
@@ -25,9 +26,11 @@ import './developer-task.css';
 import './copy-ai.css';
 import './workflow-rail.css';
 import './phase6.css';
+import './capability-launcher.css';
 
 type Workspace = 'studio' | 'labs' | 'analysis' | 'observatory';
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
+type NavigationRequest = { target: CapabilityTarget; token: number } | null;
 
 const TASK_MEMORY_KEY = 'betterboard.task-center.v1';
 
@@ -58,6 +61,8 @@ function Root() {
   const [cli, setCli] = useState<CliInfo | null>(null);
   const [tasks, setTasks] = useState<BackgroundTask[]>(readTaskMemory);
   const [aiOpen, setAiOpen] = useState(false);
+  const [launcherOpen, setLauncherOpen] = useState(false);
+  const [navigationRequest, setNavigationRequest] = useState<NavigationRequest>(null);
   const [focusMode, setFocusMode] = useState(false);
   const { source: evidenceSource } = useEvidenceVisualization();
   const { selectedPort, activePort, hardwareStatus, fqbn, profiles, diagnosis } = useHardwareSession();
@@ -92,6 +97,10 @@ function Root() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (launcherOpen) {
+          setLauncherOpen(false);
+          return;
+        }
         if (aiOpen) {
           setAiOpen(false);
           return;
@@ -108,6 +117,11 @@ function Root() {
         setAiOpen(value => !value);
         return;
       }
+      if (key === 'j') {
+        event.preventDefault();
+        setLauncherOpen(value => !value);
+        return;
+      }
       const workspaceShortcut: Record<string, Workspace> = { '1': 'studio', '2': 'labs', '3': 'analysis', '4': 'observatory' };
       const nextWorkspace = workspaceShortcut[key];
       if (nextWorkspace) {
@@ -117,7 +131,7 @@ function Root() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [aiOpen, focusMode]);
+  }, [aiOpen, launcherOpen, focusMode]);
 
   const runningTasks = useMemo(() => tasks.filter(task => task.state === 'running'), [tasks]);
   const latestRunning = runningTasks[0];
@@ -157,17 +171,42 @@ function Root() {
     ];
   }, [diagnosis, cli, programRunning, programmed, liveSerial, monitored, selectedPort, evidenceSaved, evidenceSource?.label, analyzed]);
 
+  function navigateCapability(target: CapabilityTarget) {
+    setLauncherOpen(false);
+    if (target === 'ai') {
+      setAiOpen(true);
+      return;
+    }
+    const [scope, item] = target.split(':', 2);
+    if (scope === 'studio') setWorkspace('studio');
+    else if (scope === 'labs') setWorkspace('labs');
+    else if (scope === 'analysis') setWorkspace('analysis');
+    else if (scope === 'observatory') setWorkspace('observatory');
+
+    const request = { target, token: Date.now() };
+    setNavigationRequest(request);
+
+    if (scope === 'observatory') {
+      const anchor: Record<string, string> = {
+        overview: 'observatory-overview',
+        hardware: 'observatory-hardware',
+        inventory: 'observatory-inventory',
+        data: 'observatory-data',
+        live: 'observatory-live',
+        bridge: 'observatory-bridge',
+        tasks: 'observatory-tasks',
+        evidence: 'observatory-evidence',
+      };
+      const id = anchor[item];
+      if (id) window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    }
+  }
+
   function navigateStatus(node: EngineeringStatusNode) {
-    if (node.id === 'evidence') {
-      setWorkspace('observatory');
-      return;
-    }
-    if (node.id === 'analysis') {
-      setWorkspace('analysis');
-      return;
-    }
-    setWorkspace('studio');
-    window.setTimeout(() => document.querySelector('.app')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    if (node.id === 'acquisition') return navigateCapability('studio:data');
+    if (node.id === 'evidence') return navigateCapability('analysis:evidence');
+    if (node.id === 'analysis') return navigateCapability('analysis:evidence');
+    navigateCapability('studio:hardware');
   }
 
   const openPenguinContext = useMemo(() => [
@@ -194,6 +233,7 @@ function Root() {
           </button>;
         })}
       </nav>
+      <button className={`bb-focus-launch bb-all-tools-launch ${launcherOpen ? 'active' : ''}`} onClick={() => setLauncherOpen(value => !value)} aria-pressed={launcherOpen} title="Open the complete BetterBoard capability index · ⌘/Ctrl+J"><Grid3X3 size={15}/><span><b>All Tools</b><small>find anything · ⌘/Ctrl+J</small></span></button>
       <button className={`bb-focus-launch ${focusMode ? 'active' : ''}`} onClick={() => setFocusMode(value => !value)} aria-pressed={focusMode} title="Focus mode keeps critical status visible while hiding secondary navigation"><Focus size={15}/><span><b>{focusMode ? 'Exit focus' : 'Focus mode'}</b><small>{focusMode ? 'Esc to exit' : 'presentation / experiment'}</small></span></button>
       <button className={`bb-ai-launch ${aiOpen ? 'active' : ''}`} onClick={() => setAiOpen(value => !value)} aria-pressed={aiOpen} title="Open OpenPenguin local AI bridge · ⌘/Ctrl+K"><Bot size={16}/><span><b>OpenPenguin</b><small>local AI · ⌘/Ctrl+K</small></span></button>
       <div className={`bb-local-state ${selectedPort ? 'connected' : 'disconnected'}`} title={hardwareStatus}><i/><span><b>{selectedPort ? (activePort?.board_name || 'Board') : 'No board'}</b><small>{selectedPort || 'select hardware in Studio'}</small></span></div>
@@ -204,7 +244,7 @@ function Root() {
       <span><b>Profile</b>{fqbn}</span>
       <span><b>Hardware</b>{selectedPort ? `${activePort?.board_name || 'Board'} · ${selectedPort}` : 'No board selected'}</span>
       <span className={liveSerial ? 'live' : ''}><b>Acquisition</b>{liveSerial ? 'LIVE' : 'Idle'}</span>
-      <span><b>Tasks</b>{runningTasks.length ? `${runningTasks.length} running` : 'Background idle'}</span>
+      <button className="bb-context-action" onClick={() => navigateCapability('studio:tasks')} title="Open Task Center"><b>Tasks</b>{runningTasks.length ? `${runningTasks.length} running` : 'Background idle'}</button>
       <span className="bb-context-current"><b>Current</b>{latestRunning?.detail || hardwareStatus}</span>
     </div>
 
@@ -214,6 +254,8 @@ function Root() {
       <div className="boundary compact" style={{ maxWidth: 1504, margin: '8px auto 0' }}><b>Next action</b> · {workflowNextAction}</div>
     </div>}
 
+    <CapabilityLauncher open={launcherOpen} onClose={() => setLauncherOpen(false)} onNavigate={navigateCapability}/>
+
     <div className="bb-ai-drawer-backdrop" hidden={!aiOpen} onClick={() => setAiOpen(false)} />
     <aside className="bb-ai-drawer" hidden={!aiOpen} aria-label="OpenPenguin local AI bridge">
       <div className="bb-ai-drawer-head"><span><Bot size={17}/><b>OpenPenguin · Local AI</b></span><button className="ghost mini" onClick={() => setAiOpen(false)}><X size={13}/> Close</button></div>
@@ -221,10 +263,10 @@ function Root() {
     </aside>
 
     <div className="bb-workspace-frame">
-      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App /></div>
-      <div className="bb-workspace-pane" hidden={workspace !== 'labs'}><LabsHub /></div>
-      <div className="bb-workspace-pane" hidden={workspace !== 'analysis'}><AnalysisVisualizationHub /></div>
-      <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><ObservatoryMissionControl /><ObservatoryVisualSummary /><Observatory /></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'studio'}><App navigationRequest={navigationRequest}/></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'labs'}><LabsHub navigationRequest={navigationRequest}/></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'analysis'}><AnalysisVisualizationHub navigationRequest={navigationRequest}/></div>
+      <div className="bb-workspace-pane" hidden={workspace !== 'observatory'}><div id="observatory-overview" className="observatory-anchor"/><ObservatoryMissionControl /><ObservatoryVisualSummary /><Observatory /></div>
     </div>
   </div>;
 }

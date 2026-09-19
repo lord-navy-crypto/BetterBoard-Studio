@@ -68,7 +68,7 @@ function restoreTaskMemory(): BackgroundTask[] {
   }
 }
 
-export default function App() {
+export default function App({ navigationRequest = null }: { navigationRequest?: { target: string; token: number } | null }) {
   const [tab, setTab] = useState<Tab>('hardware');
   const [cli, setCli] = useState<CliInfo | null>(null);
   const [recipes, setRecipes] = useState<RecipeSpec[]>([]);
@@ -88,6 +88,19 @@ export default function App() {
     ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn,
     activePort, hardwareStatus, diagnosis, refreshHardware,
   } = useHardwareSession();
+
+  useEffect(() => {
+    if (!navigationRequest?.target.startsWith('studio:')) return;
+    const target = navigationRequest.target.slice('studio:'.length);
+    if (target === 'tasks') {
+      window.setTimeout(() => document.querySelector('.task-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+      return;
+    }
+    if (target === 'hardware' || target === 'circuit' || target === 'library' || target === 'data' || target === 'developer') {
+      setTab(target);
+      window.setTimeout(() => document.querySelector('.app-shell main')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    }
+  }, [navigationRequest?.token]);
 
   const recipe = useMemo(() => recipes.find(r => r.id === recipeId), [recipes, recipeId]);
   const groupedRecipes = useMemo(() => {
