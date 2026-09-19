@@ -224,7 +224,8 @@ def main() -> int:
     for label in ['Studio', 'Labs', 'Analysis', 'Observatory']:
         assert f"label: '{label}'" in main_text
     assert "label: 'Learning'" not in main_text
-    assert "<LabsHub navigationRequest={navigationRequest}/>" in main_text
+    assert "<LabsHub navigationRequest={navigationRequest}" in main_text
+    assert "onNavigate={navigateCapability}" in main_text
     assert "<AnalysisVisualizationHub navigationRequest={navigationRequest}/>" in main_text
     assert "<App navigationRequest={navigationRequest}/>" in main_text
     assert "CapabilityLauncher" in main_text
