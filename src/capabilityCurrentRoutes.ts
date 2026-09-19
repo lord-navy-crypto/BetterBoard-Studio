@@ -1,7 +1,12 @@
-import type { CapabilityTarget } from './CapabilityLauncher';
 import { CAPABILITY_BY_ID } from './capabilityRegistry';
 import { CAPABILITY_SHORTCUT_BY_ID } from './capabilityShortcuts';
 
+export type CurrentCapabilityTarget =
+  | 'studio:hardware' | 'studio:circuit' | 'studio:library' | 'studio:data' | 'studio:developer' | 'studio:tasks'
+  | 'labs:numerical' | 'labs:numerical-expert' | 'labs:magnet' | 'labs:magnet-expert' | 'labs:campaigns' | 'labs:campaign-library' | 'labs:handoff'
+  | 'analysis:evidence' | 'analysis:statistics' | 'analysis:models' | 'analysis:magnet-results' | 'analysis:design' | 'analysis:numerical'
+  | 'observatory:overview' | 'observatory:hardware' | 'observatory:inventory' | 'observatory:data' | 'observatory:live' | 'observatory:bridge' | 'observatory:tasks' | 'observatory:evidence'
+  | 'ai';
 /**
  * Bridge the richer #67 semantic capability index onto the current
  * Studio / Labs / Analysis / Observatory navigation model.
@@ -9,7 +14,7 @@ import { CAPABILITY_SHORTCUT_BY_ID } from './capabilityShortcuts';
  * This file deliberately maps to existing canonical surfaces. It does not
  * introduce a second execution path or resurrect the retired three-workspace UI.
  */
-export function currentTargetForCapability(requestedId: string): CapabilityTarget | null {
+export function currentTargetForCapability(requestedId: string): CurrentCapabilityTarget | null {
   const shortcut = CAPABILITY_SHORTCUT_BY_ID.get(requestedId);
   const id = shortcut?.targetCapabilityId ?? requestedId;
 
