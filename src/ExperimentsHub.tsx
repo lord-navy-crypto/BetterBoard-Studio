@@ -35,9 +35,9 @@ export default function ExperimentsHub({ onNavigate }: { onNavigate?: (target: C
   return <div className="experiments-hub">
     <section className="experiment-bridge-hero">
       <div>
-        <div className="eyebrow">Engineering Lab experiments</div>
-        <h1>Campaigns, real source code, and explicit run/program handoff.</h1>
-        <p><b>Experiments contains campaigns, not preparation tools.</b> Experiment-specific firmware, analyzers and bridges belong here as real repository assets, while reusable capture/evidence preparation remains shared in Studio.</p>
+        <div className="eyebrow">Experiment Library</div>
+        <h1>One classified library for experiments, recipes, firmware, and host tools.</h1>
+        <p><b>Experiment Library mirrors the same complete program inventory used by Studio → Recipe Library and Developer → Load Template.</b> Campaigns add scientific context; repository firmware and host tools remain the same source of truth everywhere.</p>
       </div>
     </section>
 
@@ -51,7 +51,7 @@ export default function ExperimentsHub({ onNavigate }: { onNavigate?: (target: C
     </section>
 
     <section style={{ maxWidth: 1420, margin: '14px auto' }}>
-      <div id="campaign-code-library" className="panel" style={{ marginBottom: 10, scrollMarginTop: 110 }}><div className="panel-title">2 · Complete Experiment Code Library</div><p className="muted">Repository-discovered firmware and host tools. Open real source; firmware Verify/Upload uses BetterBoard's existing canonical Developer backend and Hardware Doctor gates. Source bodies remain lazy-loaded.</p></div>
+      <div id="campaign-code-library" className="panel" style={{ marginBottom: 10, scrollMarginTop: 110 }}><div className="panel-title">2 · Experiment Library · all programs</div><p className="muted">Same repository-discovered firmware and host tools shown in Recipe Library and Developer templates. Open real source; firmware Verify/Upload still uses BetterBoard's canonical Developer backend and Hardware Doctor gates.</p></div>
       <EngineeringExperimentLibrary />
     </section>
 
