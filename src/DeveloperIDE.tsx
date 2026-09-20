@@ -255,7 +255,10 @@ export default function DeveloperIDE({
     const task = onTaskStart('System', `Save to Library · ${sketchName}`, 'Saving editable sketch as a BetterBoard user recipe…');
     try {
       const template = templateId.startsWith('recipe:') ? recipes.find(item => item.id === templateId.slice(7)) : undefined;
-      const saved = await invoke<RecipeSpec>('user_recipe_save', { title: sketchName, baseRecipeId: template?.id ?? recipe?.id ?? '', source, parameterValues: template?.parameter_values ?? {} });
+      const asset = templateId.startsWith('asset:') ? ALL_PROGRAM_ASSETS.find(item => item.key === templateId) : undefined;
+      const matchingRecipe = asset?.sketchName ? recipes.find(item => item.sketch_name === asset.sketchName) : undefined;
+      const baseRecipe = template ?? matchingRecipe ?? (!asset ? recipe : undefined);
+      const saved = await invoke<RecipeSpec>('user_recipe_save', { title: sketchName, baseRecipeId: baseRecipe?.id ?? '', source, parameterValues: baseRecipe?.parameter_values ?? {} });
       onLibrarySaved?.(saved); const detail = `Saved user recipe · ${saved.title}`;
       onTaskLog(task, detail); onTaskFinish(task, 'done', detail); onStatus(detail); setOutput(detail);
     } catch (error) {
