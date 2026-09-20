@@ -1,3 +1,31 @@
+
+.bb-engineering-overview-shell{
+  max-width:1504px;
+  margin:10px auto 0;
+}
+.bb-overview-toggle{
+  width:100%;
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:10px 14px;
+  border:1px solid var(--line,rgba(127,127,127,.22));
+  border-radius:12px;
+  background:var(--panel,rgba(255,255,255,.025));
+  color:inherit;
+  text-align:left;
+}
+.bb-overview-toggle>span{min-width:0;display:grid;gap:2px}
+.bb-overview-toggle b{font-size:.86rem}
+.bb-overview-toggle small{
+  color:var(--muted);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.bb-engineering-overview-shell .bb-engineering-overview{padding-top:2px}
 .engineering-command-surface {
   max-width: 1504px;
   margin: 12px auto 0;
