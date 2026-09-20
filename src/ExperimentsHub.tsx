@@ -36,8 +36,8 @@ export default function ExperimentsHub({ onNavigate }: { onNavigate?: (target: C
     <section className="experiment-bridge-hero">
       <div>
         <div className="eyebrow">Experiment Library</div>
-        <h1>One classified library for experiments, recipes, firmware, and host tools.</h1>
-        <p><b>Experiment Library mirrors the same complete program inventory used by Studio → Recipe Library and Developer → Load Template.</b> Campaigns add scientific context; repository firmware and host tools remain the same source of truth everywhere.</p>
+        <h1>Campaign context + the same Library used everywhere else.</h1>
+        <p><b>The code catalog below is the same Unified Library used by Studio.</b> Campaigns add scientific context without creating another recipe/program list.</p>
       </div>
     </section>
 
