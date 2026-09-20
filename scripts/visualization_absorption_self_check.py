@@ -72,17 +72,25 @@ def main() -> int:
     require("src/ExperimentsHub.tsx", "CampaignVisualization", "EngineeringExperimentLibrary")
     require(
         "src/EngineeringExperimentLibrary.tsx",
-        "engineering-lab-experiments/catalog.json",
+        "UnifiedLibrary",
         "ProgramLibraryCatalog",
-        "ALL_PROGRAM_ASSETS",
-        "PROGRAM_FAMILY_ORDER",
         "loadProgramAsset",
         "developer_sketch_save",
         "compile_sketch",
         "upload_sketch",
+        "onVerifyFirmware",
+        "onUploadFirmware",
+    )
+    require(
+        "src/UnifiedLibrary.tsx",
+        "ALL_PROGRAM_ASSETS",
+        "PROGRAM_FAMILY_ORDER",
+        "Single source of truth",
+        "Recipes",
+        "Firmware",
+        "Host tools",
         "View source",
-        "Verify",
-        "Upload",
+        "Open in Developer",
     )
     require(
         "src/ProgramLibraryCatalog.ts",
@@ -101,8 +109,9 @@ def main() -> int:
         "Host Analysis & Bridges",
     )
     experiment_library = read("src/EngineeringExperimentLibrary.tsx")
+    unified_library = read("src/UnifiedLibrary.tsx")
     program_library = read("src/ProgramLibraryCatalog.ts")
-    assert "eager: true" not in experiment_library + program_library, "Experiment source files must be lazy-loaded instead of inflating the startup bundle"
+    assert "eager: true" not in experiment_library + unified_library + program_library, "Experiment source files must be lazy-loaded instead of inflating the startup bundle"
     require(
         "src/EngineeringPlot.tsx",
         "compact?: boolean",
