@@ -33,22 +33,36 @@ def main() -> int:
 
     need(lab,
          "betterboard.circuit-design/0.1",
-         "Visual Wiring Editor + Rule Checker",
+         "UNO R3 Wiring Studio",
          "Bench 01 — Analog Control & Instrumentation",
          "Direct power-to-ground connection",
          "Power rail connected directly to an I/O pin",
          "LED is directly connected without a series resistor",
          "Potentiometer signal is not on an analog input",
          "Use Bench 01 firmware",
-         "localStorage.setItem")
+         "localStorage.setItem",
+         "Common Bus",
+         "Junction / Common Node",
+         "function electricalWires",
+         "Power and ground share the same electrical net",
+         "Different voltage rails share one electrical net",
+         "Photoresistor / LDR",
+         "Thermistor",
+         "Piezo Buzzer",
+         "DC Motor",
+         "Relay Module",
+         "N-MOSFET",
+         "Diode",
+         "Capacitor")
 
     need(css, '.circuit-canvas', '.wire-layer', '.circuit-component', '.rule-item')
     need(doc, 'Rule Checker v0.1', 'DESIGN -> RULE CHECK -> REAL HARDWARE HANDOFF')
 
-    # First release intentionally has no simulator/electrical solver.
+    # Circuit Lab performs bounded topology/net analysis but does not claim analog simulation.
     lowered = lab.lower()
     assert 'spice' in lowered
-    assert 'no electrical or mcu simulation' in lowered
+    assert 'not spice' in lowered
+    assert 'current calculation' in lowered
 
     print('BetterBoard Circuit Lab Phase A/B self-check: PASS')
     print('- Circuit Lab is reachable from the main BetterBoard navigation')
@@ -56,7 +70,8 @@ def main() -> int:
     print('- live bounded rule checker is present')
     print('- Bench 01 reference design and hardware handoff are present')
     print('- local save/load + JSON copy are present')
-    print('- no electrical simulation is claimed')
+    print('- common-bus/junction topology participates in net analysis')
+    print('- analog/SPICE simulation is not claimed')
     return 0
 
 
