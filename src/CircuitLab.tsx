@@ -251,8 +251,11 @@ function parseStoredCircuitDesign(raw: string): CircuitDesign {
     if (!item || typeof item.componentId !== 'string' || typeof item.pinId !== 'string') throw new Error(`invalid ${label}`);
     const component = componentMap.get(item.componentId);
     if (!component) throw new Error(`${label} references missing component ${item.componentId}`);
-    if (!SPECS[component.kind].pins.some(pin => pin.id === item.pinId)) throw new Error(`${label} references missing pin ${item.componentId}.${item.pinId}`);
-    return { componentId: item.componentId, pinId: item.pinId };
+    // Backward compatibility: Circuit Lab v0.1 originally exposed one UNO pin named "gnd".
+    // The UNO R3 model now exposes GND1/GND2, so old saved designs migrate to GND1 on load.
+    const migratedPinId = component.kind === 'uno' && item.pinId === 'gnd' ? 'gnd1' : item.pinId;
+    if (!SPECS[component.kind].pins.some(pin => pin.id === migratedPinId)) throw new Error(`${label} references missing pin ${item.componentId}.${item.pinId}`);
+    return { componentId: item.componentId, pinId: migratedPinId };
   }
 
   const wireIds = new Set<string>();
@@ -439,7 +442,7 @@ export default function CircuitLab({ onUseRecipe }: Props) {
       if (!raw) return setNotice('No locally saved circuit design was found.');
       const parsed = parseStoredCircuitDesign(raw);
       setDesign(parsed); setSelectedId(parsed.components[0]?.id || ''); setSelectedPin(null); setSelectedIssueId(''); setPendingPin(null); setDrag(null);
-      setNotice('Loaded and validated the locally saved circuit design.');
+      setNotice('Loaded and validated the locally saved circuit design. Legacy UNO GND references are migrated automatically to GND1.');
     } catch (error) {
       setNotice(`Could not load design: ${error}`);
     }
