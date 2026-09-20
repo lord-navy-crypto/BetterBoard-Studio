@@ -31,8 +31,8 @@ const LABS = [
   {
     id: 'campaigns' as const,
     title: 'Experiment Library',
-    subtitle: 'campaigns · recipes · all programs',
-    detail: 'Browse experiment campaigns and the same complete program inventory shared with Recipe Library and Developer templates.',
+    subtitle: 'campaigns · shared Library',
+    detail: 'Browse experiment campaigns, then use the same Library surface shared with Studio and Developer.',
     icon: FlaskConical,
     badge: 'Experiment library',
   },
