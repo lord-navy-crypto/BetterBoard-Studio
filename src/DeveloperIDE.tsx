@@ -230,7 +230,9 @@ export default function DeveloperIDE({
 
   async function loadTemplate() {
     if (!templateId) { resetToRecipe(); return; }
-    const recipeTemplate = templateId.startsWith('recipe:') ? recipes.find(item => item.id === templateId.slice(7)) : undefined;
+    const recipeTemplate = templateId.startsWith('recipe:')
+      ? recipes.find(item => item.id === templateId.slice(7))
+      : recipes.find(item => item.id === templateId);
     const assetTemplate = templateId.startsWith('asset:') ? ALL_PROGRAM_ASSETS.find(item => item.key === templateId) : undefined;
     const label = recipeTemplate?.title ?? assetTemplate?.label ?? 'selected template';
     if (dirty && !window.confirm(`Replace the current unsaved Developer edits with the ${label} template?`)) return;
@@ -290,7 +292,7 @@ export default function DeveloperIDE({
       </div>
       {view === 'editor' && <div className="developer-actions">
         <button className="ghost" disabled={busy} onClick={newSketch}><FilePlus2 size={15}/> New</button>
-        <button className="ghost" disabled={busy} onClick={() => void loadTemplate()}><RotateCcw size={15}/> Load recipe template</button>
+        <button className="ghost" disabled={busy} onClick={() => void loadTemplate()}><RotateCcw size={15}/> Load template</button>
         <button className="ghost" disabled={busy || !source.trim()} onClick={() => void formatSource()}><Braces size={15}/> Format</button>
         <button className="ghost" disabled={busy || !source.trim()} onClick={() => void saveCurrent()}><Save size={15}/> Save</button>
         <button className="ghost" disabled={busy || !source.trim()} onClick={() => void saveToLibrary()}><Braces size={15}/> Save to Library</button>
