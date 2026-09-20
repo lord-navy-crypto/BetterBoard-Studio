@@ -86,7 +86,7 @@ assert "id: 'learning'" not in main, 'Learning regressed into top-level navigati
 
 # Experiments is campaign-only. Generic preparation/expert tools must not be mounted here.
 for token in [
-    'Experiment Library', 'same complete program inventory',
+    'Experiment Library', 'same Library',
     'Numeric Error Depth', 'Oscillation & Numerical Integration', 'Magnetic Model Validation',
     'Campaign families', 'Independent host validation', 'RAW vs REDUCED campaign',
 ]:
