@@ -76,3 +76,20 @@ DESIGN -> ELECTRICAL SIMULATION
 ```
 
 Later phases can add behavioral models or an external simulation engine without replacing the graph/editor architecture introduced here.
+
+
+## Common buses and shared nets
+
+Circuit Lab now includes a **Common Bus** and **Junction / Common Node**. Their visible terminals are internally connected by bounded topology edges. These implicit links participate in net tracing and Rule Checker analysis but are not serialized as fake user wires.
+
+The checker evaluates the complete connected net for:
+- power-to-ground conflicts through buses, junctions, or chained wiring;
+- nominal voltage-rail conflicts on one shared net;
+- open terminals on selected passive devices;
+- control/power completeness for supported module-style loads.
+
+This is connectivity and rule analysis, not SPICE or MCU emulation.
+
+## Expanded bench components
+
+The desktop and development builds share the same Circuit Lab frontend and include Arduino UNO R3, breadboard, potentiometer, button, LED, resistor, BME280, ADXL345, MLX90393, INA219, HC-SR04, servo, common bus, junction, photoresistor/LDR, thermistor, piezo buzzer, DC motor, relay module, N-MOSFET, diode, and capacitor.
