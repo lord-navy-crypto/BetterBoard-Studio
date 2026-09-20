@@ -47,8 +47,8 @@ export const CAPABILITIES: Capability[] = [
     owner: 'App', keywords: ['prepare', 'compile', 'upload', 'firmware', 'arduino'],
   },
   {
-    id: 'recipe-library', label: 'Recipe Library', group: 'Build',
-    description: 'Browse canonical recipes and saved parameterized presets.',
+    id: 'recipe-library', label: 'Library', group: 'Build',
+    description: 'Browse the single catalog for recipes, repository firmware, host tools and saved presets.',
     destination: { workspace: 'studio', kind: 'studio-tab', tab: 'library', anchor: 'recipe-library' },
     owner: 'App', keywords: ['recipe', 'preset', 'library', 'firmware', 'my library'],
   },
@@ -203,8 +203,8 @@ export const CAPABILITIES: Capability[] = [
     owner: 'ExperimentsHub', keywords: ['campaign', 'engineering lab', 'experiment'],
   },
   {
-    id: 'experiment-code-library', label: 'Experiment Library · Programs', group: 'Experiment',
-    description: 'Browse real repository-discovered firmware and host tools, then verify or upload supported firmware.',
+    id: 'experiment-code-library', label: 'Library · Experiment context', group: 'Experiment',
+    description: 'Open the same unified Library in experiment context, then verify or upload supported firmware.',
     destination: { workspace: 'experiments', kind: 'experiments-section', anchor: 'experiment-code-library' },
     owner: 'EngineeringExperimentLibrary', keywords: ['firmware', 'source', 'python', 'verify', 'upload', 'code library'],
   },
