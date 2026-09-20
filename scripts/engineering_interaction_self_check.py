@@ -32,7 +32,7 @@ def main() -> int:
     require("src/AnalysisWorkflowGuide.tsx", "Evidence", "Analyze", "Compare", "Decide")
     require("src/AnalysisVisualizationHub.tsx", "Run A", "Run B", "AnnotatedEngineeringPlot")
     require("src/EvidenceSourcePicker.tsx", "Set as Run A", "Set as Run B")
-    require("src/ExperimentsHub.tsx", "Complete Experiment Code Library")
+    require("src/ExperimentsHub.tsx", "Experiment Library", "EngineeringExperimentLibrary")
     require("src/main.tsx", "betterboard:tasks-changed", "focusMode", "Focus mode")
 
     hardware = read("src/HardwareSession.tsx")
@@ -44,8 +44,10 @@ def main() -> int:
     assert "setInterval(() => setTasks(readTaskMemory()), 1200)" not in main, "Root task status must be event-driven, not globally polled every 1.2 seconds"
 
     library = read("src/EngineeringExperimentLibrary.tsx")
-    assert "import.meta.glob" in library, "experiment assets must remain repository-discovered"
-    assert "eager: true" not in library, "experiment source bodies must remain lazy-loaded"
+    program_catalog = read("src/ProgramLibraryCatalog.ts")
+    assert "ProgramLibraryCatalog" in library and "ALL_PROGRAM_ASSETS" in library, "Experiment Library must consume the shared program catalog"
+    assert "import.meta.glob" in program_catalog, "shared program assets must remain repository-discovered"
+    assert "eager: true" not in library + program_catalog, "experiment source bodies must remain lazy-loaded"
 
     circuit = read("src/CircuitLab.tsx")
     assert "runRuleChecker" in circuit, "existing circuit rule checker must remain canonical"
