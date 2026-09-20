@@ -29,6 +29,7 @@ COPY_BUTTON = ROOT / 'src' / 'CopyButton.tsx'
 DEVELOPER_DRAFT_STORE = ROOT / 'src' / 'DeveloperDraftStore.ts'
 IDE_MANAGER_RUST = ROOT / 'src-tauri' / 'src' / 'ide_manager.rs'
 MAIN = ROOT / 'src' / 'main.tsx'
+UNIFIED_LIBRARY = ROOT / 'src' / 'UnifiedLibrary.tsx'
 
 EXPECTED = {
     'blink': ('Blink_LED', 'Blink_LED.ino'),
@@ -75,7 +76,7 @@ def main() -> int:
 
     for required in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE, EXPERIMENTS_HUB, LABS_HUB, ANALYSIS_HUB, HANDOFF_STUDIO,
-        HARDWARE_SESSION, OBSERVATORY, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, COPY_BUTTON, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
+        HARDWARE_SESSION, OBSERVATORY, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, COPY_BUTTON, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN, UNIFIED_LIBRARY,
     ]:
         assert required.is_file(), required
 
@@ -86,7 +87,7 @@ def main() -> int:
     rust = LIB.read_text()
     frontend = '\n'.join(path.read_text() for path in [
         APP, MONITOR_DATA, NUMERICAL_SUITE, MAGNET_SUITE,
-        EXPERIMENTS_HUB, LABS_HUB, ANALYSIS_HUB, HANDOFF_STUDIO, HARDWARE_SESSION, OBSERVATORY, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN,
+        EXPERIMENTS_HUB, LABS_HUB, ANALYSIS_HUB, HANDOFF_STUDIO, HARDWARE_SESSION, OBSERVATORY, RECIPE_PARAMETERS, RUNTIME_LOG, OPENGUIN_BRIDGE, ENGINEERING_PLOT, SMART_EDITOR, ECOSYSTEM_MANAGER, SKETCHBOOK_EXPLORER, DEVELOPER_DRAFT_STORE, IDE_MANAGER_RUST, MAIN, UNIFIED_LIBRARY,
     ])
     by_id = {r['id']: r for r in catalog}
 
@@ -189,6 +190,7 @@ def main() -> int:
 
     monitor_text = MONITOR_DATA.read_text()
     app_text = APP.read_text()
+    unified_library_text = UNIFIED_LIBRARY.read_text()
     main_text = MAIN.read_text()
     hub = EXPERIMENTS_HUB.read_text()
     labs_hub = LABS_HUB.read_text()
@@ -216,9 +218,10 @@ def main() -> int:
     assert "['bridge'," not in app_text
     assert "{tab === 'bridge'" not in app_text
     assert 'Shared hardware session' in app_text
-    assert 'Verify & Diagnose' in app_text
-    assert 'Numerical & Measurement' in app_text
-    assert 'Magnetism & Fields' in app_text
+    assert 'UnifiedLibrary' in app_text
+    assert 'Verify & Diagnose' in unified_library_text
+    assert 'Numerical & Measurement' in unified_library_text
+    assert 'Magnetism & Fields' in unified_library_text
 
     assert "type Workspace = 'studio' | 'labs' | 'analysis' | 'observatory'" in main_text
     for label in ['Studio', 'Labs', 'Analysis', 'Observatory']:
@@ -274,8 +277,9 @@ def main() -> int:
     for token in ['ALL_PROGRAM_ASSETS', 'PROGRAM_FAMILY_ORDER', 'loadProgramAsset']:
         assert token in program_catalog, token
         assert token in experiment_library or token in developer_text or token in app_text, token
-    assert 'Unified Program Library' in app_text
-    assert 'Program Library ·' in developer_text
+    assert 'Single source of truth' in unified_library_text
+    assert 'recipes, firmware, and host analysis tools share one catalog' in unified_library_text.lower()
+    assert 'Template Library' in developer_text
     assert 'Runtime log' in RUNTIME_LOG.read_text()
     for token in ['parameterValues', 'capture_measurement', 'save_measurement_buffer', 'RuntimeLog']:
         assert token in monitor_text, token
@@ -364,7 +368,7 @@ def main() -> int:
     print('- persistent Studio / Labs / Analysis / Observatory architecture registered')
     print('- global CLI / hardware / acquisition / task context strip registered')
     print('- shared Hardware Session provider registered')
-    print('- grouped Recipe Library registered')
+    print('- single unified recipe / firmware / host-tool Library registered')
     print('- Numerical Lab in-app complete-results workflow registered')
     print('- Magnet Lab in-app characterization/model-validation workflow registered')
     print('- obsolete duplicate Numerical/Magnet lab components removed')
@@ -381,5 +385,5 @@ main=(ROOT/'src/main.tsx').read_text(); obs=(ROOT/'src/Observatory.tsx').read_te
 assert "id: 'learning'" not in main
 for token in ['System Observatory','Latest data observation','Engineering Lab bridge readiness','OpenPenguin','Recipe & device inventory']:
     assert token in obs, f'Observatory lost {token}'
-for token in ['Campaigns','Complete Experiment Code Library','Run / Program handoff','Studio → Monitor & Data']:
+for token in ['Campaigns','Unified Library','Run / Program handoff','Studio → Monitor & Data']:
     assert token in exp, f'Engineering Lab Experiments lost {token}'
