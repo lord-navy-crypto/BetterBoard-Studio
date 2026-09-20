@@ -30,9 +30,9 @@ const LABS = [
   },
   {
     id: 'campaigns' as const,
-    title: 'Campaigns',
-    subtitle: 'complete experiment code library',
-    detail: 'Browse engineering campaigns, firmware families and executable experiment assets.',
+    title: 'Experiment Library',
+    subtitle: 'campaigns · recipes · all programs',
+    detail: 'Browse experiment campaigns and the same complete program inventory shared with Recipe Library and Developer templates.',
     icon: FlaskConical,
     badge: 'Experiment library',
   },
