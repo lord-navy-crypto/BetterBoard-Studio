@@ -73,18 +73,16 @@ def main() -> int:
     require(
         "src/EngineeringExperimentLibrary.tsx",
         "engineering-lab-experiments/catalog.json",
-        "import.meta.glob",
-        "../engineering-lab-experiments/firmware/**/*.ino",
-        "../src-tauri/resources/firmware/**/*.ino",
-        "../sensor-suite/firmware/**/*.ino",
-        "../scripts/*.py",
+        "ProgramLibraryCatalog",
+        "ALL_PROGRAM_ASSETS",
+        "PROGRAM_FAMILY_ORDER",
+        "loadProgramAsset",
         "Dedicated Engineering Lab",
         "Numerical Reliability",
         "ESP32 Research",
         "Sensor Suite",
         "BetterBoard Firmware",
         "Host Analysis & Bridges",
-        "loadSource",
         "developer_sketch_save",
         "compile_sketch",
         "upload_sketch",
@@ -92,8 +90,19 @@ def main() -> int:
         "Verify",
         "Upload",
     )
+    require(
+        "src/ProgramLibraryCatalog.ts",
+        "import.meta.glob",
+        "../engineering-lab-experiments/firmware/**/*.ino",
+        "../src-tauri/resources/firmware/**/*.ino",
+        "../sensor-suite/firmware/**/*.ino",
+        "../scripts/*.py",
+        "ALL_PROGRAM_ASSETS",
+        "loadProgramAsset",
+    )
     experiment_library = read("src/EngineeringExperimentLibrary.tsx")
-    assert "eager: true" not in experiment_library, "Experiment source files must be lazy-loaded instead of inflating the startup bundle"
+    program_library = read("src/ProgramLibraryCatalog.ts")
+    assert "eager: true" not in experiment_library + program_library, "Experiment source files must be lazy-loaded instead of inflating the startup bundle"
     require(
         "src/EngineeringPlot.tsx",
         "compact?: boolean",
