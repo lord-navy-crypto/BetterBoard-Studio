@@ -51,8 +51,8 @@ export default function ExperimentsHub({ onNavigate }: { onNavigate?: (target: C
     </section>
 
     <section style={{ maxWidth: 1420, margin: '14px auto' }}>
-      <div id="campaign-code-library" className="panel" style={{ marginBottom: 10, scrollMarginTop: 110 }}><div className="panel-title">2 · Experiment Library · all programs</div><p className="muted">Same repository-discovered firmware and host tools shown in Recipe Library and Developer templates. Open real source; firmware Verify/Upload still uses BetterBoard's canonical Developer backend and Hardware Doctor gates.</p></div>
-      <EngineeringExperimentLibrary />
+      <div id="campaign-code-library" className="panel" style={{ marginBottom: 10, scrollMarginTop: 110 }}><div className="panel-title">2 · Unified Library</div><p className="muted">This is the same Library surface used by Studio. Recipes, firmware and host tools are not duplicated into separate catalogs.</p></div>
+      <EngineeringExperimentLibrary onNavigate={onNavigate}/>
     </section>
 
     <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }}>
