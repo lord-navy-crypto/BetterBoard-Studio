@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
-import { Bot, CircuitBoard, Focus, FlaskConical, Grid3X3, RadioTower, X } from 'lucide-react';
+import { Bot, ChevronDown, ChevronUp, CircuitBoard, Focus, FlaskConical, Grid3X3, RadioTower, X } from 'lucide-react';
 import AdvancedCapabilityLauncher from './AdvancedCapabilityLauncher';
 import App from './App';
 import AnalysisVisualizationHub from './AnalysisVisualizationHub';
@@ -68,6 +68,7 @@ function Root() {
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [navigationRequest, setNavigationRequest] = useState<NavigationRequest>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [engineeringOverviewOpen, setEngineeringOverviewOpen] = useState(false);
   const { source: evidenceSource } = useEvidenceVisualization();
   const { selectedPort, activePort, hardwareStatus, fqbn, profiles, diagnosis } = useHardwareSession();
 
@@ -257,13 +258,19 @@ function Root() {
       <span className="bb-context-current"><b>Current</b>{latestRunning?.detail || hardwareStatus}</span>
     </div>
 
-    {workspace === 'studio' && <div className="bb-engineering-overview">
-      <EngineeringStatusMap nodes={statusNodes} onNavigate={navigateStatus}/>
-      <HardwareTopology toolchainReady={Boolean(cli?.found)} selectedPort={selectedPort} activePort={activePort} selectedFqbn={fqbn} profiles={profiles} diagnosis={diagnosis} requiredLibraries={null} missingLibraries={null} firmwareLabel={lastProgram?.title ?? null} firmwareReady={Boolean(lastProgram)}/>
-      <div className="boundary compact" style={{ maxWidth: 1504, margin: '8px auto 0' }}><b>Next action</b> · {workflowNextAction}</div>
-      <EngineeringFlowLauncher onOpenCapability={navigateSemanticCapability}/>
-      <AdvancedCapabilityLauncher onOpenCapability={navigateSemanticCapability}/>
-    </div>}
+    {workspace === 'studio' && <section className="bb-engineering-overview-shell">
+      <button type="button" className="bb-overview-toggle" onClick={() => setEngineeringOverviewOpen(value => !value)} aria-expanded={engineeringOverviewOpen}>
+        <span><b>Engineering overview</b><small>{workflowNextAction} · {diagnosis.title}</small></span>
+        {engineeringOverviewOpen ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+      </button>
+      {engineeringOverviewOpen && <div className="bb-engineering-overview">
+        <EngineeringStatusMap nodes={statusNodes} onNavigate={navigateStatus}/>
+        <HardwareTopology toolchainReady={Boolean(cli?.found)} selectedPort={selectedPort} activePort={activePort} selectedFqbn={fqbn} profiles={profiles} diagnosis={diagnosis} requiredLibraries={null} missingLibraries={null} firmwareLabel={lastProgram?.title ?? null} firmwareReady={Boolean(lastProgram)}/>
+        <div className="boundary compact" style={{ maxWidth: 1504, margin: '8px auto 0' }}><b>Next action</b> · {workflowNextAction}</div>
+        <EngineeringFlowLauncher onOpenCapability={navigateSemanticCapability}/>
+        <AdvancedCapabilityLauncher onOpenCapability={navigateSemanticCapability}/>
+      </div>}
+    </section>}
 
     <CapabilityLauncher open={launcherOpen} onClose={() => setLauncherOpen(false)} onNavigate={navigateCapability}/>
 
