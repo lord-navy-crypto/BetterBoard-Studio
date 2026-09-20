@@ -161,6 +161,13 @@ const SPECS: Record<ComponentKind, ComponentSpec> = {
   },
 };
 
+const COMPONENT_GROUPS: Array<{ label: string; kinds: ComponentKind[] }> = [
+  { label: 'Board & layout', kinds: ['uno', 'breadboard'] },
+  { label: 'Inputs & controls', kinds: ['potentiometer', 'button'] },
+  { label: 'Sensors & measurement', kinds: ['bme280', 'adxl345', 'mlx90393', 'ina219', 'hcsr04'] },
+  { label: 'Outputs & passive', kinds: ['led', 'resistor', 'servo'] },
+];
+
 const blankDesign = (): CircuitDesign => ({
   schema: 'betterboard.circuit-design/0.1',
   name: 'Untitled circuit',
@@ -380,7 +387,7 @@ export default function CircuitLab({ onUseRecipe }: Props) {
   const [selectedIssueId, setSelectedIssueId] = useState('');
   const [showOnlyProblems, setShowOnlyProblems] = useState(false);
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
-  const [notice, setNotice] = useState('Design only · no electrical or MCU simulation is running.');
+  const [notice, setNotice] = useState('Ready · click any two pins to create a wire.');
 
   const issues = useMemo(() => runRuleChecker(design.components, design.wires), [design]);
   const counts = useMemo(() => ({ error: issues.filter(issue => issue.severity === 'error').length, warning: issues.filter(issue => issue.severity === 'warning').length }), [issues]);
@@ -423,7 +430,7 @@ export default function CircuitLab({ onUseRecipe }: Props) {
 
   function removeWire(id: string) { setDesign(current => ({ ...current, wires: current.wires.filter(wire => wire.id !== id) })); setSelectedIssueId(''); }
   function loadBench01() { setDesign(bench01Design()); setSelectedId('uno-1'); setSelectedPin(null); setSelectedIssueId(''); setPendingPin(null); setDrag(null); setNotice('Loaded the Bench 01 reference wiring. This is still design/rule-check mode only.'); }
-  function loadI2cTutorial() { setDesign(i2cSensorTutorial()); setSelectedId('uno-1'); setSelectedPin(null); setSelectedIssueId(''); setPendingPin(null); setDrag(null); setNotice('Loaded UNO R3 + BME280 I²C teaching layout. Breadboard is shown as a physical placement aid; internal breadboard row continuity is not electrically simulated.'); }
+  function loadI2cTutorial() { setDesign(i2cSensorTutorial()); setSelectedId('uno-1'); setSelectedPin(null); setSelectedIssueId(''); setPendingPin(null); setDrag(null); setNotice('Loaded UNO R3 + BME280 I²C teaching layout. Breadboard nodes can be used as shared wiring junctions; inspect the highlighted net before building.'); }
   function loadAnalogTutorial() { setDesign(analogBreadboardTutorial()); setSelectedId('uno-1'); setSelectedPin(null); setSelectedIssueId(''); setPendingPin(null); setDrag(null); setNotice('Loaded analog input + PWM LED teaching layout with a breadboard placement reference.'); }
   function clearDesign() { setDesign(blankDesign()); setSelectedId('uno-1'); setSelectedPin(null); setSelectedIssueId(''); setPendingPin(null); setDrag(null); setNotice('Started a new design with one UNO-compatible board.'); }
 
@@ -486,7 +493,10 @@ export default function CircuitLab({ onUseRecipe }: Props) {
 
   return <section className="circuit-lab">
     <div className="circuit-toolbar panel">
-      <div><div className="eyebrow">Circuit Lab · UNO R3 teaching bench</div><h2>UNO R3 Wiring Studio + Breadboard Tutor</h2><p className="muted">Lay out an UNO R3-style board, breadboard and common modules, connect real pin names, and trace bounded rule-check findings before building the physical circuit.</p></div>
+      <div className="circuit-title-stack">
+        <div className="eyebrow">Circuit Lab</div><h2>UNO R3 Wiring Studio</h2>
+        <details className="circuit-help"><summary>About this workspace & limits</summary><p className="muted">Lay out the board, breadboard and common modules, wire real UNO pin names, inspect nets and run bounded wiring checks. It is not SPICE, MCU emulation, current calculation or damage prediction.</p></details>
+      </div>
       <div className="circuit-actions">
         <button className="ghost" onClick={loadBench01}><RotateCcw size={15}/> Bench 01</button>
         <button className="ghost" onClick={loadAnalogTutorial}><Lightbulb size={15}/> Analog tutorial</button>
@@ -507,8 +517,11 @@ export default function CircuitLab({ onUseRecipe }: Props) {
     <div className="circuit-layout">
       <aside className="panel component-palette">
         <div className="panel-title"><Plus size={17}/> Components</div>
-        {(Object.keys(SPECS) as ComponentKind[]).map(kind => { const spec = SPECS[kind]; return <button key={kind} className="palette-item" onClick={() => addComponent(kind)}><CircuitBoard size={18}/><span><b>{spec.title}</b><small>{spec.subtitle}</small></span><Plus size={14}/></button>; })}
-        <div className="circuit-boundary"><ShieldCheck size={14}/>UNO R3 teaching model based on the official pinout, plus breadboard and common modules. Rule checking is bounded guidance only: no SPICE, MCU emulation, current calculation, or component-damage prediction.</div>
+        {COMPONENT_GROUPS.map((group, index) => <details key={group.label} className="palette-group" open={index < 2}>
+          <summary><b>{group.label}</b><span>{group.kinds.length}</span></summary>
+          <div className="palette-group-items">{group.kinds.map(kind => { const spec = SPECS[kind]; return <button key={kind} className="palette-item" onClick={() => addComponent(kind)}><CircuitBoard size={18}/><span><b>{spec.title}</b><small>{spec.subtitle}</small></span><Plus size={14}/></button>; })}</div>
+        </details>)}
+        <details className="circuit-boundary-details"><summary><ShieldCheck size={14}/> Rule-check boundary</summary><div className="circuit-boundary">UNO R3 pin roles and bounded low-voltage wiring rules are checked. This is not SPICE, MCU emulation, current calculation, or component-damage prediction.</div></details>
       </aside>
 
       <div className="panel circuit-canvas-panel">
