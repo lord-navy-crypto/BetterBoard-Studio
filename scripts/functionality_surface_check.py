@@ -96,7 +96,7 @@ for forbidden in ['<NumericalBenchSuiteV2', '<MagnetBenchSuiteV2', '<NumericalBe
 
 # Hardware-facing labs are first-class in Labs; handoff remains a separate downstream surface.
 for token in [
-    'Numerical Lab', 'Magnet Lab', 'Campaigns', 'Evidence Handoff',
+    'Numerical Lab', 'Magnet Lab', 'Experiment Library', 'Evidence Handoff',
     'NumericalBenchSuiteV2', 'MagnetBenchSuiteV2', 'NumericalBenchAdvanced', 'MagnetBenchAdvanced',
     'initialMode="bench02"', 'Recommended demo',
 ]:
@@ -153,7 +153,7 @@ for token in [
     assert token in app, f'Current Studio lost canonical capability wiring: {token}'
 for token in ['Start Live', 'Snapshot 3 s', 'Record evidence', 'Physical Lab export & bridge', 'Measurement sessions']:
     assert token in monitor, f'Monitor/Data lost capability previously duplicated by StudioAdvanced: {token}'
-for token in ['Arduino-style free edit', 'Load recipe', 'Verify', 'Run / Upload', 'Runtime facts']:
+for token in ['Arduino-style free edit', 'Load template', 'Verify', 'Run / Upload', 'Runtime facts']:
     assert token in developer, f'Developer lost capability previously duplicated by StudioAdvanced: {token}'
 for token in ['Program', 'Monitor', 'Evidence', 'Analysis', 'Export', 'System', 'Cancel', 'Clear finished']:
     assert token in task_center, f'Task Center lost canonical task capability: {token}'
