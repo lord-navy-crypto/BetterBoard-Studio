@@ -20,7 +20,17 @@ type ComponentKind =
   | 'mlx90393'
   | 'ina219'
   | 'hcsr04'
-  | 'servo';
+  | 'servo'
+  | 'bus'
+  | 'junction'
+  | 'photoresistor'
+  | 'thermistor'
+  | 'buzzer'
+  | 'dcMotor'
+  | 'relayModule'
+  | 'nmos'
+  | 'diode'
+  | 'capacitor';
 type Severity = 'error' | 'warning' | 'pass' | 'info';
 
 type PinSpec = { id: string; label: string; role: PinRole; side: Side; offset: number; voltage?: number };
@@ -159,13 +169,76 @@ const SPECS: Record<ComponentKind, ComponentSpec> = {
       { id: 'sig', label: 'SIG', role: 'signal', side: 'right', offset: 58 },
     ],
   },
+  bus: {
+    kind: 'bus', title: 'Common Bus', subtitle: '6-node shared electrical net', width: 220, height: 92,
+    pins: [
+      { id: 'p1', label: '1', role: 'passive', side: 'left', offset: 28 },
+      { id: 'p2', label: '2', role: 'passive', side: 'left', offset: 64 },
+      { id: 'p3', label: '3', role: 'passive', side: 'top', offset: 72 },
+      { id: 'p4', label: '4', role: 'passive', side: 'top', offset: 150 },
+      { id: 'p5', label: '5', role: 'passive', side: 'right', offset: 28 },
+      { id: 'p6', label: '6', role: 'passive', side: 'right', offset: 64 },
+    ],
+  },
+  junction: {
+    kind: 'junction', title: 'Junction / Common Node', subtitle: '4-node common point', width: 156, height: 92,
+    pins: [
+      { id: 'p1', label: '1', role: 'passive', side: 'left', offset: 46 },
+      { id: 'p2', label: '2', role: 'passive', side: 'right', offset: 46 },
+      { id: 'p3', label: '3', role: 'passive', side: 'top', offset: 78 },
+      { id: 'p4', label: '4', role: 'passive', side: 'bottom', offset: 78 },
+    ],
+  },
+  photoresistor: {
+    kind: 'photoresistor', title: 'Photoresistor / LDR', subtitle: 'light-dependent resistance', width: 176, height: 94,
+    pins: [{ id: 'a', label: '1', role: 'passive', side: 'left', offset: 47 }, { id: 'b', label: '2', role: 'passive', side: 'right', offset: 47 }],
+  },
+  thermistor: {
+    kind: 'thermistor', title: 'Thermistor', subtitle: 'temperature-dependent resistance', width: 176, height: 94,
+    pins: [{ id: 'a', label: '1', role: 'passive', side: 'left', offset: 47 }, { id: 'b', label: '2', role: 'passive', side: 'right', offset: 47 }],
+  },
+  buzzer: {
+    kind: 'buzzer', title: 'Piezo Buzzer', subtitle: 'digital/PWM output load', width: 170, height: 100,
+    pins: [{ id: 'vcc', label: '+', role: 'power', side: 'left', offset: 30 }, { id: 'gnd', label: '−', role: 'ground', side: 'left', offset: 72 }, { id: 'sig', label: 'SIG', role: 'signal', side: 'right', offset: 50 }],
+  },
+  dcMotor: {
+    kind: 'dcMotor', title: 'DC Motor', subtitle: '2-terminal motor load', width: 176, height: 100,
+    pins: [{ id: 'a', label: 'M+', role: 'passive', side: 'left', offset: 34 }, { id: 'b', label: 'M−', role: 'passive', side: 'right', offset: 66 }],
+  },
+  relayModule: {
+    kind: 'relayModule', title: 'Relay Module', subtitle: 'logic-controlled isolated contact', width: 200, height: 122,
+    pins: [
+      { id: 'vcc', label: 'VCC', role: 'power', side: 'left', offset: 26 },
+      { id: 'gnd', label: 'GND', role: 'ground', side: 'left', offset: 92 },
+      { id: 'sig', label: 'IN', role: 'signal', side: 'left', offset: 58 },
+      { id: 'com', label: 'COM', role: 'passive', side: 'right', offset: 30 },
+      { id: 'no', label: 'NO', role: 'passive', side: 'right', offset: 62 },
+      { id: 'nc', label: 'NC', role: 'passive', side: 'right', offset: 94 },
+    ],
+  },
+  nmos: {
+    kind: 'nmos', title: 'N-MOSFET', subtitle: 'gate · drain · source switch', width: 170, height: 112,
+    pins: [
+      { id: 'g', label: 'G', role: 'signal', side: 'left', offset: 56 },
+      { id: 'd', label: 'D', role: 'passive', side: 'right', offset: 34 },
+      { id: 's', label: 'S', role: 'passive', side: 'right', offset: 80 },
+    ],
+  },
+  diode: {
+    kind: 'diode', title: 'Diode', subtitle: 'anode / cathode passive device', width: 154, height: 92,
+    pins: [{ id: 'a', label: 'A', role: 'passive', side: 'left', offset: 46 }, { id: 'k', label: 'K', role: 'passive', side: 'right', offset: 46 }],
+  },
+  capacitor: {
+    kind: 'capacitor', title: 'Capacitor', subtitle: '2-terminal passive element', width: 154, height: 92,
+    pins: [{ id: 'a', label: '1', role: 'passive', side: 'left', offset: 46 }, { id: 'b', label: '2', role: 'passive', side: 'right', offset: 46 }],
+  },
 };
 
 const COMPONENT_GROUPS: Array<{ label: string; kinds: ComponentKind[] }> = [
-  { label: 'Board & layout', kinds: ['uno', 'breadboard'] },
-  { label: 'Inputs & controls', kinds: ['potentiometer', 'button'] },
+  { label: 'Board & layout', kinds: ['uno', 'breadboard', 'bus', 'junction'] },
+  { label: 'Inputs & controls', kinds: ['potentiometer', 'button', 'photoresistor', 'thermistor'] },
   { label: 'Sensors & measurement', kinds: ['bme280', 'adxl345', 'mlx90393', 'ina219', 'hcsr04'] },
-  { label: 'Outputs & passive', kinds: ['led', 'resistor', 'servo'] },
+  { label: 'Outputs & passive', kinds: ['led', 'resistor', 'servo', 'buzzer', 'dcMotor', 'relayModule', 'nmos', 'diode', 'capacitor'] },
 ];
 
 const blankDesign = (): CircuitDesign => ({
@@ -307,6 +380,27 @@ function pinPoint(component: PlacedComponent, pin: PinSpec) {
   return { x: component.x + pin.offset, y: component.y + spec.height };
 }
 
+function electricalWires(components: PlacedComponent[], wires: Wire[]): Wire[] {
+  const expanded = [...wires];
+  for (const component of components) {
+    const commonPins = component.kind === 'bus'
+      ? ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
+      : component.kind === 'junction'
+        ? ['p1', 'p2', 'p3', 'p4']
+        : [];
+    if (commonPins.length < 2) continue;
+    const anchor = commonPins[0];
+    for (const pinId of commonPins.slice(1)) {
+      expanded.push({
+        id: `implicit-${component.id}-${anchor}-${pinId}`,
+        from: { componentId: component.id, pinId: anchor },
+        to: { componentId: component.id, pinId },
+      });
+    }
+  }
+  return expanded;
+}
+
 function runRuleChecker(components: PlacedComponent[], wires: Wire[]): Issue[] {
   const issues: Issue[] = [];
   const boards = components.filter(component => component.kind === 'uno');
@@ -389,20 +483,21 @@ export default function CircuitLab({ onUseRecipe }: Props) {
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [notice, setNotice] = useState('Ready · click any two pins to create a wire.');
 
-  const issues = useMemo(() => runRuleChecker(design.components, design.wires), [design]);
+  const analysisWires = useMemo(() => electricalWires(design.components, design.wires), [design]);
+  const issues = useMemo(() => runRuleChecker(design.components, analysisWires), [design.components, analysisWires]);
   const counts = useMemo(() => ({ error: issues.filter(issue => issue.severity === 'error').length, warning: issues.filter(issue => issue.severity === 'warning').length }), [issues]);
   const selected = design.components.find(component => component.id === selectedId);
   const selectedIssue = issues.find(issue => issue.id === selectedIssueId) ?? null;
-  const targets = useMemo(() => selectedIssue ? issueTargets(selectedIssue, design.components, design.wires) : { componentIds: [], pinKeys: [], wireIds: [] }, [selectedIssue, design.components, design.wires]);
-  const net = useMemo(() => selectedPin ? connectedNet(selectedPin, design.wires) : { pinKeys: new Set<string>(), wireIds: new Set<string>() }, [selectedPin, design.wires]);
+  const targets = useMemo(() => selectedIssue ? issueTargets(selectedIssue, design.components, analysisWires) : { componentIds: [], pinKeys: [], wireIds: [] }, [selectedIssue, design.components, analysisWires]);
+  const net = useMemo(() => selectedPin ? connectedNet(selectedPin, analysisWires) : { pinKeys: new Set<string>(), wireIds: new Set<string>() }, [selectedPin, analysisWires]);
   const problemTargets = useMemo(() => {
     const componentIds = new Set<string>(); const pinKeys = new Set<string>(); const wireIds = new Set<string>();
     for (const issue of issues.filter(item => item.severity === 'error' || item.severity === 'warning')) {
-      const projected = issueTargets(issue, design.components, design.wires);
+      const projected = issueTargets(issue, design.components, analysisWires);
       projected.componentIds.forEach(id => componentIds.add(id)); projected.pinKeys.forEach(key => pinKeys.add(key)); projected.wireIds.forEach(id => wireIds.add(id));
     }
     return { componentIds, pinKeys, wireIds };
-  }, [issues, design.components, design.wires]);
+  }, [issues, design.components, analysisWires]);
 
   function addComponent(kind: ComponentKind) {
     const position = defaultDropPosition(design.components.length);
@@ -483,19 +578,19 @@ export default function CircuitLab({ onUseRecipe }: Props) {
 
   function selectIssue(issue: Issue) {
     setSelectedIssueId(issue.id); setSelectedPin(null);
-    const projected = issueTargets(issue, design.components, design.wires);
+    const projected = issueTargets(issue, design.components, analysisWires);
     if (projected.componentIds[0]) setSelectedId(projected.componentIds[0]);
     setNotice(projected.componentIds.length || projected.pinKeys.length || projected.wireIds.length ? `Focused diagnostic: ${issue.title}` : `${issue.title} has no reliable structured canvas target; showing the checker text only.`);
   }
 
   const selectedPinFound = selectedPin ? findPin(design.components, selectedPin) : null;
-  const selectedPinPeers = selectedPin ? design.wires.filter(wire => wireHas(wire, selectedPin)).map(wire => otherEnd(wire, selectedPin)).filter(Boolean) as PinRef[] : [];
+  const selectedPinPeers = selectedPin ? analysisWires.filter(wire => wireHas(wire, selectedPin)).map(wire => otherEnd(wire, selectedPin)).filter(Boolean) as PinRef[] : [];
 
   return <section className="circuit-lab">
     <div className="circuit-toolbar panel">
       <div className="circuit-title-stack">
         <div className="eyebrow">Circuit Lab</div><h2>UNO R3 Wiring Studio</h2>
-        <details className="circuit-help"><summary>About this workspace & limits</summary><p className="muted">Lay out the board, breadboard and common modules, wire real UNO pin names, inspect nets and run bounded wiring checks. It is not SPICE, MCU emulation, current calculation or damage prediction.</p></details>
+        <details className="circuit-help"><summary>About this workspace & limits</summary><p className="muted">Lay out the board, breadboard and common modules, wire real UNO pin names, use common buses/junctions as shared nets, inspect connectivity and run bounded wiring checks. It is not SPICE, MCU emulation, current calculation or damage prediction.</p></details>
       </div>
       <div className="circuit-actions">
         <button className="ghost" onClick={loadBench01}><RotateCcw size={15}/> Bench 01</button>
@@ -525,7 +620,7 @@ export default function CircuitLab({ onUseRecipe }: Props) {
       </aside>
 
       <div className="panel circuit-canvas-panel">
-        <div className="canvas-header"><div><b>{design.name}</b><span>{design.components.length} components · {design.wires.length} wires</span></div><small>Click a pin to trace its whole net. Click a Rule Checker item to focus the structured target.</small></div>
+        <div className="canvas-header"><div><b>{design.name}</b><span>{design.components.length} components · {design.wires.length} wires · {analysisWires.length - design.wires.length} implicit common links</span></div><small>Click a pin to trace its whole net. Click a Rule Checker item to focus the structured target.</small></div>
         <div className="circuit-canvas" onPointerMove={moveDrag} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}>
           <svg className="wire-layer" aria-label="Circuit wires">
             {design.wires.map(wire => {
@@ -573,7 +668,7 @@ export default function CircuitLab({ onUseRecipe }: Props) {
           <div className="panel-title"><Unplug size={17}/> Inspector</div>
           {selectedPinFound ? <>
             <b>{selectedPinFound.spec.title} · {selectedPinFound.pin.label}</b><span className="muted">pin role · {selectedPinFound.pin.role}</span>
-            <div className="facts"><span>Nominal voltage</span><b>{selectedPinFound.pin.voltage === undefined ? 'not specified' : `${selectedPinFound.pin.voltage} V`}</b><span>Connected peers</span><b>{selectedPinPeers.length || 'none'}</b><span>Net wires</span><b>{net.wireIds.size}</b></div>
+            <div className="facts"><span>Nominal voltage</span><b>{selectedPinFound.pin.voltage === undefined ? 'not specified' : `${selectedPinFound.pin.voltage} V`}</b><span>Connected peers</span><b>{selectedPinPeers.length || 'none'}</b><span>Net edges</span><b>{net.wireIds.size}</b><span>Implicit common links</span><b>{[...net.wireIds].filter(id => id.startsWith('implicit-')).length}</b></div>
             {selectedPinPeers.length > 0 && <div className="info-section">{selectedPinPeers.map(peer => <span key={`${peer.componentId}.${peer.pinId}`}>• {refLabel(design.components, peer)}</span>)}</div>}
           </> : selected ? <><b>{SPECS[selected.kind].title}</b><span className="muted">{selected.id}</span><div className="inspector-pins">{SPECS[selected.kind].pins.map(pin => <button key={pin.id} onClick={() => { setSelectedPin({ componentId: selected.id, pinId: pin.id }); setSelectedIssueId(''); }}>{pin.label}<small>{pin.role}</small></button>)}</div><button className="ghost danger" onClick={removeSelected}><Trash2 size={15}/> Delete component</button></> : <span className="muted">Select a block, pin, wire, or rule finding to inspect it.</span>}
         </div>
