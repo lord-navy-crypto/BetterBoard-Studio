@@ -13,7 +13,7 @@ import TaskCenterPanel, { type BackgroundTask, type TaskCategory, type TaskState
 import type { CapabilityTarget } from './CapabilityLauncher';
 import { useHardwareSession } from './HardwareSession';
 import RecipeParameterPanel, { recipeParameterDefaults, type RecipeParameterSpec } from './RecipeParameterPanel';
-import { ALL_PROGRAM_ASSETS, PROGRAM_FAMILY_ORDER, loadProgramAsset } from './ProgramLibraryCatalog';
+import UnifiedLibrary from './UnifiedLibrary';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 type RecipeSpec = {
@@ -85,10 +85,7 @@ export default function App({ navigationRequest = null, onNavigate }: { navigati
   const [measurement, setMeasurement] = useState<MeasurementResult | null>(null);
   const [parameterValues, setParameterValues] = useState<Record<string, string>>({});
   const [presetName, setPresetName] = useState('');
-  const [programQuery, setProgramQuery] = useState('');
-  const [programFamily, setProgramFamily] = useState<string>('All');
-  const [programAssetKey, setProgramAssetKey] = useState('');
-  const [programAssetSource, setProgramAssetSource] = useState('');
+  const [developerTemplateRequest, setDeveloperTemplateRequest] = useState<{ id: string; token: number } | null>(null);
   const [tasks, setTasks] = useState<BackgroundTask[]>(restoreTaskMemory);
   const {
     ports, profiles, selectedPort, setSelectedPort, fqbn, setFqbn,
@@ -109,22 +106,6 @@ export default function App({ navigationRequest = null, onNavigate }: { navigati
   }, [navigationRequest?.token]);
 
   const recipe = useMemo(() => recipes.find(r => r.id === recipeId), [recipes, recipeId]);
-  const groupedRecipes = useMemo(() => {
-    const groups = new Map<string, RecipeSpec[]>();
-    for (const item of recipes) {
-      const group = libraryGroupFor(item);
-      groups.set(group, [...(groups.get(group) ?? []), item]);
-    }
-    return [...groups.entries()];
-  }, [recipes]);
-  const visibleProgramAssets = useMemo(() => {
-    const needle = programQuery.trim().toLowerCase();
-    return ALL_PROGRAM_ASSETS.filter(asset =>
-      (programFamily === 'All' || asset.family === programFamily) &&
-      (!needle || [asset.label, asset.path, asset.family, asset.kind].join(' ').toLowerCase().includes(needle))
-    );
-  }, [programQuery, programFamily]);
-  const selectedProgramAsset = useMemo(() => ALL_PROGRAM_ASSETS.find(asset => asset.key === programAssetKey) ?? null, [programAssetKey]);
   const detectedFqbn = activePort?.fqbn ?? '';
   const detectedProfileAvailable = Boolean(detectedFqbn && profiles.some(profile => profile.fqbn === detectedFqbn));
 
@@ -312,7 +293,7 @@ export default function App({ navigationRequest = null, onNavigate }: { navigati
         : 'Retry hardware scan';
 
   const nav = [
-    ['hardware', Cpu, 'Hardware & Program'], ['circuit', CircuitBoard, 'Circuit Lab'], ['library', Boxes, 'Recipe Library'],
+    ['hardware', Cpu, 'Hardware & Program'], ['circuit', CircuitBoard, 'Circuit Lab'], ['library', Boxes, 'Library'],
     ['developer', Code2, 'Developer'], ['data', Waves, 'Monitor & Data'],
   ] as const;
 
@@ -385,45 +366,22 @@ export default function App({ navigationRequest = null, onNavigate }: { navigati
 
       <div className="studio-persistent-pane" hidden={tab !== 'circuit'}><CircuitLab onUseRecipe={(id) => { setRecipeId(id); setTab('hardware'); }} /></div>
 
-      <div className="studio-persistent-pane" hidden={tab !== 'library'}><section className="library-layout">
-        <div className="panel">
-          <div className="panel-title"><Boxes size={18}/> Experiment & firmware library</div>
-          <p className="muted">Recipes are grouped by purpose instead of mixing verification, discipline, and workflow labels in one flat list.</p>
-          <div className="recipe-list">{groupedRecipes.map(([group, items]) => <details key={group} className="recipe-group"><summary className="eyebrow" style={{ margin: '12px 0 6px', cursor: 'pointer' }}>{group} · {items.length}</summary>{items.map(item => { const Icon = iconFor(item.id); return <button key={item.id} className={`recipe-row ${item.id === recipeId ? 'selected' : ''}`} onClick={() => setRecipeId(item.id)}><Icon size={18}/><div><b>{item.title}</b><span>{item.user_defined ? 'USER PRESET' : item.category} · {item.sketch_name}</span></div><small>{item.capture_mode}</small></button>; })}</details>)}</div>
-        </div>
-        <div className="panel inspector">
-          {recipe && <>
-            <div className="eyebrow">{libraryGroupFor(recipe)}</div><h2>{recipe.title}</h2><p className="muted">{recipe.description}</p>
-            <div className="info-section"><b>Hardware</b>{recipe.hardware.map(v => <span key={v}>• {v}</span>)}</div>
-            <div className="info-section"><b>Required libraries</b>{recipe.required_libraries.length ? recipe.required_libraries.map(v => <span key={v}>• {v}</span>) : <span>• None</span>}</div>
-            <div className="info-section"><b>Data schema</b><span>{recipe.columns.length ? recipe.columns.map((c, i) => `${c} [${recipe.units[i]}]`).join(' · ') : 'No measurement schema'}</span></div>
-            <div className="info-section"><b>Physical Lab consumers</b>{recipe.physical_lab_targets.map(v => <span key={v}>• {v}</span>)}</div>
-            <RecipeParameterPanel compact recipe={recipe} values={parameterValues} onChange={values => { setParameterValues(values); setSketchDir(''); }} />
-            <div className="boundary"><ShieldCheck size={15}/>{recipe.boundary}</div>
-            <div className="action-row"><button className="primary" onClick={() => setTab('hardware')}>Use this recipe</button><button className="ghost" onClick={() => setTab('developer')}><Code2 size={15}/> Open in Developer</button></div>
-          </>}
-        </div>
-      </section>
-
-        <section className="panel" style={{ marginTop: 14 }}>
-          <div className="panel-title"><Code2 size={18}/> Unified Program Library</div>
-          <p className="muted">The Recipe Library and Experiment Library now share the same repository program inventory. Every discovered firmware sketch and host analysis tool is visible here; Developer uses this same inventory for Load Template.</p>
-          <div className="engineering-model-grid">
-            <button className={programFamily === 'All' ? 'active' : ''} onClick={() => setProgramFamily('All')}><b>All programs</b><span style={{ marginLeft: 8 }}>{ALL_PROGRAM_ASSETS.length}</span></button>
-            {PROGRAM_FAMILY_ORDER.map(group => <button key={group} className={programFamily === group ? 'active' : ''} onClick={() => setProgramFamily(group)}><b>{group}</b><span style={{ marginLeft: 8 }}>{ALL_PROGRAM_ASSETS.filter(asset => asset.family === group).length}</span></button>)}
-          </div>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '12px 0' }}><Search size={16}/><input value={programQuery} onChange={event => setProgramQuery(event.target.value)} placeholder="Search firmware, sensor family, host tool, path…" style={{ flex: 1 }}/></label>
-          <div className="boundary compact">Showing {visibleProgramAssets.length} / {ALL_PROGRAM_ASSETS.length} repository programs · same inventory used by Experiment Library and Developer templates.</div>
-          <div className="recipe-list" style={{ marginTop: 10 }}>{visibleProgramAssets.map(asset => <button key={asset.key} className={`recipe-row ${asset.key === programAssetKey ? 'selected' : ''}`} onClick={() => { setProgramAssetKey(asset.key); setProgramAssetSource(''); }}><Code2 size={18}/><div><b>{asset.label}</b><span>{asset.family} · {asset.path}</span></div><small>{asset.kind === 'firmware' ? 'FIRMWARE' : 'HOST'}</small></button>)}</div>
-          {selectedProgramAsset && <div className="panel inspector" style={{ marginTop: 12 }}>
-            <div className="eyebrow">{selectedProgramAsset.family}</div><h2>{selectedProgramAsset.label}</h2><p className="muted"><code>{selectedProgramAsset.path}</code></p>
-            <div className="action-row">
-              <button className="ghost" onClick={() => void loadProgramAsset(selectedProgramAsset).then(setProgramAssetSource).catch(error => setProgramAssetSource(`Load failed: ${error}`))}><Code2 size={15}/> View source</button>
-              <button className="primary" onClick={() => setTab('developer')}><Braces size={15}/> Open Developer templates</button>
-            </div>
-            {programAssetSource && <pre style={{ marginTop: 12, maxHeight: 420, overflow: 'auto', whiteSpace: 'pre', textAlign: 'left' }}>{programAssetSource}</pre>}
-          </div>}
-        </section>
+      <div className="studio-persistent-pane" hidden={tab !== 'library'}>
+        <UnifiedLibrary
+          recipes={recipes}
+          selectedRecipeId={recipeId}
+          parameterValues={parameterValues}
+          onParameterValuesChange={values => { setParameterValues(values); setSketchDir(''); }}
+          onSelectRecipe={setRecipeId}
+          onUseRecipe={id => { setRecipeId(id); setTab('hardware'); }}
+          onOpenDeveloperTemplate={id => {
+            if (id.startsWith('recipe:')) setRecipeId(id.slice(7));
+            setDeveloperTemplateRequest({ id, token: Date.now() });
+            setTab('developer');
+          }}
+          title="Library"
+          subtitle="Recipes, repository firmware, Engineering Lab programs, sensor-suite sketches, and host analysis tools are one searchable catalog."
+        />
       </div>
 
       <div className="studio-persistent-pane" hidden={tab !== 'data'}><MonitorDataStudio
@@ -449,6 +407,7 @@ export default function App({ navigationRequest = null, onNavigate }: { navigati
         selectedPort={selectedPort}
         integratedDevices={devices.length}
         recipes={recipes}
+        templateRequest={developerTemplateRequest}
         onLibrarySaved={() => { void refresh(); }}
         onStatus={setStatus}
         onTaskStart={addTask}
