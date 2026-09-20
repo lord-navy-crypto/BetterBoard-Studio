@@ -31,7 +31,7 @@ for target in targets:
 for title in [
     "Hardware & Program", "Circuit Lab", "Recipe Library", "Monitor & Data", "Developer", "Task Center",
     "Numerical Lab", "Numerical Expert Tools", "Magnet Lab", "Magnetic Expert Tools",
-    "Campaigns", "Experiment Code Library", "Evidence Handoff",
+    "Experiment Library", "Experiment Library · Programs", "Evidence Handoff",
     "Evidence", "Signal & Statistics", "Models", "Magnetic Result Viewer", "Experiment Design", "Numerical Analysis",
     "System Observatory", "Toolchain & Hardware State", "Recipe & Device Inventory",
     "Latest Data Observation", "Live Acquisition State", "Engineering Lab Bridge Readiness",
@@ -74,4 +74,4 @@ assert "observatory-jump-nav" in observatory, "Observatory lost its visible sect
 print("Whole-app navigation discoverability contract: PASS")
 print(f"- {len(targets)} indexed capability routes protected")
 print("- Studio, Labs, Analysis, Observatory and OpenPenguin all have direct destinations")
-print("- expert tools, Task Center and campaign code library cannot silently become scroll-only/hidden features")
+print("- expert tools, Task Center and Experiment Library program inventory cannot silently become scroll-only/hidden")
