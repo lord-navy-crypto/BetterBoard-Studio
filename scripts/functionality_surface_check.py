@@ -80,7 +80,7 @@ for token in [
 ]:
     assert token in observatory, f'Observatory lost {token}'
 
-# Learning was intentionally removed; guidance belongs in Recipe Library/Studio.
+# Learning was intentionally removed; guidance belongs in the unified Library / Studio.
 assert not (SRC / 'LearningHub.tsx').exists(), 'Learning workspace should stay removed after IA refocus'
 assert "id: 'learning'" not in main, 'Learning regressed into top-level navigation'
 
@@ -147,7 +147,7 @@ assert 'current.filter(p => p.positionMm !== position)' not in magnet_v2, 'Magne
 
 # Canonical Studio owns the old compatibility capabilities now.
 for token in [
-    'Circuit Lab', 'Recipe Library', 'Monitor & Data', 'Developer',
+    'Circuit Lab', 'Library', 'Monitor & Data', 'Developer',
     'TaskCenterPanel', 'onTaskStart', 'onTaskLog', 'onTaskFinish',
 ]:
     assert token in app, f'Current Studio lost canonical capability wiring: {token}'
@@ -160,7 +160,7 @@ for token in ['Program', 'Monitor', 'Evidence', 'Analysis', 'Export', 'System', 
 
 # Circuit Lab Phase A/B stays real and reachable.
 for token in [
-    'betterboard.circuit-design/0.1', 'UNO R3 Wiring Studio + Breadboard Tutor',
+    'betterboard.circuit-design/0.1', 'UNO R3 Wiring Studio',
     'Arduino UNO R3', 'Solderless Breadboard', 'BME280', 'ADXL345', 'MLX90393', 'INA219', 'HC-SR04', 'Hobby Servo',
     'Direct power-to-ground connection', 'LED is directly connected without a series resistor',
     'Use Bench 01 firmware', 'localStorage.setItem',
