@@ -68,7 +68,7 @@ def main() -> int:
         "Session History",
         "Task Activity",
     )
-    require("src/LabsHub.tsx", "Numerical Lab", "Magnet Lab", "Campaigns", "Evidence Handoff", 'initialMode="bench02"')
+    require("src/LabsHub.tsx", "Numerical Lab", "Magnet Lab", "Experiment Library", "Evidence Handoff", 'initialMode="bench02"')
     require("src/ExperimentsHub.tsx", "CampaignVisualization", "EngineeringExperimentLibrary")
     require(
         "src/EngineeringExperimentLibrary.tsx",
