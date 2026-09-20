@@ -24,7 +24,7 @@ type Capability = {
 const CAPABILITIES: Capability[] = [
   { target: 'studio:hardware', group: 'Build & connect', title: 'Hardware & Program', detail: 'Select board, run Hardware Doctor, preflight, compile and upload.', keywords: 'board arduino compile upload preflight', icon: Cpu },
   { target: 'studio:circuit', group: 'Build & connect', title: 'Circuit Lab', detail: 'Visual wiring editor and rule checker.', keywords: 'wire wiring circuit resistor led schematic', icon: CircuitBoard },
-  { target: 'studio:library', group: 'Build & connect', title: 'Recipe Library', detail: 'Browse firmware recipes, devices, schemas and saved presets.', keywords: 'recipe firmware library preset hardware', icon: Boxes },
+  { target: 'studio:library', group: 'Build & connect', title: 'Library', detail: 'One catalog for recipes, firmware, host tools and saved presets.', keywords: 'recipe firmware library preset source host tool', icon: Boxes },
   { target: 'studio:developer', group: 'Build & connect', title: 'Developer', detail: 'Arduino-style editor, files, ecosystems, verify/upload and diagnostics.', keywords: 'code ide editor sketch libraries boards diagnostics', icon: Code2 },
 
   { target: 'studio:data', group: 'Measure & experiment', title: 'Monitor & Data', detail: 'Live serial, snapshots, multichannel plots, evidence recording and replay.', keywords: 'serial monitor live data capture record replay', icon: Waves },
@@ -33,7 +33,7 @@ const CAPABILITIES: Capability[] = [
   { target: 'labs:magnet', group: 'Measure & experiment', title: 'Magnet Lab', detail: 'Vector acquisition, characterization, spatial mapping and model validation.', keywords: 'magnet field magnetic mlx90393 radia residual', icon: Magnet },
   { target: 'labs:magnet-expert', group: 'Measure & experiment', title: 'Magnetic Expert Tools', detail: 'Advanced residual, scan and characterization controls.', keywords: 'advanced magnet residual characterization expert', icon: Gauge },
   { target: 'labs:campaigns', group: 'Measure & experiment', title: 'Experiment Library', detail: 'Engineering experiment families, campaign context and the shared program inventory.', keywords: 'campaign engineering experiment oscillation numerical magnetic', icon: FlaskConical },
-  { target: 'labs:campaign-library', group: 'Measure & experiment', title: 'Experiment Library · Programs', detail: 'Jump directly to the shared repository-discovered firmware and host analysis inventory.', keywords: 'source code firmware scripts verify upload repository', icon: HardDrive },
+  { target: 'labs:campaign-library', group: 'Measure & experiment', title: 'Library · Experiment context', detail: 'Open the same Library inside campaign context, with Verify/Upload actions for firmware.', keywords: 'source code firmware scripts verify upload repository library', icon: HardDrive },
 
   { target: 'analysis:evidence', group: 'Analyze & decide', title: 'Evidence', detail: 'Select saved evidence or external tables and inspect provenance.', keywords: 'evidence source provenance session import', icon: Database },
   { target: 'analysis:statistics', group: 'Analyze & decide', title: 'Signal & Statistics', detail: 'Uncertainty, signal health, spectra and change analysis.', keywords: 'statistics fft spectrum uncertainty signal noise', icon: Activity },
