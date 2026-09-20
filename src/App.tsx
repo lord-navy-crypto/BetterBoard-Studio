@@ -100,6 +100,24 @@ export default function App({ navigationRequest = null, onNavigate }: { navigati
       return;
     }
     if (target === 'hardware' || target === 'circuit' || target === 'library' || target === 'data' || target === 'developer') {
+      if (target === 'developer') {
+        try {
+          const requestedTemplate = sessionStorage.getItem('betterboard.developer.template-request');
+          if (requestedTemplate) {
+            sessionStorage.removeItem('betterboard.developer.template-request');
+            setDeveloperTemplateRequest({ id: requestedTemplate, token: Date.now() });
+          }
+        } catch {}
+      }
+      if (target === 'hardware') {
+        try {
+          const requestedRecipe = sessionStorage.getItem('betterboard.library.recipe-request');
+          if (requestedRecipe) {
+            sessionStorage.removeItem('betterboard.library.recipe-request');
+            setRecipeId(requestedRecipe);
+          }
+        } catch {}
+      }
       setTab(target);
       window.setTimeout(() => document.querySelector('.app-shell main')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
     }
