@@ -22,10 +22,10 @@ type CodeAsset = ProgramAsset & { catalog?: ExperimentSpec };
 const experimentCatalog = experimentCatalogJson as ExperimentSpec[];
 const catalogBySketch = new Map(experimentCatalog.map(item => [item.sketch_name, item]));
 const FAMILY_ORDER = PROGRAM_FAMILY_ORDER;
-const ALL_ASSETS: CodeAsset[] = ALL_PROGRAM_ASSETS.map(asset => ({
-  ...asset,
-  catalog: asset.sketchName ? catalogBySketch.get(asset.sketchName) : undefined,
-}));
+const ALL_ASSETS: CodeAsset[] = ALL_PROGRAM_ASSETS.map(asset => {
+  const catalog = asset.sketchName ? catalogBySketch.get(asset.sketchName) : undefined;
+  return { ...asset, label: catalog?.title ?? asset.label, catalog };
+});
 
 function assetSearchText(asset: CodeAsset) {
   const catalog = asset.catalog;
