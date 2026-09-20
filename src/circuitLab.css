@@ -27,3 +27,10 @@
 .palette-group .palette-item{margin-bottom:6px}
 .circuit-boundary-details{margin-top:10px}
 .circuit-boundary-details .circuit-boundary{margin:7px 0 0}
+
+.circuit-component.bus,.circuit-component.junction{background:linear-gradient(145deg,#2a2438,#1a1724);border-color:#6c5c8e}
+.circuit-component.bus .component-face b,.circuit-component.junction .component-face b{color:#eee9ff}
+.circuit-component.photoresistor,.circuit-component.thermistor{background:linear-gradient(145deg,#2b2517,#1c1810)}
+.circuit-component.buzzer{background:linear-gradient(145deg,#2a2028,#1b151a)}
+.circuit-component.dcMotor,.circuit-component.relayModule,.circuit-component.nmos{background:linear-gradient(145deg,#202936,#151c25)}
+.circuit-component.diode,.circuit-component.capacitor{background:linear-gradient(145deg,#24241d,#181812)}
