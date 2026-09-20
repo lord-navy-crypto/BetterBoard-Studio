@@ -443,8 +443,7 @@ function runRuleChecker(components: PlacedComponent[], wires: Wire[]): Issue[] {
       const hasPower = members.some(member => member.pin.role === 'power');
       const hasGround = members.some(member => member.pin.role === 'ground');
       const voltages = [...new Set(members.filter(member => member.pin.role === 'power' && member.pin.voltage !== undefined).map(member => member.pin.voltage!))];
-      const signature = [...network.pinKeys].sort().join('|');
-      const netId = signature.replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 90);
+      const netId = `${start.componentId}::${start.pinId}`;
 
       if (hasPower && hasGround && !issues.some(issue => issue.id.startsWith('short-'))) {
         issues.push({
@@ -636,6 +635,10 @@ export default function CircuitLab({ onUseRecipe }: Props) {
     setSelectedIssueId(issue.id); setSelectedPin(null);
     const projected = issueTargets(issue, design.components, analysisWires);
     if (projected.componentIds[0]) setSelectedId(projected.componentIds[0]);
+    if (projected.pinKeys[0]) {
+      const split = projected.pinKeys[0].lastIndexOf('.');
+      if (split > 0) setSelectedPin({ componentId: projected.pinKeys[0].slice(0, split), pinId: projected.pinKeys[0].slice(split + 1) });
+    }
     setNotice(projected.componentIds.length || projected.pinKeys.length || projected.wireIds.length ? `Focused diagnostic: ${issue.title}` : `${issue.title} has no reliable structured canvas target; showing the checker text only.`);
   }
 
