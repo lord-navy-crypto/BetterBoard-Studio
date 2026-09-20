@@ -43,11 +43,13 @@ def main() -> int:
     main = read("src/main.tsx")
     assert "setInterval(() => setTasks(readTaskMemory()), 1200)" not in main, "Root task status must be event-driven, not globally polled every 1.2 seconds"
 
-    library = read("src/EngineeringExperimentLibrary.tsx")
+    experiment_library = read("src/EngineeringExperimentLibrary.tsx")
+    unified_library = read("src/UnifiedLibrary.tsx")
     program_catalog = read("src/ProgramLibraryCatalog.ts")
-    assert "ProgramLibraryCatalog" in library and "ALL_PROGRAM_ASSETS" in library, "Experiment Library must consume the shared program catalog"
+    assert "UnifiedLibrary" in experiment_library, "Experiment Library must render the exact shared Library component"
+    assert "ALL_PROGRAM_ASSETS" in unified_library and "PROGRAM_FAMILY_ORDER" in unified_library, "Unified Library must consume the shared program catalog"
     assert "import.meta.glob" in program_catalog, "shared program assets must remain repository-discovered"
-    assert "eager: true" not in library + program_catalog, "experiment source bodies must remain lazy-loaded"
+    assert "eager: true" not in experiment_library + unified_library + program_catalog, "experiment source bodies must remain lazy-loaded"
 
     circuit = read("src/CircuitLab.tsx")
     assert "runRuleChecker" in circuit, "existing circuit rule checker must remain canonical"
