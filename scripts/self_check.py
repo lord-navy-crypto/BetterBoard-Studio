@@ -247,7 +247,7 @@ def main() -> int:
         assert token in observatory, token
     assert not (ROOT / 'src' / 'LearningHub.tsx').exists()
     assert "id: 'learning'" not in main_text
-    for token in ['Campaigns','Complete Experiment Code Library','Run / Program handoff','Studio → Monitor & Data','Numeric Error Depth','Oscillation & Numerical Integration','Magnetic Model Validation']:
+    for token in ['Campaigns','Experiment Library','Run / Program handoff','Studio → Monitor & Data','Numeric Error Depth','Oscillation & Numerical Integration','Magnetic Model Validation']:
         assert token in hub, token
     assert 'Capture 7 s & Analyze' in numerical
     assert 'Capture Complete Campaign & Analyze' in numerical
@@ -267,8 +267,15 @@ def main() -> int:
         assert token in app_text, token
     assert 'Recipe settings' in RECIPE_PARAMETERS.read_text()
     developer_text = (ROOT / 'src' / 'DeveloperIDE.tsx').read_text()
-    for token in ['Template', 'Load recipe template', 'Save to Library', 'OpenPenguinBridge']:
+    for token in ['Template', 'Load template', 'Save to Library', 'OpenPenguinBridge', 'ProgramLibraryCatalog', 'ALL_PROGRAM_ASSETS']:
         assert token in developer_text, token
+    program_catalog = (ROOT / 'src' / 'ProgramLibraryCatalog.ts').read_text()
+    experiment_library = (ROOT / 'src' / 'EngineeringExperimentLibrary.tsx').read_text()
+    for token in ['ALL_PROGRAM_ASSETS', 'PROGRAM_FAMILY_ORDER', 'loadProgramAsset']:
+        assert token in program_catalog, token
+        assert token in experiment_library or token in developer_text or token in app_text, token
+    assert 'Unified Program Library' in app_text
+    assert 'Program Library ·' in developer_text
     assert 'Runtime log' in RUNTIME_LOG.read_text()
     for token in ['parameterValues', 'capture_measurement', 'save_measurement_buffer', 'RuntimeLog']:
         assert token in monitor_text, token
