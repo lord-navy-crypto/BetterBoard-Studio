@@ -27,7 +27,7 @@ def main() -> int:
     require("src/taskPresentation.ts", "deriveTaskTimeline", "taskElapsedMs")
     require("src/TaskCenter.tsx", "Running", "Failed", "Recent", "Copy logs", "betterboard:tasks-changed")
     require("src/circuitDiagnostics.ts", "connectedNet", "issueTargets")
-    require("src/CircuitLab.tsx", "connectedNet", "issueTargets", "Show only problems")
+    require("src/CircuitLab.tsx", "connectedNet", "issueTargets", "Show only problems", "electricalWires", "Common Bus", "Junction / Common Node", "Power and ground share the same electrical net")
     require("src/DeveloperIDE.tsx", "developer-engineering-split", "Diagnostics", "Run output")
     require("src/AnalysisWorkflowGuide.tsx", "Evidence", "Analyze", "Compare", "Decide")
     require("src/AnalysisVisualizationHub.tsx", "Run A", "Run B", "AnnotatedEngineeringPlot")
