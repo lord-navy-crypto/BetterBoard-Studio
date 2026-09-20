@@ -259,12 +259,12 @@ function Root() {
     </div>
 
     {workspace === 'studio' && <section className="bb-engineering-overview-shell">
+      <EngineeringStatusMap nodes={statusNodes} onNavigate={navigateStatus}/>
       <button type="button" className="bb-overview-toggle" onClick={() => setEngineeringOverviewOpen(value => !value)} aria-expanded={engineeringOverviewOpen}>
-        <span><b>Engineering overview</b><small>{workflowNextAction} · {diagnosis.title}</small></span>
+        <span><b>More engineering context</b><small>{workflowNextAction} · {diagnosis.title}</small></span>
         {engineeringOverviewOpen ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
       </button>
       {engineeringOverviewOpen && <div className="bb-engineering-overview">
-        <EngineeringStatusMap nodes={statusNodes} onNavigate={navigateStatus}/>
         <HardwareTopology toolchainReady={Boolean(cli?.found)} selectedPort={selectedPort} activePort={activePort} selectedFqbn={fqbn} profiles={profiles} diagnosis={diagnosis} requiredLibraries={null} missingLibraries={null} firmwareLabel={lastProgram?.title ?? null} firmwareReady={Boolean(lastProgram)}/>
         <div className="boundary compact" style={{ maxWidth: 1504, margin: '8px auto 0' }}><b>Next action</b> · {workflowNextAction}</div>
         <EngineeringFlowLauncher onOpenCapability={navigateSemanticCapability}/>
