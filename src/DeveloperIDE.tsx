@@ -8,6 +8,7 @@ import ArduinoEcosystemManager from './ArduinoEcosystemManager';
 import SketchbookExplorer from './SketchbookExplorer';
 import CopyButton from './CopyButton';
 import { clearDeveloperDraft, loadDeveloperDraft, saveDeveloperDraft, type DeveloperDraft } from './DeveloperDraftStore';
+import { ALL_PROGRAM_ASSETS, PROGRAM_FAMILY_ORDER, loadProgramAsset } from './ProgramLibraryCatalog';
 
 type CliInfo = { found: boolean; path?: string; version?: string; error?: string };
 type RecipeSpec = {
@@ -92,7 +93,7 @@ export default function DeveloperIDE({
   const [output, setOutput] = useState(initialDraft ? `Recovered unsaved Developer draft from ${new Date(initialDraft.updatedAt).toLocaleString()}.` : 'Ready. Edit the sketch, then Verify or Run / Upload.');
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(Boolean(initialDraft));
-  const [templateId, setTemplateId] = useState(initialDraft?.templateId ?? recipe?.id ?? '');
+  const [templateId, setTemplateId] = useState(initialDraft?.templateId ?? (recipe?.id ? `recipe:${recipe.id}` : ''));
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const [recoveredAt, setRecoveredAt] = useState(initialDraft?.updatedAt ?? 0);
   const [revealPosition, setRevealPosition] = useState<{ line: number; column?: number } | null>(null);
@@ -104,12 +105,12 @@ export default function DeveloperIDE({
       const draftRecipe = initialDraftRef.current?.recipeId ?? '';
       if (!recipe?.id || !draftRecipe || draftRecipe === recipe.id) return;
       recoveredDraftRef.current = false;
-      setOutput(`Recipe selection changed to ${recipe.title}, but the recovered Developer draft was preserved. Save it or explicitly load a recipe template to replace it.`);
+      setOutput(`Recipe selection changed to ${recipe.title}, but the recovered Developer draft was preserved. Save it or explicitly load a template to replace it.`);
       onStatus('Developer preserved recovered edits while the recipe selection changed.');
       return;
     }
     if (dirty) {
-      setOutput(`Recipe/source selection changed to ${recipe?.title || 'blank sketch'}, but unsaved Developer edits were preserved. Save them or use Load recipe template to replace the editor explicitly.`);
+      setOutput(`Recipe/source selection changed to ${recipe?.title || 'blank sketch'}, but unsaved Developer edits were preserved. Save them or use Load template to replace the editor explicitly.`);
       onStatus('Developer preserved unsaved edits while the recipe/source selection changed.');
       return;
     }
@@ -118,7 +119,7 @@ export default function DeveloperIDE({
     setSketchName(safeDefaultName(recipe?.sketch_name));
     setSavedDir(''); setProjectDir(''); setProjectFileName('');
     setOutput(`Loaded ${recipe?.title || 'blank sketch'} as the editing starting point.`);
-    setDirty(false); setDiagnostics([]); setTemplateId(recipe?.id ?? ''); setRevealPosition(null);
+    setDirty(false); setDiagnostics([]); setTemplateId(recipe?.id ? `recipe:${recipe.id}` : ''); setRevealPosition(null);
   }, [recipe?.id, recipe?.title, canonicalSource, dirty, onStatus]);
 
   useEffect(() => {
@@ -228,22 +229,30 @@ export default function DeveloperIDE({
   }
 
   async function loadTemplate() {
-    const template = recipes.find(item => item.id === templateId);
-    if (!template) { resetToRecipe(); return; }
-    if (dirty && !window.confirm(`Replace the current unsaved Developer edits with the ${template.title} template?`)) return;
+    if (!templateId) { resetToRecipe(); return; }
+    const recipeTemplate = templateId.startsWith('recipe:') ? recipes.find(item => item.id === templateId.slice(7)) : undefined;
+    const assetTemplate = templateId.startsWith('asset:') ? ALL_PROGRAM_ASSETS.find(item => item.key === templateId) : undefined;
+    const label = recipeTemplate?.title ?? assetTemplate?.label ?? 'selected template';
+    if (dirty && !window.confirm(`Replace the current unsaved Developer edits with the ${label} template?`)) return;
     try {
-      const text = await invoke<string>('recipe_source', { recipeId: template.id });
+      const text = recipeTemplate
+        ? await invoke<string>('recipe_source', { recipeId: recipeTemplate.id })
+        : assetTemplate
+          ? await loadProgramAsset(assetTemplate)
+          : canonicalSource || BLANK_SKETCH;
       recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
-      appliedCanonicalRef.current = `${template.id}\n${text}`;
-      setSource(text); setSketchName(safeDefaultName(template.sketch_name)); setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]); setRevealPosition(null);
-      setOutput(`Loaded recipe template: ${template.title}`); setView('editor');
+      appliedCanonicalRef.current = `${templateId}\n${text}`;
+      setSource(text);
+      setSketchName(safeDefaultName(recipeTemplate?.sketch_name ?? assetTemplate?.sketchName ?? 'BetterBoardSketch'));
+      setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]); setRevealPosition(null);
+      setOutput(`Loaded template: ${label}${assetTemplate ? ` · ${assetTemplate.path}` : ''}`); setView('editor');
     } catch (error) { setOutput(`Template load failed: ${error}`); }
   }
 
   async function saveToLibrary() {
     const task = onTaskStart('System', `Save to Library · ${sketchName}`, 'Saving editable sketch as a BetterBoard user recipe…');
     try {
-      const template = recipes.find(item => item.id === templateId);
+      const template = templateId.startsWith('recipe:') ? recipes.find(item => item.id === templateId.slice(7)) : undefined;
       const saved = await invoke<RecipeSpec>('user_recipe_save', { title: sketchName, baseRecipeId: template?.id ?? recipe?.id ?? '', source, parameterValues: template?.parameter_values ?? {} });
       onLibrarySaved?.(saved); const detail = `Saved user recipe · ${saved.title}`;
       onTaskLog(task, detail); onTaskFinish(task, 'done', detail); onStatus(detail); setOutput(detail);
@@ -293,7 +302,11 @@ export default function DeveloperIDE({
     {view === 'editor' && <div className="developer-ide-grid developer-engineering-split">
       <div className="panel developer-editor-panel">
         <div className="developer-filebar">
-          <label>Template<select value={templateId} onChange={event => setTemplateId(event.target.value)}><option value="">Blank / current</option>{recipes.map(item => <option key={item.id} value={item.id}>{item.user_defined ? 'My Library · ' : ''}{item.title}</option>)}</select></label>
+          <label>Template<select value={templateId} onChange={event => setTemplateId(event.target.value)}>
+            <option value="">Blank / current</option>
+            <optgroup label="Recipe Library">{recipes.map(item => <option key={item.id} value={`recipe:${item.id}`}>{item.user_defined ? 'My Library · ' : ''}{item.title}</option>)}</optgroup>
+            {PROGRAM_FAMILY_ORDER.map(group => <optgroup key={group} label={`Program Library · ${group}`}>{ALL_PROGRAM_ASSETS.filter(item => item.family === group && item.kind === 'firmware').map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</optgroup>)}
+          </select></label>
           {!projectDir && <label>Sketch name<input value={sketchName} disabled={busy} onChange={event => { setSketchName(event.target.value.replace(/[^A-Za-z0-9_]/g, '_')); setDirty(true); }} /></label>}
           {projectDir && <span className="project-chip">Project · {projectFileName}</span>}
           <span className={dirty ? 'dirty' : ''}>{dirty ? '● unsaved · autosaved draft' : 'saved / recipe state'}</span>
