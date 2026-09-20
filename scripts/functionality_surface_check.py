@@ -86,7 +86,7 @@ assert "id: 'learning'" not in main, 'Learning regressed into top-level navigati
 
 # Experiments is campaign-only. Generic preparation/expert tools must not be mounted here.
 for token in [
-    'Engineering Lab experiments', 'Experiments contains campaigns, not preparation tools.',
+    'Experiment Library', 'same complete program inventory',
     'Numeric Error Depth', 'Oscillation & Numerical Integration', 'Magnetic Model Validation',
     'Campaign families', 'Independent host validation', 'RAW vs REDUCED campaign',
 ]:
@@ -160,7 +160,8 @@ for token in ['Program', 'Monitor', 'Evidence', 'Analysis', 'Export', 'System', 
 
 # Circuit Lab Phase A/B stays real and reachable.
 for token in [
-    'betterboard.circuit-design/0.1', 'Visual Wiring Editor + Rule Checker',
+    'betterboard.circuit-design/0.1', 'UNO R3 Wiring Studio + Breadboard Tutor',
+    'Arduino UNO R3', 'Solderless Breadboard', 'BME280', 'ADXL345', 'MLX90393', 'INA219', 'HC-SR04', 'Hobby Servo',
     'Direct power-to-ground connection', 'LED is directly connected without a series resistor',
     'Use Bench 01 firmware', 'localStorage.setItem',
 ]:
@@ -202,7 +203,7 @@ for token in ['Recipe settings', 'slider', 'macro_name', 'Defaults']:
     assert token in parameter_panel, f'Recipe parameter UI lost {token}'
 for token in ['prepare_recipe_with_params', 'user_recipe_save', 'Save preset to My Library', 'My Library']:
     assert token in app + rust, f'Parameterized/user recipe loop lost {token}'
-for token in ['Load recipe template', 'Save to Library', 'OpenPenguinBridge']:
+for token in ['Load template', 'Save to Library', 'OpenPenguinBridge', 'ProgramLibraryCatalog', 'ALL_PROGRAM_ASSETS']:
     assert token in developer, f'Developer template/library loop lost {token}'
 for token in ['Runtime log', 'Task Center / Arduino CLI / monitor / evidence operations']:
     assert token in runtime_log, f'Runtime log lost {token}'
