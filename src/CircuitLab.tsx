@@ -8,7 +8,19 @@ import './circuitLab.css';
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
 type PinRole = 'power' | 'ground' | 'analog-in' | 'digital-io' | 'pwm-io' | 'signal' | 'passive';
-type ComponentKind = 'uno' | 'potentiometer' | 'led' | 'resistor' | 'button';
+type ComponentKind =
+  | 'uno'
+  | 'breadboard'
+  | 'potentiometer'
+  | 'led'
+  | 'resistor'
+  | 'button'
+  | 'bme280'
+  | 'adxl345'
+  | 'mlx90393'
+  | 'ina219'
+  | 'hcsr04'
+  | 'servo';
 type Severity = 'error' | 'warning' | 'pass' | 'info';
 
 type PinSpec = { id: string; label: string; role: PinRole; side: Side; offset: number; voltage?: number };
@@ -22,46 +34,129 @@ type Props = { onUseRecipe?: (recipeId: string) => void };
 
 const SPECS: Record<ComponentKind, ComponentSpec> = {
   uno: {
-    kind: 'uno', title: 'Arduino UNO', subtitle: 'UNO-compatible board', width: 238, height: 174,
+    kind: 'uno', title: 'Arduino UNO R3', subtitle: 'ATmega328P · 5 V · 16 MHz', width: 332, height: 224,
     pins: [
-      { id: '5v', label: '5V', role: 'power', side: 'top', offset: 54, voltage: 5 },
-      { id: '3v3', label: '3V3', role: 'power', side: 'top', offset: 112, voltage: 3.3 },
-      { id: 'gnd', label: 'GND', role: 'ground', side: 'bottom', offset: 80 },
-      { id: 'a0', label: 'A0', role: 'analog-in', side: 'left', offset: 54 },
-      { id: 'a1', label: 'A1', role: 'analog-in', side: 'left', offset: 88 },
-      { id: 'a2', label: 'A2', role: 'analog-in', side: 'left', offset: 122 },
-      { id: 'd2', label: 'D2', role: 'digital-io', side: 'right', offset: 48 },
-      { id: 'd3', label: 'D3~', role: 'pwm-io', side: 'right', offset: 82 },
-      { id: 'd9', label: 'D9~', role: 'pwm-io', side: 'right', offset: 116 },
+      { id: 'ioref', label: 'IOREF', role: 'power', side: 'top', offset: 34, voltage: 5 },
+      { id: 'reset', label: 'RESET', role: 'signal', side: 'top', offset: 72 },
+      { id: '3v3', label: '3V3', role: 'power', side: 'top', offset: 108, voltage: 3.3 },
+      { id: '5v', label: '5V', role: 'power', side: 'top', offset: 140, voltage: 5 },
+      { id: 'gnd1', label: 'GND', role: 'ground', side: 'top', offset: 172 },
+      { id: 'gnd2', label: 'GND', role: 'ground', side: 'top', offset: 204 },
+      { id: 'vin', label: 'VIN', role: 'power', side: 'top', offset: 240 },
+      { id: 'a0', label: 'A0', role: 'analog-in', side: 'left', offset: 38 },
+      { id: 'a1', label: 'A1', role: 'analog-in', side: 'left', offset: 68 },
+      { id: 'a2', label: 'A2', role: 'analog-in', side: 'left', offset: 98 },
+      { id: 'a3', label: 'A3', role: 'analog-in', side: 'left', offset: 128 },
+      { id: 'a4', label: 'A4/SDA', role: 'analog-in', side: 'left', offset: 158 },
+      { id: 'a5', label: 'A5/SCL', role: 'analog-in', side: 'left', offset: 188 },
+      { id: 'd0', label: 'D0/RX', role: 'digital-io', side: 'right', offset: 26 },
+      { id: 'd1', label: 'D1/TX', role: 'digital-io', side: 'right', offset: 52 },
+      { id: 'd2', label: 'D2/INT0', role: 'digital-io', side: 'right', offset: 78 },
+      { id: 'd3', label: 'D3~/INT1', role: 'pwm-io', side: 'right', offset: 104 },
+      { id: 'd4', label: 'D4', role: 'digital-io', side: 'right', offset: 130 },
+      { id: 'd5', label: 'D5~', role: 'pwm-io', side: 'right', offset: 156 },
+      { id: 'd6', label: 'D6~', role: 'pwm-io', side: 'right', offset: 182 },
+      { id: 'd7', label: 'D7', role: 'digital-io', side: 'right', offset: 208 },
+      { id: 'd8', label: 'D8', role: 'digital-io', side: 'bottom', offset: 38 },
+      { id: 'd9', label: 'D9~', role: 'pwm-io', side: 'bottom', offset: 76 },
+      { id: 'd10', label: 'D10~/SS', role: 'pwm-io', side: 'bottom', offset: 116 },
+      { id: 'd11', label: 'D11~/MOSI', role: 'pwm-io', side: 'bottom', offset: 158 },
+      { id: 'd12', label: 'D12/MISO', role: 'digital-io', side: 'bottom', offset: 204 },
+      { id: 'd13', label: 'D13~/SCK', role: 'pwm-io', side: 'bottom', offset: 250 },
+      { id: 'aref', label: 'AREF', role: 'signal', side: 'bottom', offset: 294 },
+    ],
+  },
+  breadboard: {
+    kind: 'breadboard', title: 'Solderless Breadboard', subtitle: 'power rails + terminal strips', width: 360, height: 160,
+    pins: [
+      { id: 'rail5v', label: '+ rail', role: 'passive', side: 'top', offset: 62 },
+      { id: 'railgnd', label: '− rail', role: 'passive', side: 'top', offset: 292 },
+      { id: 'rowA', label: 'A–E row', role: 'passive', side: 'left', offset: 58 },
+      { id: 'rowF', label: 'F–J row', role: 'passive', side: 'right', offset: 58 },
+      { id: 'rowA2', label: 'A–E row 2', role: 'passive', side: 'left', offset: 110 },
+      { id: 'rowF2', label: 'F–J row 2', role: 'passive', side: 'right', offset: 110 },
     ],
   },
   potentiometer: {
     kind: 'potentiometer', title: 'Potentiometer', subtitle: '3-pin analog input', width: 178, height: 126,
     pins: [
       { id: 'vcc', label: 'VCC', role: 'power', side: 'left', offset: 36 },
-      { id: 'sig', label: 'SIG', role: 'signal', side: 'right', offset: 63 },
+      { id: 'sig', label: 'WIPER', role: 'signal', side: 'right', offset: 63 },
       { id: 'gnd', label: 'GND', role: 'ground', side: 'left', offset: 92 },
     ],
   },
   led: {
-    kind: 'led', title: 'LED', subtitle: 'Indicator output', width: 150, height: 112,
+    kind: 'led', title: 'LED', subtitle: 'indicator output', width: 150, height: 112,
     pins: [
       { id: 'anode', label: 'A +', role: 'passive', side: 'left', offset: 38 },
       { id: 'cathode', label: 'K −', role: 'passive', side: 'left', offset: 78 },
     ],
   },
   resistor: {
-    kind: 'resistor', title: 'Resistor', subtitle: 'Series / pull element', width: 154, height: 92,
+    kind: 'resistor', title: 'Resistor', subtitle: 'series / pull element', width: 154, height: 92,
     pins: [
       { id: 'a', label: '1', role: 'passive', side: 'left', offset: 46 },
       { id: 'b', label: '2', role: 'passive', side: 'right', offset: 46 },
     ],
   },
   button: {
-    kind: 'button', title: 'Push Button', subtitle: 'Digital contact', width: 154, height: 98,
+    kind: 'button', title: 'Push Button', subtitle: 'digital contact', width: 154, height: 98,
     pins: [
       { id: 'a', label: 'A', role: 'passive', side: 'left', offset: 49 },
       { id: 'b', label: 'B', role: 'passive', side: 'right', offset: 49 },
+    ],
+  },
+  bme280: {
+    kind: 'bme280', title: 'BME280', subtitle: 'temperature · pressure · humidity · I²C', width: 184, height: 112,
+    pins: [
+      { id: 'vcc', label: 'VIN', role: 'power', side: 'left', offset: 26 },
+      { id: 'gnd', label: 'GND', role: 'ground', side: 'left', offset: 82 },
+      { id: 'sda', label: 'SDA', role: 'signal', side: 'right', offset: 38 },
+      { id: 'scl', label: 'SCL', role: 'signal', side: 'right', offset: 76 },
+    ],
+  },
+  adxl345: {
+    kind: 'adxl345', title: 'ADXL345', subtitle: '3-axis accelerometer · I²C/SPI', width: 184, height: 116,
+    pins: [
+      { id: 'vcc', label: 'VIN', role: 'power', side: 'left', offset: 28 },
+      { id: 'gnd', label: 'GND', role: 'ground', side: 'left', offset: 86 },
+      { id: 'sda', label: 'SDA', role: 'signal', side: 'right', offset: 34 },
+      { id: 'scl', label: 'SCL', role: 'signal', side: 'right', offset: 76 },
+    ],
+  },
+  mlx90393: {
+    kind: 'mlx90393', title: 'MLX90393', subtitle: '3-axis magnetometer · I²C', width: 190, height: 118,
+    pins: [
+      { id: 'vcc', label: 'VIN', role: 'power', side: 'left', offset: 28 },
+      { id: 'gnd', label: 'GND', role: 'ground', side: 'left', offset: 88 },
+      { id: 'sda', label: 'SDA', role: 'signal', side: 'right', offset: 36 },
+      { id: 'scl', label: 'SCL', role: 'signal', side: 'right', offset: 80 },
+    ],
+  },
+  ina219: {
+    kind: 'ina219', title: 'INA219', subtitle: 'voltage/current monitor · I²C', width: 190, height: 118,
+    pins: [
+      { id: 'vcc', label: 'VCC', role: 'power', side: 'left', offset: 28 },
+      { id: 'gnd', label: 'GND', role: 'ground', side: 'left', offset: 88 },
+      { id: 'sda', label: 'SDA', role: 'signal', side: 'right', offset: 36 },
+      { id: 'scl', label: 'SCL', role: 'signal', side: 'right', offset: 80 },
+    ],
+  },
+  hcsr04: {
+    kind: 'hcsr04', title: 'HC-SR04', subtitle: 'ultrasonic distance module', width: 202, height: 122,
+    pins: [
+      { id: 'vcc', label: 'VCC', role: 'power', side: 'left', offset: 28 },
+      { id: 'gnd', label: 'GND', role: 'ground', side: 'left', offset: 92 },
+      { id: 'trig', label: 'TRIG', role: 'signal', side: 'right', offset: 38 },
+      { id: 'echo', label: 'ECHO', role: 'signal', side: 'right', offset: 82 },
+    ],
+  },
+  servo: {
+    kind: 'servo', title: 'Hobby Servo', subtitle: 'power + PWM control', width: 188, height: 116,
+    pins: [
+      { id: 'vcc', label: 'V+', role: 'power', side: 'left', offset: 28 },
+      { id: 'gnd', label: 'GND', role: 'ground', side: 'left', offset: 86 },
+      { id: 'sig', label: 'SIG', role: 'signal', side: 'right', offset: 58 },
     ],
   },
 };
@@ -69,7 +164,7 @@ const SPECS: Record<ComponentKind, ComponentSpec> = {
 const blankDesign = (): CircuitDesign => ({
   schema: 'betterboard.circuit-design/0.1',
   name: 'Untitled circuit',
-  components: [{ id: 'uno-1', kind: 'uno', x: 360, y: 230 }],
+  components: [{ id: 'uno-1', kind: 'uno', x: 330, y: 230 }],
   wires: [],
 });
 
@@ -199,7 +294,7 @@ function runRuleChecker(components: PlacedComponent[], wires: Wire[]): Issue[] {
     if (!connection(gnd).length) issues.push({ id: `${component.id}-gnd`, severity: 'warning', title: 'Potentiometer ground is not connected', detail: 'Connect the module ground to board GND.' });
     else if (!peerPins(gnd).some(peer => peer.pin.role === 'ground')) issues.push({ id: `${component.id}-gnd-role`, severity: 'error', title: 'Potentiometer ground has the wrong destination', detail: 'The GND pin should connect to board GND.' });
     if (!connection(sig).length) issues.push({ id: `${component.id}-sig`, severity: 'warning', title: 'Potentiometer signal is not connected', detail: 'Connect SIG to an analog input such as A0.' });
-    else if (!peerPins(sig).some(peer => peer.pin.role === 'analog-in')) issues.push({ id: `${component.id}-sig-role`, severity: 'error', title: 'Potentiometer signal is not on an analog input', detail: 'Bench 01 expects the wiper/signal line on A0–A2 in this first component library.' });
+    else if (!peerPins(sig).some(peer => peer.pin.role === 'analog-in')) issues.push({ id: `${component.id}-sig-role`, severity: 'error', title: 'Potentiometer signal is not on an analog input', detail: 'Bench 01 expects the wiper/signal line on A0–A2 in this UNO R3 / breadboard teaching library.' });
   }
 
   for (const component of components.filter(item => item.kind === 'led')) {
@@ -350,7 +445,7 @@ export default function CircuitLab({ onUseRecipe }: Props) {
 
   return <section className="circuit-lab">
     <div className="circuit-toolbar panel">
-      <div><div className="eyebrow">Circuit Lab · Phase A/B</div><h2>Visual Wiring Editor + Rule Checker</h2><p className="muted">Lay out a low-voltage Arduino design, connect pins, and trace bounded rule-check findings to real nets before touching hardware.</p></div>
+      <div><div className="eyebrow">Circuit Lab · UNO R3 teaching bench</div><h2>UNO R3 Wiring Studio + Breadboard Tutor</h2><p className="muted">Lay out an UNO R3-style board, breadboard and common modules, connect real pin names, and trace bounded rule-check findings before building the physical circuit.</p></div>
       <div className="circuit-actions">
         <button className="ghost" onClick={loadBench01}><RotateCcw size={15}/> Bench 01 template</button>
         <button className="ghost" onClick={saveLocal}><Save size={15}/> Save</button>
@@ -370,7 +465,7 @@ export default function CircuitLab({ onUseRecipe }: Props) {
       <aside className="panel component-palette">
         <div className="panel-title"><Plus size={17}/> Components</div>
         {(Object.keys(SPECS) as ComponentKind[]).map(kind => { const spec = SPECS[kind]; return <button key={kind} className="palette-item" onClick={() => addComponent(kind)}><CircuitBoard size={18}/><span><b>{spec.title}</b><small>{spec.subtitle}</small></span><Plus size={14}/></button>; })}
-        <div className="circuit-boundary"><ShieldCheck size={14}/>First release: UNO-class low-voltage design rules only. No SPICE, MCU emulation, current calculation, or component-damage prediction.</div>
+        <div className="circuit-boundary"><ShieldCheck size={14}/>UNO R3 teaching model based on the official pinout, plus breadboard and common modules. Rule checking is bounded guidance only: no SPICE, MCU emulation, current calculation, or component-damage prediction.</div>
       </aside>
 
       <div className="panel circuit-canvas-panel">
