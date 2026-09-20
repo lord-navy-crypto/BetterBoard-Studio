@@ -62,7 +62,7 @@ const SPECS: Record<ComponentKind, ComponentSpec> = {
       { id: 'd10', label: 'D10~/SS', role: 'pwm-io', side: 'bottom', offset: 116 },
       { id: 'd11', label: 'D11~/MOSI', role: 'pwm-io', side: 'bottom', offset: 158 },
       { id: 'd12', label: 'D12/MISO', role: 'digital-io', side: 'bottom', offset: 204 },
-      { id: 'd13', label: 'D13~/SCK', role: 'pwm-io', side: 'bottom', offset: 250 },
+      { id: 'd13', label: 'D13/SCK', role: 'digital-io', side: 'bottom', offset: 250 },
       { id: 'aref', label: 'AREF', role: 'signal', side: 'bottom', offset: 294 },
     ],
   },
