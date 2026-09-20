@@ -4,6 +4,7 @@ import { CheckCircle2, Code2, Cpu, FlaskConical, Play, Search, Upload } from 'lu
 import experimentCatalogJson from '../engineering-lab-experiments/catalog.json';
 import CopyButton from './CopyButton';
 import { useHardwareSession } from './HardwareSession';
+import { ALL_PROGRAM_ASSETS, PROGRAM_FAMILY_ORDER, loadProgramAsset, type ProgramAsset, type ProgramFamily } from './ProgramLibraryCatalog';
 
 type ExperimentSpec = {
   id: string;
@@ -16,121 +17,15 @@ type ExperimentSpec = {
   units: string[];
 };
 
-type AssetKind = 'firmware' | 'analysis';
-type AssetFamily =
-  | 'Dedicated Engineering Lab'
-  | 'Numerical Reliability'
-  | 'ESP32 Research'
-  | 'Sensor Suite'
-  | 'BetterBoard Firmware'
-  | 'Host Analysis & Bridges';
-
-type SourceLoader = () => Promise<string>;
-
-type CodeAsset = {
-  key: string;
-  label: string;
-  path: string;
-  loadSource: SourceLoader;
-  kind: AssetKind;
-  family: AssetFamily;
-  sketchName?: string;
-  catalog?: ExperimentSpec;
-};
+type CodeAsset = ProgramAsset & { catalog?: ExperimentSpec };
 
 const experimentCatalog = experimentCatalogJson as ExperimentSpec[];
 const catalogBySketch = new Map(experimentCatalog.map(item => [item.sketch_name, item]));
-
-// Discover every supported source path at build time, but do not embed every
-// source body in the startup chunk. Vite creates lazy source chunks and the UI
-// loads a file only when the user opens/verifies/uploads it.
-const firmwareModules = import.meta.glob(
-  [
-    '../engineering-lab-experiments/firmware/**/*.ino',
-    '../src-tauri/resources/firmware/**/*.ino',
-    '../sensor-suite/firmware/**/*.ino',
-    '../firmware/betterboard-core/examples/**/*.ino',
-  ],
-  { query: '?raw', import: 'default' },
-) as Record<string, () => Promise<string>>;
-
-const pythonModules = import.meta.glob(
-  '../scripts/*.py',
-  { query: '?raw', import: 'default' },
-) as Record<string, () => Promise<string>>;
-
-const FAMILY_ORDER: AssetFamily[] = [
-  'Dedicated Engineering Lab',
-  'Numerical Reliability',
-  'ESP32 Research',
-  'Sensor Suite',
-  'BetterBoard Firmware',
-  'Host Analysis & Bridges',
-];
-
-function repositoryPath(modulePath: string) {
-  return modulePath.replace(/^\.\.\//, '');
-}
-
-function filenameWithoutExtension(path: string) {
-  const name = path.split('/').pop() ?? path;
-  return name.replace(/\.[^.]+$/, '');
-}
-
-function humanize(value: string) {
-  return value
-    .replace(/^EL_/, '')
-    .replace(/_/g, ' ')
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function firmwareFamily(path: string): AssetFamily {
-  if (path.includes('engineering-lab-experiments/firmware/')) return 'Dedicated Engineering Lab';
-  if (path.includes('sensor-suite/firmware/')) return 'Sensor Suite';
-  if (/\/ESP32[^/]*\//.test(path)) return 'ESP32 Research';
-  if (/\/(NumericError_|Numerical|EmbeddedNumerical|MPU6050Numerics)/.test(path)) return 'Numerical Reliability';
-  return 'BetterBoard Firmware';
-}
-
-function makeFirmwareAssets(): CodeAsset[] {
-  return Object.entries(firmwareModules).map(([modulePath, loadSource]) => {
-    const path = repositoryPath(modulePath);
-    const sketchName = filenameWithoutExtension(path);
-    const catalog = catalogBySketch.get(sketchName);
-    return {
-      key: path,
-      label: catalog?.title ?? humanize(sketchName),
-      path,
-      loadSource,
-      kind: 'firmware' as const,
-      family: firmwareFamily(path),
-      sketchName,
-      catalog,
-    };
-  });
-}
-
-function makePythonAssets(): CodeAsset[] {
-  return Object.entries(pythonModules).map(([modulePath, loadSource]) => {
-    const path = repositoryPath(modulePath);
-    return {
-      key: path,
-      label: humanize(filenameWithoutExtension(path)),
-      path,
-      loadSource,
-      kind: 'analysis' as const,
-      family: 'Host Analysis & Bridges' as const,
-    };
-  });
-}
-
-const ALL_ASSETS: CodeAsset[] = [...makeFirmwareAssets(), ...makePythonAssets()]
-  .sort((a, b) => {
-    const familyDelta = FAMILY_ORDER.indexOf(a.family) - FAMILY_ORDER.indexOf(b.family);
-    return familyDelta || a.label.localeCompare(b.label);
-  });
+const FAMILY_ORDER = PROGRAM_FAMILY_ORDER;
+const ALL_ASSETS: CodeAsset[] = ALL_PROGRAM_ASSETS.map(asset => ({
+  ...asset,
+  catalog: asset.sketchName ? catalogBySketch.get(asset.sketchName) : undefined,
+}));
 
 function assetSearchText(asset: CodeAsset) {
   const catalog = asset.catalog;
@@ -149,24 +44,19 @@ function assetSearchText(asset: CodeAsset) {
 export default function EngineeringExperimentLibrary() {
   const { fqbn, selectedPort, diagnosis } = useHardwareSession();
   const [query, setQuery] = useState('');
-  const [family, setFamily] = useState<'All' | AssetFamily>('All');
+  const [family, setFamily] = useState<'All' | ProgramFamily>('All');
   const [active, setActive] = useState<CodeAsset | null>(null);
   const [activeSource, setActiveSource] = useState('');
   const [status, setStatus] = useState('Select any experiment or analysis tool to inspect its real repository source code.');
   const [busy, setBusy] = useState(false);
 
-  const counts = useMemo(() => Object.fromEntries(FAMILY_ORDER.map(name => [name, ALL_ASSETS.filter(asset => asset.family === name).length])) as Record<AssetFamily, number>, []);
+  const counts = useMemo(() => Object.fromEntries(FAMILY_ORDER.map(name => [name, ALL_ASSETS.filter(asset => asset.family === name).length])) as Record<ProgramFamily, number>, []);
 
   const visibleAssets = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return ALL_ASSETS.filter(asset => (family === 'All' || asset.family === family) && (!needle || assetSearchText(asset).includes(needle)));
   }, [query, family]);
 
-  async function loadSource(asset: CodeAsset) {
-    const source = await asset.loadSource();
-    if (!source.trim()) throw new Error(`Source is empty: ${asset.path}`);
-    return source;
-  }
 
   async function viewAsset(asset: CodeAsset) {
     if (busy) return;
@@ -175,7 +65,7 @@ export default function EngineeringExperimentLibrary() {
     setActiveSource('');
     setStatus(`Loading ${asset.path}…`);
     try {
-      const source = await loadSource(asset);
+      const source = await loadProgramAsset(asset);
       setActiveSource(source);
       setStatus(`Loaded ${asset.path} · ${source.split(/\r?\n/).length} lines · real repository source`);
     } catch (error) {
@@ -230,8 +120,8 @@ export default function EngineeringExperimentLibrary() {
   }
 
   return <section className="panel" style={{ maxWidth: 1420, margin: '14px auto' }}>
-    <div className="panel-title"><FlaskConical size={18}/> Complete Experiment Code Library</div>
-    <p className="muted">Repository-driven source browser. It discovers dedicated Engineering Lab firmware, Numerical Reliability firmware, ESP32 research firmware, Sensor Suite firmware, BetterBoard firmware examples/resources, and host Python analysis/bridge tools directly from the real source trees. Source bodies are loaded only when opened, so full repository coverage does not inflate the startup path.</p>
+    <div className="panel-title"><FlaskConical size={18}/> Experiment Library · unified program inventory</div>
+    <p className="muted">Shared repository-driven source browser. This is the same program inventory used by Studio → Recipe Library and Developer → Load Template, with Engineering Lab scientific metadata layered on top.</p>
 
     <div className="boundary"><CheckCircle2 size={14}/> {ALL_ASSETS.length} source files connected to UI · {experimentCatalog.length}/{experimentCatalog.length} dedicated Engineering Lab catalog experiments enriched with scientific metadata · no hand-maintained per-file visibility list.</div>
 
