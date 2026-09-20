@@ -77,7 +77,7 @@ export default function EngineeringExperimentLibrary() {
 
   async function activeFirmware() {
     if (!active || active.kind !== 'firmware' || !active.sketchName) throw new Error('Select a firmware experiment first.');
-    const source = activeSource || await loadSource(active);
+    const source = activeSource || await loadProgramAsset(active);
     if (!activeSource) setActiveSource(source);
     return { source, sketchName: active.sketchName };
   }
