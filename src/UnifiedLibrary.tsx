@@ -73,7 +73,7 @@ export default function UnifiedLibrary({
   const [assetSource, setAssetSource] = useState('');
 
   const families = useMemo(() => {
-    const recipeFamilies = [...new Set(recipes.map(recipeFamily))];
+    const recipeFamilies: string[] = [...new Set(recipes.map(recipeFamily))];
     return ['All', ...recipeFamilies, ...PROGRAM_FAMILY_ORDER.filter(item => !recipeFamilies.includes(item))];
   }, [recipes]);
 
