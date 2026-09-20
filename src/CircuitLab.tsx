@@ -179,11 +179,47 @@ const bench01Design = (): CircuitDesign => ({
   ],
   wires: [
     { id: 'w1', from: { componentId: 'uno-1', pinId: '5v' }, to: { componentId: 'pot-1', pinId: 'vcc' } },
-    { id: 'w2', from: { componentId: 'uno-1', pinId: 'gnd' }, to: { componentId: 'pot-1', pinId: 'gnd' } },
+    { id: 'w2', from: { componentId: 'uno-1', pinId: 'gnd1' }, to: { componentId: 'pot-1', pinId: 'gnd' } },
     { id: 'w3', from: { componentId: 'pot-1', pinId: 'sig' }, to: { componentId: 'uno-1', pinId: 'a0' } },
     { id: 'w4', from: { componentId: 'uno-1', pinId: 'd9' }, to: { componentId: 'res-1', pinId: 'a' } },
     { id: 'w5', from: { componentId: 'res-1', pinId: 'b' }, to: { componentId: 'led-1', pinId: 'anode' } },
-    { id: 'w6', from: { componentId: 'led-1', pinId: 'cathode' }, to: { componentId: 'uno-1', pinId: 'gnd' } },
+    { id: 'w6', from: { componentId: 'led-1', pinId: 'cathode' }, to: { componentId: 'uno-1', pinId: 'gnd1' } },
+  ],
+});
+
+const i2cSensorTutorial = (): CircuitDesign => ({
+  schema: 'betterboard.circuit-design/0.1',
+  name: 'Tutorial — UNO R3 + BME280 I²C',
+  components: [
+    { id: 'uno-1', kind: 'uno', x: 330, y: 215 },
+    { id: 'breadboard-1', kind: 'breadboard', x: 60, y: 475 },
+    { id: 'bme280-1', kind: 'bme280', x: 760, y: 255 },
+  ],
+  wires: [
+    { id: 'w1', from: { componentId: 'uno-1', pinId: '5v' }, to: { componentId: 'bme280-1', pinId: 'vcc' } },
+    { id: 'w2', from: { componentId: 'uno-1', pinId: 'gnd1' }, to: { componentId: 'bme280-1', pinId: 'gnd' } },
+    { id: 'w3', from: { componentId: 'uno-1', pinId: 'a4' }, to: { componentId: 'bme280-1', pinId: 'sda' } },
+    { id: 'w4', from: { componentId: 'uno-1', pinId: 'a5' }, to: { componentId: 'bme280-1', pinId: 'scl' } },
+  ],
+});
+
+const analogBreadboardTutorial = (): CircuitDesign => ({
+  schema: 'betterboard.circuit-design/0.1',
+  name: 'Tutorial — Analog input + breadboard + LED',
+  components: [
+    { id: 'uno-1', kind: 'uno', x: 360, y: 180 },
+    { id: 'breadboard-1', kind: 'breadboard', x: 330, y: 470 },
+    { id: 'pot-1', kind: 'potentiometer', x: 55, y: 245 },
+    { id: 'res-1', kind: 'resistor', x: 770, y: 190 },
+    { id: 'led-1', kind: 'led', x: 970, y: 180 },
+  ],
+  wires: [
+    { id: 'w1', from: { componentId: 'uno-1', pinId: '5v' }, to: { componentId: 'pot-1', pinId: 'vcc' } },
+    { id: 'w2', from: { componentId: 'uno-1', pinId: 'gnd1' }, to: { componentId: 'pot-1', pinId: 'gnd' } },
+    { id: 'w3', from: { componentId: 'pot-1', pinId: 'sig' }, to: { componentId: 'uno-1', pinId: 'a0' } },
+    { id: 'w4', from: { componentId: 'uno-1', pinId: 'd9' }, to: { componentId: 'res-1', pinId: 'a' } },
+    { id: 'w5', from: { componentId: 'res-1', pinId: 'b' }, to: { componentId: 'led-1', pinId: 'anode' } },
+    { id: 'w6', from: { componentId: 'led-1', pinId: 'cathode' }, to: { componentId: 'uno-1', pinId: 'gnd2' } },
   ],
 });
 
@@ -384,6 +420,8 @@ export default function CircuitLab({ onUseRecipe }: Props) {
 
   function removeWire(id: string) { setDesign(current => ({ ...current, wires: current.wires.filter(wire => wire.id !== id) })); setSelectedIssueId(''); }
   function loadBench01() { setDesign(bench01Design()); setSelectedId('uno-1'); setSelectedPin(null); setSelectedIssueId(''); setPendingPin(null); setDrag(null); setNotice('Loaded the Bench 01 reference wiring. This is still design/rule-check mode only.'); }
+  function loadI2cTutorial() { setDesign(i2cSensorTutorial()); setSelectedId('uno-1'); setSelectedPin(null); setSelectedIssueId(''); setPendingPin(null); setDrag(null); setNotice('Loaded UNO R3 + BME280 I²C teaching layout. Breadboard is shown as a physical placement aid; internal breadboard row continuity is not electrically simulated.'); }
+  function loadAnalogTutorial() { setDesign(analogBreadboardTutorial()); setSelectedId('uno-1'); setSelectedPin(null); setSelectedIssueId(''); setPendingPin(null); setDrag(null); setNotice('Loaded analog input + PWM LED teaching layout with a breadboard placement reference.'); }
   function clearDesign() { setDesign(blankDesign()); setSelectedId('uno-1'); setSelectedPin(null); setSelectedIssueId(''); setPendingPin(null); setDrag(null); setNotice('Started a new design with one UNO-compatible board.'); }
 
   function saveLocal() {
@@ -447,7 +485,9 @@ export default function CircuitLab({ onUseRecipe }: Props) {
     <div className="circuit-toolbar panel">
       <div><div className="eyebrow">Circuit Lab · UNO R3 teaching bench</div><h2>UNO R3 Wiring Studio + Breadboard Tutor</h2><p className="muted">Lay out an UNO R3-style board, breadboard and common modules, connect real pin names, and trace bounded rule-check findings before building the physical circuit.</p></div>
       <div className="circuit-actions">
-        <button className="ghost" onClick={loadBench01}><RotateCcw size={15}/> Bench 01 template</button>
+        <button className="ghost" onClick={loadBench01}><RotateCcw size={15}/> Bench 01</button>
+        <button className="ghost" onClick={loadAnalogTutorial}><Lightbulb size={15}/> Analog tutorial</button>
+        <button className="ghost" onClick={loadI2cTutorial}><CircuitBoard size={15}/> I²C sensor tutorial</button>
         <button className="ghost" onClick={saveLocal}><Save size={15}/> Save</button>
         <button className="ghost" onClick={loadLocal}><Clipboard size={15}/> Load</button>
         <button className="ghost" onClick={copyJson}><Clipboard size={15}/> Copy JSON</button>
@@ -488,7 +528,12 @@ export default function CircuitLab({ onUseRecipe }: Props) {
             const active = selectedId === component.id || targets.componentIds.includes(component.id) || [...net.pinKeys].some(key => key.startsWith(`${component.id}.`));
             const dim = showOnlyProblems && !problem;
             return <div key={component.id} className={`circuit-component ${component.kind} ${active ? 'selected diagnostic-active' : ''} ${problem ? 'diagnostic-problem' : ''} ${dim ? 'diagnostic-dim' : ''}`} style={{ left: component.x, top: component.y, width: spec.width, height: spec.height }} onPointerDown={event => startDrag(event, component)} onPointerMove={moveDrag} onPointerUp={() => setDrag(null)} onClick={() => { setSelectedId(component.id); setSelectedPin(null); setSelectedIssueId(''); }}>
-              <div className="component-face"><CircuitBoard size={21}/><b>{spec.title}</b><span>{spec.subtitle}</span></div>
+              <div className="component-face">
+                {component.kind === 'uno' ? <div className="uno-board-art" aria-hidden="true"><span className="uno-usb">USB-B</span><span className="uno-mcu">ATmega328P</span><span className="uno-jack">DC</span><span className="uno-logo">UNO R3</span></div>
+                  : component.kind === 'breadboard' ? <div className="breadboard-art" aria-hidden="true"><span className="rail red"/><span className="rail blue"/><span className="breadboard-gap"/><span className="holes">••••••••••••••••••••</span></div>
+                  : <CircuitBoard size={21}/>}
+                <b>{spec.title}</b><span>{spec.subtitle}</span>
+              </div>
               {spec.pins.map(pin => {
                 const ref = { componentId: component.id, pinId: pin.id }; const key = `${component.id}.${pin.id}`;
                 const pinActive = net.pinKeys.has(key) || targets.pinKeys.includes(key); const pinProblem = targets.pinKeys.includes(key) || problemTargets.pinKeys.has(key);
