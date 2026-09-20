@@ -44,6 +44,16 @@ export function issueTargets(issue: DiagnosticIssue, components: DiagnosticCompo
     pinKeys.add(pinKey(wire.to));
   }
 
+  if (issue.id.startsWith('net-short::') || issue.id.startsWith('net-rail-conflict::')) {
+    const parts = issue.id.split('::');
+    if (parts.length >= 3) {
+      const componentId = parts[1];
+      const pinId = parts[2];
+      componentIds.add(componentId);
+      pinKeys.add(`${componentId}.${pinId}`);
+    }
+  }
+
   for (const component of components) {
     if (issue.id === component.id || issue.id.startsWith(`${component.id}-`)) {
       componentIds.add(component.id);
