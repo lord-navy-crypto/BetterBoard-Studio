@@ -425,6 +425,46 @@ function runRuleChecker(components: PlacedComponent[], wires: Wire[]): Issue[] {
     if (powerAndIo) issues.push({ id: `power-io-${wire.id}`, severity: 'error', title: 'Power rail connected directly to an I/O pin', detail: `${refLabel(components, wire.from)} ↔ ${refLabel(components, wire.to)} is not a valid direct signal connection in this rule set.` });
   }
 
+  const visitedNetPins = new Set<string>();
+  for (const component of components) {
+    for (const pin of SPECS[component.kind].pins) {
+      const start: PinRef = { componentId: component.id, pinId: pin.id };
+      const startKey = `${start.componentId}.${start.pinId}`;
+      if (visitedNetPins.has(startKey)) continue;
+      const network = connectedNet(start, wires);
+      for (const key of network.pinKeys) visitedNetPins.add(key);
+      if (network.pinKeys.size < 2) continue;
+
+      const members = [...network.pinKeys].map(key => {
+        const split = key.lastIndexOf('.');
+        return findPin(components, { componentId: key.slice(0, split), pinId: key.slice(split + 1) });
+      }).filter(Boolean) as NonNullable<ReturnType<typeof findPin>>[];
+
+      const hasPower = members.some(member => member.pin.role === 'power');
+      const hasGround = members.some(member => member.pin.role === 'ground');
+      const voltages = [...new Set(members.filter(member => member.pin.role === 'power' && member.pin.voltage !== undefined).map(member => member.pin.voltage!))];
+      const signature = [...network.pinKeys].sort().join('|');
+      const netId = signature.replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 90);
+
+      if (hasPower && hasGround && !issues.some(issue => issue.id.startsWith('short-'))) {
+        issues.push({
+          id: `net-short-${netId}`,
+          severity: 'error',
+          title: 'Power and ground share the same electrical net',
+          detail: 'A bus, junction, or wiring chain electrically joins a power source to ground. Inspect the highlighted common net before building.',
+        });
+      }
+      if (voltages.length > 1 && !issues.some(issue => issue.id.startsWith('rails-'))) {
+        issues.push({
+          id: `net-rail-conflict-${netId}`,
+          severity: 'error',
+          title: 'Different voltage rails share one electrical net',
+          detail: `This common net joins nominal rails ${voltages.sort((a, b) => a - b).join(' V / ')} V. Separate the rails before hardware use.`,
+        });
+      }
+    }
+  }
+
   for (const component of components.filter(item => item.kind === 'potentiometer')) {
     const vcc: PinRef = { componentId: component.id, pinId: 'vcc' };
     const sig: PinRef = { componentId: component.id, pinId: 'sig' };
@@ -452,6 +492,22 @@ function runRuleChecker(components: PlacedComponent[], wires: Wire[]): Issue[] {
       const reachesOutput = peerPins({ componentId: resistor.id, pinId: otherPin }).some(peer => ['digital-io', 'pwm-io'].includes(peer.pin.role));
       if (!reachesOutput) issues.push({ id: `${component.id}-resistor-open`, severity: 'warning', title: 'LED resistor path does not reach an output', detail: 'The resistor is present, but the opposite side is not connected to a digital/PWM output.' });
     }
+  }
+
+  for (const component of components.filter(item => ['buzzer', 'relayModule'].includes(item.kind))) {
+    const vcc: PinRef = { componentId: component.id, pinId: 'vcc' };
+    const gnd: PinRef = { componentId: component.id, pinId: 'gnd' };
+    const sig: PinRef = { componentId: component.id, pinId: 'sig' };
+    if (!connection(vcc).length) issues.push({ id: `${component.id}-vcc`, severity: 'warning', title: `${SPECS[component.kind].title} VCC is unconnected`, detail: 'Connect module power to a compatible supply rail.' });
+    if (!connection(gnd).length) issues.push({ id: `${component.id}-gnd`, severity: 'warning', title: `${SPECS[component.kind].title} GND is unconnected`, detail: 'Connect module ground to the controller/common ground net.' });
+    if (!connection(sig).length) issues.push({ id: `${component.id}-sig`, severity: 'warning', title: `${SPECS[component.kind].title} control is unconnected`, detail: 'Connect the control input to an appropriate digital or PWM output.' });
+    else if (!peerPins(sig).some(peer => ['digital-io', 'pwm-io'].includes(peer.pin.role))) issues.push({ id: `${component.id}-sig-role`, severity: 'warning', title: `${SPECS[component.kind].title} control is not on a digital/PWM output`, detail: 'This module control path should normally originate from a digital/PWM-capable controller pin.' });
+  }
+
+  for (const component of components.filter(item => ['photoresistor', 'thermistor', 'dcMotor', 'diode', 'capacitor'].includes(item.kind))) {
+    const spec = SPECS[component.kind];
+    const connected = spec.pins.filter(pin => connection({ componentId: component.id, pinId: pin.id }).length > 0).length;
+    if (connected === 1) issues.push({ id: `${component.id}-open`, severity: 'warning', title: `${spec.title} has an open terminal`, detail: 'Both terminals need a connection for this component to participate in the electrical net.' });
   }
 
   for (const component of components.filter(item => item.kind === 'resistor')) {
