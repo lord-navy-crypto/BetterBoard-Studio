@@ -229,7 +229,7 @@ def main() -> int:
     assert "<AnalysisVisualizationHub navigationRequest={navigationRequest}" in main_text
     assert "<App navigationRequest={navigationRequest}" in main_text
     assert "CapabilityLauncher" in main_text
-    for token in ['Numerical Lab', 'Magnet Lab', 'Campaigns', 'Evidence Handoff', 'Recommended demo']:
+    for token in ['Numerical Lab', 'Magnet Lab', 'Experiment Library', 'Evidence Handoff', 'Recommended demo']:
         assert token in labs_hub, token
     assert 'initialMode="bench02"' in labs_hub
     assert "useState<Mode>(initialMode)" in numerical
