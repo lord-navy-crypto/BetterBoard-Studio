@@ -424,7 +424,7 @@ export default function App({ navigationRequest = null, onNavigate }: { navigati
             {programAssetSource && <pre style={{ marginTop: 12, maxHeight: 420, overflow: 'auto', whiteSpace: 'pre', textAlign: 'left' }}>{programAssetSource}</pre>}
           </div>}
         </section>
-      </section></div>
+      </div>
 
       <div className="studio-persistent-pane" hidden={tab !== 'data'}><MonitorDataStudio
         recipe={recipe}
