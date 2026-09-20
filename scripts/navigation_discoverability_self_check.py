@@ -29,9 +29,9 @@ for target in targets:
     assert f"'{target}'" in launcher, f"All Tools lost direct route {target}"
 
 for title in [
-    "Hardware & Program", "Circuit Lab", "Recipe Library", "Monitor & Data", "Developer", "Task Center",
+    "Hardware & Program", "Circuit Lab", "Library", "Monitor & Data", "Developer", "Task Center",
     "Numerical Lab", "Numerical Expert Tools", "Magnet Lab", "Magnetic Expert Tools",
-    "Experiment Library", "Experiment Library · Programs", "Evidence Handoff",
+    "Experiment Library", "Library · Experiment context", "Evidence Handoff",
     "Evidence", "Signal & Statistics", "Models", "Magnetic Result Viewer", "Experiment Design", "Numerical Analysis",
     "System Observatory", "Toolchain & Hardware State", "Recipe & Device Inventory",
     "Latest Data Observation", "Live Acquisition State", "Engineering Lab Bridge Readiness",
