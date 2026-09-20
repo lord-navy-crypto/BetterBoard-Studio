@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, Braces, Code2, Cpu, Search, ShieldCheck } from 'lucide-react';
+import { BookOpen, Braces, Code2, Cpu, Play, Search, ShieldCheck, Upload } from 'lucide-react';
 import { ALL_PROGRAM_ASSETS, PROGRAM_FAMILY_ORDER, loadProgramAsset, type ProgramAsset } from './ProgramLibraryCatalog';
 import RecipeParameterPanel, { type RecipeParameterSpec } from './RecipeParameterPanel';
 
@@ -34,6 +34,8 @@ type Props = {
   onSelectRecipe?: (id: string) => void;
   onUseRecipe?: (id: string) => void;
   onOpenDeveloperTemplate?: (templateId: string) => void;
+  onVerifyFirmware?: (asset: ProgramAsset) => void;
+  onUploadFirmware?: (asset: ProgramAsset) => void;
   title?: string;
   subtitle?: string;
   showRecipeParameters?: boolean;
@@ -57,6 +59,8 @@ export default function UnifiedLibrary({
   onSelectRecipe,
   onUseRecipe,
   onOpenDeveloperTemplate,
+  onVerifyFirmware,
+  onUploadFirmware,
   title = 'Library',
   subtitle = 'Recipes, firmware, and host analysis tools share one catalog, one search, and one inspector.',
   showRecipeParameters = true,
@@ -184,6 +188,8 @@ export default function UnifiedLibrary({
           <p className="muted"><code>{selected.asset.path}</code></p>
           <div className="action-row">
             <button className="ghost" onClick={() => void loadProgramAsset(selected.asset).then(setAssetSource).catch(error => setAssetSource(`Load failed: ${error}`))}><Code2 size={15}/> View source</button>
+            {selected.asset.kind === 'firmware' && onVerifyFirmware && <button className="ghost" onClick={() => onVerifyFirmware(selected.asset)}><Play size={15}/> Verify</button>}
+            {selected.asset.kind === 'firmware' && onUploadFirmware && <button className="ghost" onClick={() => onUploadFirmware(selected.asset)}><Upload size={15}/> Upload</button>}
             {selected.asset.kind === 'firmware' && onOpenDeveloperTemplate && <button className="primary" onClick={() => onOpenDeveloperTemplate(selected.asset.key)}><Braces size={15}/> Open in Developer</button>}
           </div>
           {assetSource && <pre className="unified-library-source">{assetSource}</pre>}
