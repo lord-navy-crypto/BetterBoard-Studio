@@ -77,12 +77,6 @@ def main() -> int:
         "ALL_PROGRAM_ASSETS",
         "PROGRAM_FAMILY_ORDER",
         "loadProgramAsset",
-        "Dedicated Engineering Lab",
-        "Numerical Reliability",
-        "ESP32 Research",
-        "Sensor Suite",
-        "BetterBoard Firmware",
-        "Host Analysis & Bridges",
         "developer_sketch_save",
         "compile_sketch",
         "upload_sketch",
@@ -99,6 +93,12 @@ def main() -> int:
         "../scripts/*.py",
         "ALL_PROGRAM_ASSETS",
         "loadProgramAsset",
+        "Dedicated Engineering Lab",
+        "Numerical Reliability",
+        "ESP32 Research",
+        "Sensor Suite",
+        "BetterBoard Firmware",
+        "Host Analysis & Bridges",
     )
     experiment_library = read("src/EngineeringExperimentLibrary.tsx")
     program_library = read("src/ProgramLibraryCatalog.ts")
