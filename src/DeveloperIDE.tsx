@@ -29,6 +29,7 @@ type Props = {
   selectedPort: string;
   integratedDevices: number;
   recipes: RecipeSpec[];
+  templateRequest?: { id: string; token: number } | null;
   onLibrarySaved?: (recipe: RecipeSpec) => void;
   onStatus: (message: string) => void;
   onTaskStart: (category: TaskCategory, title: string, detail?: string) => number;
@@ -75,7 +76,7 @@ function compileDiagnostics(text: string, activeFileName: string): Diagnostic[] 
 }
 
 export default function DeveloperIDE({
-  recipe, canonicalSource, cli, fqbn, selectedPort, integratedDevices, recipes, onLibrarySaved,
+  recipe, canonicalSource, cli, fqbn, selectedPort, integratedDevices, recipes, templateRequest, onLibrarySaved,
   onStatus, onTaskStart, onTaskLog, onTaskFinish,
 }: Props) {
   const initialDraftRef = useRef<DeveloperDraft | null | undefined>(undefined);
@@ -97,6 +98,7 @@ export default function DeveloperIDE({
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const [recoveredAt, setRecoveredAt] = useState(initialDraft?.updatedAt ?? 0);
   const [revealPosition, setRevealPosition] = useState<{ line: number; column?: number } | null>(null);
+  const [templateQuery, setTemplateQuery] = useState('');
 
   useEffect(() => {
     const canonicalKey = `${recipe?.id ?? ''}\n${canonicalSource}`;
@@ -130,7 +132,20 @@ export default function DeveloperIDE({
     return () => window.clearTimeout(timer);
   }, [dirty, source, sketchName, projectDir, projectFileName, savedDir, templateId, recipe?.id]);
 
+  useEffect(() => {
+    if (!templateRequest?.id) return;
+    void loadTemplate(templateRequest.id);
+  }, [templateRequest?.token]);
+
   const sourceFacts = useMemo(() => ({ lines: source.split(/\r?\n/).length, chars: source.length }), [source]);
+  const visibleTemplates = useMemo(() => {
+    const needle = templateQuery.trim().toLowerCase();
+    const rows = [
+      ...recipes.map(item => ({ id: `recipe:${item.id}`, label: item.title, family: item.user_defined ? 'My Library' : 'Recipe Library', detail: item.sketch_name })),
+      ...ALL_PROGRAM_ASSETS.filter(item => item.kind === 'firmware').map(item => ({ id: item.key, label: item.label, family: item.family, detail: item.path })),
+    ];
+    return rows.filter(item => !needle || [item.label, item.family, item.detail].join(' ').toLowerCase().includes(needle));
+  }, [recipes, templateQuery]);
   const diagnosticFileName = projectFileName || `${safeDefaultName(sketchName)}.ino`;
 
   function markAuthoritativeSave() {
@@ -228,12 +243,13 @@ export default function DeveloperIDE({
     setOutput(`Reset editor to canonical ${recipe?.sketch_name || 'blank'} source.`);
   }
 
-  async function loadTemplate() {
-    if (!templateId) { resetToRecipe(); return; }
-    const recipeTemplate = templateId.startsWith('recipe:')
-      ? recipes.find(item => item.id === templateId.slice(7))
-      : recipes.find(item => item.id === templateId);
-    const assetTemplate = templateId.startsWith('asset:') ? ALL_PROGRAM_ASSETS.find(item => item.key === templateId) : undefined;
+  async function loadTemplate(nextTemplateId = templateId) {
+    setTemplateId(nextTemplateId);
+    if (!nextTemplateId) { resetToRecipe(); return; }
+    const recipeTemplate = nextTemplateId.startsWith('recipe:')
+      ? recipes.find(item => item.id === nextTemplateId.slice(7))
+      : recipes.find(item => item.id === nextTemplateId);
+    const assetTemplate = nextTemplateId.startsWith('asset:') ? ALL_PROGRAM_ASSETS.find(item => item.key === nextTemplateId) : undefined;
     const label = recipeTemplate?.title ?? assetTemplate?.label ?? 'selected template';
     if (dirty && !window.confirm(`Replace the current unsaved Developer edits with the ${label} template?`)) return;
     try {
@@ -243,11 +259,12 @@ export default function DeveloperIDE({
           ? await loadProgramAsset(assetTemplate)
           : canonicalSource || BLANK_SKETCH;
       recoveredDraftRef.current = false; clearDeveloperDraft(); setRecoveredAt(0);
-      appliedCanonicalRef.current = `${templateId}\n${text}`;
+      appliedCanonicalRef.current = `${nextTemplateId}\n${text}`;
       setSource(text);
       setSketchName(safeDefaultName(recipeTemplate?.sketch_name ?? assetTemplate?.sketchName ?? 'BetterBoardSketch'));
       setSavedDir(''); setProjectDir(''); setProjectFileName(''); setDirty(false); setDiagnostics([]); setRevealPosition(null);
       setOutput(`Loaded template: ${label}${assetTemplate ? ` · ${assetTemplate.path}` : ''}`); setView('editor');
+      onStatus(`Developer loaded template · ${label}`);
     } catch (error) { setOutput(`Template load failed: ${error}`); }
   }
 
@@ -303,6 +320,18 @@ export default function DeveloperIDE({
         <button className="primary" disabled={busy || !source.trim() || !selectedPort} onClick={() => void runUpload()}><Upload size={15}/> Run / Upload</button>
       </div>}
     </div>
+
+    {view === 'editor' && <details className="panel developer-template-library" open>
+      <summary><span><Boxes size={16}/><b>Template Library</b></span><small>{visibleTemplates.length} recipes + firmware templates</small></summary>
+      <div className="developer-template-browser">
+        <label>Search templates<input value={templateQuery} onChange={event => setTemplateQuery(event.target.value)} placeholder="Search recipe, firmware, family, path…"/></label>
+        <div className="developer-template-list">
+          {visibleTemplates.slice(0, 80).map(item => <button key={item.id} type="button" className={templateId === item.id ? 'selected' : ''} onClick={() => void loadTemplate(item.id)}>
+            <span><b>{item.label}</b><small>{item.family} · {item.detail}</small></span><Braces size={14}/>
+          </button>)}
+        </div>
+      </div>
+    </details>}
 
     {view === 'editor' && <div className="developer-ide-grid developer-engineering-split">
       <div className="panel developer-editor-panel">
