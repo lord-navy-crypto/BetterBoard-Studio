@@ -18,6 +18,7 @@ export type UnifiedRecipe = {
   physical_lab_targets: string[];
   boundary: string;
   parameters?: RecipeParameterSpec[];
+  parameter_values?: Record<string, string>;
   user_defined?: boolean;
 };
 
