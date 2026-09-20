@@ -197,13 +197,13 @@ export const CAPABILITIES: Capability[] = [
     owner: 'DeveloperIDE', keywords: ['diagnostic', 'error', 'warning', 'compile', 'line'],
   },
   {
-    id: 'experiments-campaigns', label: 'Experiment Campaigns', group: 'Experiment',
+    id: 'experiments-campaigns', label: 'Experiment Library', group: 'Experiment',
     description: 'Browse Engineering Lab research campaigns and their scientific purposes.',
     destination: { workspace: 'experiments', kind: 'experiments-section', anchor: 'experiments-campaigns' },
     owner: 'ExperimentsHub', keywords: ['campaign', 'engineering lab', 'experiment'],
   },
   {
-    id: 'experiment-code-library', label: 'Experiment Code Library', group: 'Experiment',
+    id: 'experiment-code-library', label: 'Experiment Library · Programs', group: 'Experiment',
     description: 'Browse real repository-discovered firmware and host tools, then verify or upload supported firmware.',
     destination: { workspace: 'experiments', kind: 'experiments-section', anchor: 'experiment-code-library' },
     owner: 'EngineeringExperimentLibrary', keywords: ['firmware', 'source', 'python', 'verify', 'upload', 'code library'],
